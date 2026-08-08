@@ -30,6 +30,11 @@ const TYPE_OPTIONS = ["بوست", "ريلز", "ستوري", "فيديو", "كا�
 
 const PLAN_LIMITS = { starter: 2, pro: 5, unlimited: Infinity };
 const PLAN_LABELS = { starter: "Starter", pro: "Pro", unlimited: "Unlimited" };
+const PLAN_COLORS = { starter: "#5FA8D3", pro: "#E7A33E", unlimited: "#4FB286" };
+function planColor(p) {
+  const n = (p || "").toString().trim().toLowerCase();
+  return PLAN_COLORS[n] || "#657078";
+}
 function planLabel(p) {
   const n = (p || "").toString().trim().toLowerCase();
   return PLAN_LABELS[n] || p;
@@ -809,8 +814,10 @@ function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignO
         <span style={S.sidebarLabel}>
           البراندات
           {!isTrialing && brandLimit !== Infinity && ` (${brands.length}/${brandLimit})`}
-          {plan && !isTrialing && ` · ${planLabel(plan) || plan}`}
-          {!plan && !isTrialing && " · مفيش باقة مسجلة"}
+          {plan && !isTrialing && (
+            <> · <span style={{ color: planColor(plan), fontWeight: 800 }}>{planLabel(plan) || plan}</span></>
+          )}
+          {!plan && !isTrialing && <span style={{ color: "#D9707A" }}> · مفيش باقة مسجلة</span>}
         </span>
         <button onClick={onAddBrand} style={S.iconBtnSm} title="ضيف براند"><Plus size={15} /></button>
       </div>
@@ -1195,7 +1202,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
           <div>
             <div style={{ fontSize: 11.5, color: "#8FA0A8", fontWeight: 700, marginBottom: 4 }}>الحالة</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: statusColor }}>
-              {statusLabel}{plan ? ` — ${planLabel(plan) || plan}` : ""}
+              {statusLabel}{plan ? <> — <span style={{ color: planColor(plan) }}>{planLabel(plan) || plan}</span></> : ""}
             </div>
             {dateLine && <div style={{ fontSize: 12, color: "#657078", marginTop: 4 }}>{dateLine}</div>}
           </div>
