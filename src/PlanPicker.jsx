@@ -106,7 +106,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
       </div>
       <div style={styles.paySection}>
         <div style={styles.payLabel}>للدفع من بره مصر:</div>
-        <div style={styles.payValue}>غيّر ده للينك دفع دولي بتاعك (مثلاً Payoneer أو رابط Stripe)</div>
+        <div style={styles.payValue}>مازال تحت الانشاء</div>
       </div>
 
       <a
