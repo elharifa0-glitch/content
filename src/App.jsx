@@ -5,8 +5,11 @@ import ContentStudio from "./ContentStudio";
 import ResetPassword from "./ResetPassword";
 import Paywall from "./Paywall";
 import AccountConfirmed from "./AccountConfirmed";
+import SharedBrandView from "./SharedBrandView";
 
 export default function App() {
+  const shareMatch = window.location.pathname.match(/^\/share\/([a-zA-Z0-9]+)/);
+
   const [session, setSession] = useState(undefined);
   const [isRecovery, setIsRecovery] = useState(false);
   const [justConfirmed, setJustConfirmed] = useState(false);
@@ -100,6 +103,12 @@ export default function App() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     setIsRecovery(false);
+  }
+
+  // لينك مشاركة براند شغال لأي حد من غير تسجيل دخول خالص، ومن غير ما ينتظر
+  // أي فحص جلسة أو اشتراك — بيتحقق من مساره الأول قبل أي حاجة تانية
+  if (shareMatch) {
+    return <SharedBrandView token={shareMatch[1]} />;
   }
 
   if (isRecovery) {

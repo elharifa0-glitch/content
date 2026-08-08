@@ -160,3 +160,100 @@ $$;
 
 grant execute on function public.redeem_subscription_code(text) to authenticated;
 
+-- ===========================================================
+-- لينكات مشاركة البراند: لينك للقراءة بس، تبعته لعميلك من غير
+-- ما يحتاج يسجل دخول، ومن غير ما يشوف أي بيانات مالية أو براندات تانية
+-- ===========================================================
+
+create table if not exists brand_shares (
+  token text primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  brand_id text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table brand_shares enable row level security;
+
+drop policy if exists "select own shares" on brand_shares;
+create policy "select own shares" on brand_shares
+  for select using (auth.uid() = user_id);
+
+drop policy if exists "delete own shares" on brand_shares;
+create policy "delete own shares" on brand_shares
+  for delete using (auth.uid() = user_id);
+
+-- إنشاء لينك مشاركة جديد لبراند (بيتنفّذ إنت وإنت مسجل دخول بس)
+create or replace function public.create_brand_share(p_brand_id text)
+returns text
+language plpgsql
+security definer
+as $$
+declare
+  v_token text;
+begin
+  if auth.uid() is null then
+    raise exception 'محتاج تكون مسجل دخول';
+  end if;
+  v_token := encode(gen_random_bytes(12), 'hex');
+  insert into brand_shares (token, user_id, brand_id) values (v_token, auth.uid(), p_brand_id);
+  return v_token;
+end;
+$$;
+
+grant execute on function public.create_brand_share(text) to authenticated;
+
+-- إلغاء لينك مشاركة
+create or replace function public.revoke_brand_share(p_token text)
+returns void
+language plpgsql
+security definer
+as $$
+begin
+  delete from brand_shares where token = p_token and user_id = auth.uid();
+end;
+$$;
+
+grant execute on function public.revoke_brand_share(text) to authenticated;
+
+-- قراءة بيانات البراند المشترك — الدالة دي بس اللي أي حد (من غير تسجيل دخول)
+-- يقدر يناديها، وبترجع بس اسم البراند ولونه وأفكاره (بدون أي بيانات مالية)
+create or replace function public.get_shared_brand(p_token text)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_share record;
+  v_data jsonb;
+  v_brand jsonb;
+  v_items jsonb;
+begin
+  select * into v_share from brand_shares where token = p_token;
+  if not found then
+    return jsonb_build_object('ok', false, 'message', 'اللينك ده مش صحيح أو اتلغى.');
+  end if;
+
+  select data into v_data from user_data where user_id = v_share.user_id;
+  if v_data is null then
+    return jsonb_build_object('ok', false, 'message', 'مفيش بيانات.');
+  end if;
+
+  select b into v_brand from jsonb_array_elements(v_data->'brands') b where b->>'id' = v_share.brand_id limit 1;
+  if v_brand is null then
+    return jsonb_build_object('ok', false, 'message', 'البراند ده اتمسح.');
+  end if;
+
+  select coalesce(jsonb_agg(i), '[]'::jsonb) into v_items
+  from jsonb_array_elements(v_data->'items') i
+  where i->>'brandId' = v_share.brand_id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'brand', jsonb_build_object('name', v_brand->>'name', 'emoji', v_brand->>'emoji', 'color', v_brand->>'color'),
+    'items', v_items
+  );
+end;
+$$;
+
+grant execute on function public.get_shared_brand(text) to anon, authenticated;
+

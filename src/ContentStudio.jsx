@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import PlanPicker from "./PlanPicker";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   Plus, X, Calendar as CalendarIcon, LayoutGrid, Home, Trash2, Pencil,
   ChevronRight, ChevronLeft, Check, Clock, Sparkles, CheckCircle2, Circle,
   Loader2, Save, Link2, ExternalLink, BarChart3,
   AlertTriangle, Eye, Wallet, Hash, Copy, Repeat, BookOpen, Award, Banknote,
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
-  ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus,
+  ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
 } from "lucide-react";
 
 const PALETTE = [
@@ -26,8 +28,12 @@ const STATUS_DEFS = [
 
 const TYPE_OPTIONS = ["بوست", "ريلز", "ستوري", "فيديو", "كاروسيل", "مقال", "تانى"];
 
-const PLAN_LIMITS = { starter: 2, pro: 10, unlimited: Infinity };
+const PLAN_LIMITS = { starter: 2, pro: 5, unlimited: Infinity };
 const PLAN_LABELS = { starter: "Starter", pro: "Pro", unlimited: "Unlimited" };
+function planLabel(p) {
+  const n = (p || "").toString().trim().toLowerCase();
+  return PLAN_LABELS[n] || p;
+}
 const UPGRADE_WHATSAPP = "201148769364";
 
 const MONTHS_AR = [
@@ -102,7 +108,8 @@ export default function ContentStudio({
     return { y: d.getFullYear(), m: d.getMonth() };
   });
 
-  const brandLimit = isTrialing ? Infinity : (PLAN_LIMITS[plan] ?? Infinity);
+  const normalizedPlan = (plan || "").toString().trim().toLowerCase();
+  const brandLimit = isTrialing ? Infinity : (PLAN_LIMITS[normalizedPlan] ?? Infinity);
   const brandLimitReached = brands.length >= brandLimit;
 
   function handleAddBrandClick() {
@@ -613,6 +620,7 @@ export default function ContentStudio({
         brandLimit={brandLimit}
         notifPermission={notifPermission}
         onRequestNotifPermission={requestNotifPermission}
+        onDeleteBrand={(b) => setConfirmDelete({ type: "brand", id: b.id, label: b.name })}
       />
 
       <main style={S.main} className="scrollbar studio-main">
@@ -741,7 +749,7 @@ export default function ContentStudio({
         <ModalShell onClose={() => setLimitModalOpen(false)}>
           <div style={S.modalTitle}>وصلت لأقصى عدد براندات في باقتك</div>
           <p style={S.confirmText}>
-            باقتك الحالية ({PLAN_LABELS[plan] || "الحالية"}) بتسمح بـ{" "}
+            باقتك الحالية ({planLabel(plan) || "الحالية"}) بتسمح بـ{" "}
             {brandLimit === Infinity ? "براندات غير محدودة" : `${brandLimit} براندات`} بس، وإنت وصلت للحد ده.
             رقّي باقتك عشان تضيف براندات أكتر.
           </p>
@@ -764,7 +772,7 @@ export default function ContentStudio({
 
 /* ---------- Sidebar ---------- */
 
-function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignOut, plan, isTrialing, brandLimit, notifPermission, onRequestNotifPermission }) {
+function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignOut, plan, isTrialing, brandLimit, notifPermission, onRequestNotifPermission, onDeleteBrand }) {
   return (
     <aside style={S.sidebar} className="scrollbar studio-sidebar">
       <div style={S.brandMark}>
@@ -789,13 +797,19 @@ function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignO
         <NavItem icon={<Wallet size={17} />} label="الاشتراك والباقة" active={view === "account"} onClick={() => setView("account")} />
       </nav>
 
+      {view !== "account" && (
+        <button onClick={() => setView("account")} style={S.upgradeBtn}>
+          <TrendingUp size={13} /> {isTrialing || !plan ? "اشترك دلوقتي" : "رقّي باقتك"}
+        </button>
+      )}
+
       <div style={S.sidebarDivider} />
 
       <div style={S.sidebarLabelRow}>
         <span style={S.sidebarLabel}>
           البراندات
           {!isTrialing && brandLimit !== Infinity && ` (${brands.length}/${brandLimit})`}
-          {plan && !isTrialing && ` · ${PLAN_LABELS[plan] || plan}`}
+          {plan && !isTrialing && ` · ${planLabel(plan) || plan}`}
           {!plan && !isTrialing && " · مفيش باقة مسجلة"}
         </span>
         <button onClick={onAddBrand} style={S.iconBtnSm} title="ضيف براند"><Plus size={15} /></button>
@@ -804,15 +818,19 @@ function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignO
       <div className="studio-brand-list">
         {brands.length === 0 && <div style={S.emptyBrands}>لسه مفيش براندات. دوس + عشان تضيف أول واحد.</div>}
         {brands.map((b) => (
-          <button
-            key={b.id}
-            onClick={() => setView(`brand:${b.id}`)}
-            style={{ ...S.brandTab, ...(view === `brand:${b.id}` ? S.brandTabActive(b.color) : {}) }}
-          >
-            <span style={{ ...S.brandTabStripe, background: b.color }} />
-            <span style={S.brandTabEmoji}>{b.emoji}</span>
-            <span style={S.brandTabName}>{b.name}</span>
-          </button>
+          <div key={b.id} style={S.brandTabRow}>
+            <button
+              onClick={() => setView(`brand:${b.id}`)}
+              style={{ ...S.brandTab, ...(view === `brand:${b.id}` ? S.brandTabActive(b.color) : {}) }}
+            >
+              <span style={{ ...S.brandTabStripe, background: b.color }} />
+              <span style={S.brandTabEmoji}>{b.emoji}</span>
+              <span style={S.brandTabName}>{b.name}</span>
+            </button>
+            <button onClick={() => onDeleteBrand(b)} style={S.brandDeleteBtn} title="امسح البراند">
+              <Trash2 size={13} />
+            </button>
+          </div>
         ))}
       </div>
 
@@ -1177,7 +1195,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
           <div>
             <div style={{ fontSize: 11.5, color: "#8FA0A8", fontWeight: 700, marginBottom: 4 }}>الحالة</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: statusColor }}>
-              {statusLabel}{plan ? ` — ${PLAN_LABELS[plan] || plan}` : ""}
+              {statusLabel}{plan ? ` — ${planLabel(plan) || plan}` : ""}
             </div>
             {dateLine && <div style={{ fontSize: 12, color: "#657078", marginTop: 4 }}>{dateLine}</div>}
           </div>
@@ -1202,12 +1220,91 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
   );
 }
 
+/* ---------- Share link modal ---------- */
+
+function ShareLinkModal({ brand, onPatchBrand, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+
+  const shareUrl = brand.shareToken ? `${window.location.origin}/share/${brand.shareToken}` : "";
+
+  async function createLink() {
+    setLoading(true);
+    setError("");
+    try {
+      const { data, error: err } = await supabase.rpc("create_brand_share", { p_brand_id: brand.id });
+      if (err) throw err;
+      onPatchBrand(brand.id, { shareToken: data });
+    } catch (e) {
+      setError("حصلت مشكلة، جرب تاني.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function revokeLink() {
+    setLoading(true);
+    setError("");
+    try {
+      const { error: err } = await supabase.rpc("revoke_brand_share", { p_token: brand.shareToken });
+      if (err) throw err;
+      onPatchBrand(brand.id, { shareToken: null });
+    } catch (e) {
+      setError("حصلت مشكلة، جرب تاني.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {}
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={S.modalHead}>
+        <span style={S.modalTitle}><Share2 size={16} style={{ verticalAlign: -2 }} /> لينك مشاركة مع العميل</span>
+        <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
+      </div>
+
+      <p style={S.aiHint}>
+        اللينك ده صفحة للقراءة بس، تقدر تبعتها لعميل {brand.name} من غير ما يحتاج يسجل دخول. هتوريه المحتوى الجاي والمنشور بس — مفيش أي بيانات مالية أو براندات تانية.
+      </p>
+
+      {error && <p style={{ color: "#F0997B", fontSize: 12, marginTop: 8 }}>{error}</p>}
+
+      {brand.shareToken ? (
+        <>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ ...S.input, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shareUrl}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <button onClick={copyLink} style={S.primaryBtn(brand.color)}><Copy size={14} /> {copied ? "اتنسخ" : "انسخ اللينك"}</button>
+            <button onClick={revokeLink} disabled={loading} style={S.dangerBtn}><Trash2 size={14} /> ألغِ اللينك</button>
+          </div>
+        </>
+      ) : (
+        <button onClick={createLink} disabled={loading} style={{ ...S.primaryBtn(brand.color), width: "100%", justifyContent: "center", marginTop: 14 }}>
+          {loading ? "بيتعمل..." : <><Share2 size={14} /> أنشئ لينك مشاركة</>}
+        </button>
+      )}
+    </ModalShell>
+  );
+}
+
 /* ---------- Brand page ---------- */
 
 function BrandPage({
   brand, items, tab, setTab, onEditBrand, onDeleteBrand,
   onAddItem, onBulkAdd, onEditItem, onDeleteItem, onSetStatus, onPatchItem, onPatchBrand, onUseIdea, calMonth, setCalMonth,
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
+
   return (
     <div style={S.section}>
       <div style={S.idBadge}>
@@ -1218,10 +1315,13 @@ function BrandPage({
             <div style={S.idBadgeName} className="idBadgeName">{brand.name}</div>
             <div style={S.idBadgeHandle} className="idBadgeHandle">{brand.handle || "بدون بيانات تواصل"}</div>
           </div>
+          <button onClick={() => setShareOpen(true)} style={S.iconBtnSm} title="لينك مشاركة للعميل"><Share2 size={14} /></button>
           <button onClick={onEditBrand} style={S.iconBtnSm} title="عدّل البراند"><Pencil size={14} /></button>
           <button onClick={onDeleteBrand} style={S.iconBtnSmDanger} title="امسح البراند"><Trash2 size={14} /></button>
         </div>
       </div>
+
+      {shareOpen && <ShareLinkModal brand={brand} onPatchBrand={onPatchBrand} onClose={() => setShareOpen(false)} />}
 
       <div style={S.tabRow} className="tabRow">
         <button onClick={() => setTab("board")} style={{ ...S.tabBtn, ...(tab === "board" ? S.tabBtnActive : {}) }}>
@@ -1414,8 +1514,12 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
 
 function BrandInsights({ brand, items, onPatchBrand }) {
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportText, setReportText] = useState("");
   const [reportCopied, setReportCopied] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [sections, setSections] = useState({
+    overview: true, status: true, byType: true, performance: true, top5: true, financial: true, pageTracking: true,
+  });
+  const reportRef = useRef(null);
 
   const total = items.length;
   const done = items.filter((i) => i.status === "done").length;
@@ -1466,10 +1570,22 @@ function BrandInsights({ brand, items, onPatchBrand }) {
     [items]
   );
 
-  function generateFullReport() {
+  const REPORT_SECTIONS = [
+    { key: "overview", label: "نظرة عامة" },
+    { key: "status", label: "حالة الأفكار" },
+    { key: "byType", label: "حسب نوع المحتوى" },
+    { key: "performance", label: "الأداء (مشاهدات ولايكات)" },
+    { key: "top5", label: "أفضل 5 محتوى" },
+    { key: "financial", label: "الوضع المالي (الإجمالي والمستلم فقط)" },
+    { key: "pageTracking", label: "تتبع نمو الصفحة" },
+  ];
+
+  function toggleSection(key) {
+    setSections((s) => ({ ...s, [key]: !s[key] }));
+  }
+
+  const reportData = useMemo(() => {
     const receivedTotal = (brand.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
-    const spentTotal = (brand.expenses || []).reduce((s, p) => s + Number(p.amount || 0), 0);
-    const netProfitTotal = receivedTotal - spentTotal;
     const remainingTotal = (Number(brand.paymentTotal) || 0) - receivedTotal;
     const lastSnapshot = (brand.pageSnapshots || [])[0];
     const firstSnapshot = (brand.pageSnapshots || [])[(brand.pageSnapshots || []).length - 1];
@@ -1477,65 +1593,72 @@ function BrandInsights({ brand, items, onPatchBrand }) {
       .filter((i) => i.views !== undefined && i.views !== null && i.views !== "")
       .sort((a, b) => Number(b.views) - Number(a.views))
       .slice(0, 5);
+    return { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items };
+  }, [brand, items]);
 
+  function buildReportText() {
+    const { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items } = reportData;
     const lines = [];
     lines.push(`تقرير براند: ${brand.name}`);
     lines.push(`بتاريخ: ${fmtDate(todayISO())}`);
-    lines.push("");
-    lines.push("== نظرة عامة ==");
-    if (brand.agreementNotes) lines.push(`الاتفاق مع البراند: ${brand.agreementNotes}`);
-    lines.push(`إجمالي الأفكار: ${total} | نسبة الإنجاز: ${completionRate}% | متأخرة عن معادها: ${overdue}`);
-    lines.push("");
-    lines.push("== حالة الأفكار ==");
-    STATUS_DEFS.forEach((sd) => lines.push(`${sd.label}: ${items.filter((i) => i.status === sd.key).length}`));
-    lines.push("");
-    lines.push("== حسب نوع المحتوى ==");
-    byType.forEach(([t, c]) => {
-      const target = mixTargets[t];
-      lines.push(`${t}: ${c}${target !== undefined ? ` (مستهدف ${target}%)` : ""}`);
-    });
-    lines.push("");
-    lines.push("== الأداء ==");
-    lines.push(`إجمالي المشاهدات: ${perfTotals.views} | إجمالي اللايكات: ${perfTotals.likes} | إجمالي الكومنتات: ${perfTotals.comments}`);
-    lines.push(`مشاهدات الشهر ده: ${perfTotals.monthViews} | لايكات الشهر ده: ${perfTotals.monthLikes}`);
-    if (top5Items.length) {
-      lines.push("");
-      lines.push("أفضل 5 محتوى:");
+
+    if (sections.overview) {
+      lines.push("", "== نظرة عامة ==");
+      if (brand.agreementNotes) lines.push(`الاتفاق مع البراند: ${brand.agreementNotes}`);
+      lines.push(`إجمالي الأفكار: ${total} | نسبة الإنجاز: ${completionRate}% | متأخرة عن معادها: ${overdue}`);
+    }
+    if (sections.status) {
+      lines.push("", "== حالة الأفكار ==");
+      STATUS_DEFS.forEach((sd) => lines.push(`${sd.label}: ${items.filter((i) => i.status === sd.key).length}`));
+    }
+    if (sections.byType) {
+      lines.push("", "== حسب نوع المحتوى ==");
+      byType.forEach(([t, c]) => {
+        const target = mixTargets[t];
+        lines.push(`${t}: ${c}${target !== undefined ? ` (مستهدف ${target}%)` : ""}`);
+      });
+    }
+    if (sections.performance) {
+      lines.push("", "== الأداء ==");
+      lines.push(`إجمالي المشاهدات: ${perfTotals.views} | إجمالي اللايكات: ${perfTotals.likes} | إجمالي الكومنتات: ${perfTotals.comments}`);
+      lines.push(`مشاهدات الشهر ده: ${perfTotals.monthViews} | لايكات الشهر ده: ${perfTotals.monthLikes}`);
+    }
+    if (sections.top5 && top5Items.length) {
+      lines.push("", "أفضل 5 محتوى:");
       top5Items.forEach((i, idx) => lines.push(`${idx + 1}. ${i.title} — ${i.views} مشاهدة${i.successNote ? ` (${i.successNote})` : ""}`));
     }
-    lines.push("");
-    lines.push("== الوضع المالي ==");
-    if (brand.paymentTotal) {
-      lines.push(`الإجمالي المتفق عليه: ${fmtMoney(brand.paymentTotal)} | المستلم: ${fmtMoney(receivedTotal)} | المتبقي: ${fmtMoney(remainingTotal)}`);
-    } else {
-      lines.push("مفيش إجمالي متفق عليه مسجل.");
-    }
-    lines.push(`إجمالي المصاريف: ${fmtMoney(spentTotal)} | الصافي (الربح الحقيقي): ${fmtMoney(netProfitTotal)}`);
-    lines.push("");
-    lines.push("== تتبع الصفحة ==");
-    if (lastSnapshot) {
-      lines.push(`آخر قياس: ${lastSnapshot.followers ?? "؟"} متابع، ${lastSnapshot.posts ?? "؟"} بوست بتاريخ ${lastSnapshot.date}`);
-      if (firstSnapshot && firstSnapshot.id !== lastSnapshot.id) {
-        lines.push(`أول قياس مسجل: ${firstSnapshot.followers ?? "؟"} متابع بتاريخ ${firstSnapshot.date}`);
+    if (sections.financial) {
+      lines.push("", "== الوضع المالي ==");
+      if (brand.paymentTotal) {
+        lines.push(`الإجمالي المتفق عليه: ${fmtMoney(brand.paymentTotal)} | المستلم: ${fmtMoney(receivedTotal)} | المتبقي: ${fmtMoney(remainingTotal)}`);
+      } else {
+        lines.push("مفيش إجمالي متفق عليه مسجل.");
       }
-    } else {
-      lines.push("مفيش قياسات مسجلة لصفحة البراند لسه.");
     }
-
-    setReportText(lines.join("\n"));
-    setReportOpen(true);
+    if (sections.pageTracking) {
+      lines.push("", "== تتبع الصفحة ==");
+      if (lastSnapshot) {
+        lines.push(`آخر قياس: ${lastSnapshot.followers ?? "؟"} متابع، ${lastSnapshot.posts ?? "؟"} بوست بتاريخ ${lastSnapshot.date}`);
+        if (firstSnapshot && firstSnapshot.id !== lastSnapshot.id) {
+          lines.push(`أول قياس مسجل: ${firstSnapshot.followers ?? "؟"} متابع بتاريخ ${firstSnapshot.date}`);
+        }
+      } else {
+        lines.push("مفيش قياسات مسجلة لصفحة البراند لسه.");
+      }
+    }
+    return lines.join("\n");
   }
 
   async function copyReport() {
     try {
-      await navigator.clipboard.writeText(reportText);
+      await navigator.clipboard.writeText(buildReportText());
       setReportCopied(true);
       setTimeout(() => setReportCopied(false), 1500);
     } catch (e) {}
   }
 
-  function downloadReport() {
-    const blob = new Blob([reportText], { type: "text/plain;charset=utf-8" });
+  function downloadReportTxt() {
+    const blob = new Blob([buildReportText()], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1544,6 +1667,35 @@ function BrandInsights({ brand, items, onPatchBrand }) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  async function downloadReportPdf() {
+    if (!reportRef.current) return;
+    setPdfLoading(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, { scale: 2, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      pdf.save(`تقرير-${brand.name}-${todayISO()}.pdf`);
+    } catch (e) {
+      console.error("تعذر إنشاء الـ PDF", e);
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   return (
@@ -1628,8 +1780,8 @@ function BrandInsights({ brand, items, onPatchBrand }) {
         <div>
           <h3 style={S.h3}><FileText size={14} style={{ verticalAlign: -2 }} /> تقرير البراند</h3>
           <div style={S.aiAnalysisCard}>
-            <p style={S.aiHint}>يجمّعلك تقرير نصي كامل من كل البيانات المسجلة عن البراند ده — تقدر تنسخه أو تنزّله كملف.</p>
-            <button onClick={generateFullReport} style={S.primaryBtn(brand.color)} disabled={total === 0}>
+            <p style={S.aiHint}>يجمّعلك تقرير من البيانات المسجلة عن البراند ده — تختار إيه يتحط فيه، وتقدر تنسخه أو تنزّله PDF جاهز تبعته للعميل.</p>
+            <button onClick={() => setReportOpen(true)} style={S.primaryBtn(brand.color)} disabled={total === 0}>
               <FileText size={14} /> استخرج تقرير كامل عن البراند
             </button>
             {total === 0 && <p style={S.aiHint}>ضيف كام فكرة للبراند الأول عشان يبقى فيه محتوى للتقرير.</p>}
@@ -1640,20 +1792,96 @@ function BrandInsights({ brand, items, onPatchBrand }) {
       {reportOpen && (
         <ModalShell onClose={() => setReportOpen(false)} wide>
           <div style={S.modalHead}>
-            <span style={S.modalTitle}><FileText size={16} style={{ verticalAlign: -2 }} /> تقرير {brand.name} الكامل</span>
+            <span style={S.modalTitle}><FileText size={16} style={{ verticalAlign: -2 }} /> تقرير {brand.name}</span>
             <button onClick={() => setReportOpen(false)} style={S.iconBtnSm}><X size={16} /></button>
           </div>
-          {reportText && (
-            <>
-              <div style={{ ...S.refCard, maxHeight: 420, overflowY: "auto" }} className="scrollbar">
-                <p style={{ ...S.aiAnalysisText, margin: 0 }}>{reportText}</p>
+
+          <p style={S.aiHint}>اختار إيه اللي يتحط في التقرير (المصاريف والربح الصافي بتاعك مش بيتحطوش خالص حتى لو اخترت "الوضع المالي" — دي بيانات داخلية بس):</p>
+          <div style={S.sectionCheckGrid}>
+            {REPORT_SECTIONS.map((s) => (
+              <label key={s.key} style={S.sectionCheckLabel}>
+                <input type="checkbox" checked={sections[s.key]} onChange={() => toggleSection(s.key)} />
+                {s.label}
+              </label>
+            ))}
+          </div>
+
+          <div ref={reportRef} style={S.reportPreview}>
+            <h2 style={S.reportPreviewTitle}>تقرير {brand.name}</h2>
+            <p style={S.reportPreviewDate}>بتاريخ {fmtDate(todayISO())}</p>
+
+            {sections.overview && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>نظرة عامة</h4>
+                {brand.agreementNotes && <p style={S.reportP}>الاتفاق مع البراند: {brand.agreementNotes}</p>}
+                <p style={S.reportP}>إجمالي الأفكار: {total} | نسبة الإنجاز: {completionRate}% | متأخرة عن معادها: {overdue}</p>
               </div>
-              <div style={{ ...S.modalFooter, justifyContent: "flex-start", marginTop: 12 }} className="modalFooter">
-                <button onClick={copyReport} style={S.secondaryBtn}><Copy size={14} /> {reportCopied ? "اتنسخ" : "انسخ التقرير"}</button>
-                <button onClick={downloadReport} style={S.secondaryBtn}><Download size={14} /> نزّل كملف نصي</button>
+            )}
+            {sections.status && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>حالة الأفكار</h4>
+                {STATUS_DEFS.map((sd) => (
+                  <p key={sd.key} style={S.reportP}>{sd.label}: {items.filter((i) => i.status === sd.key).length}</p>
+                ))}
               </div>
-            </>
-          )}
+            )}
+            {sections.byType && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>حسب نوع المحتوى</h4>
+                {byType.map(([t, c]) => (
+                  <p key={t} style={S.reportP}>{t}: {c}{mixTargets[t] !== undefined ? ` (مستهدف ${mixTargets[t]}%)` : ""}</p>
+                ))}
+              </div>
+            )}
+            {sections.performance && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>الأداء</h4>
+                <p style={S.reportP}>إجمالي المشاهدات: {perfTotals.views} | إجمالي اللايكات: {perfTotals.likes} | إجمالي الكومنتات: {perfTotals.comments}</p>
+                <p style={S.reportP}>مشاهدات الشهر ده: {perfTotals.monthViews} | لايكات الشهر ده: {perfTotals.monthLikes}</p>
+              </div>
+            )}
+            {sections.top5 && reportData.top5Items.length > 0 && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>أفضل 5 محتوى</h4>
+                {reportData.top5Items.map((i, idx) => (
+                  <p key={i.id} style={S.reportP}>{idx + 1}. {i.title} — {i.views} مشاهدة{i.successNote ? ` (${i.successNote})` : ""}</p>
+                ))}
+              </div>
+            )}
+            {sections.financial && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>الوضع المالي</h4>
+                {brand.paymentTotal ? (
+                  <p style={S.reportP}>الإجمالي المتفق عليه: {fmtMoney(brand.paymentTotal)} | المستلم: {fmtMoney(reportData.receivedTotal)} | المتبقي: {fmtMoney(reportData.remainingTotal)}</p>
+                ) : (
+                  <p style={S.reportP}>مفيش إجمالي متفق عليه مسجل.</p>
+                )}
+              </div>
+            )}
+            {sections.pageTracking && (
+              <div style={S.reportSection}>
+                <h4 style={S.reportSectionTitle}>تتبع نمو الصفحة</h4>
+                {reportData.lastSnapshot ? (
+                  <>
+                    <p style={S.reportP}>آخر قياس: {reportData.lastSnapshot.followers ?? "؟"} متابع، {reportData.lastSnapshot.posts ?? "؟"} بوست بتاريخ {reportData.lastSnapshot.date}</p>
+                    {reportData.firstSnapshot && reportData.firstSnapshot.id !== reportData.lastSnapshot.id && (
+                      <p style={S.reportP}>أول قياس مسجل: {reportData.firstSnapshot.followers ?? "؟"} متابع بتاريخ {reportData.firstSnapshot.date}</p>
+                    )}
+                  </>
+                ) : (
+                  <p style={S.reportP}>مفيش قياسات مسجلة لصفحة البراند لسه.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div style={{ ...S.modalFooter, justifyContent: "flex-start", marginTop: 12, flexWrap: "wrap" }} className="modalFooter">
+            <button onClick={copyReport} style={S.secondaryBtn}><Copy size={14} /> {reportCopied ? "اتنسخ" : "انسخ التقرير"}</button>
+            <button onClick={downloadReportTxt} style={S.secondaryBtn}><Download size={14} /> نزّل كملف نصي</button>
+            <button onClick={downloadReportPdf} disabled={pdfLoading} style={S.primaryBtn(brand.color)}>
+              <FileText size={14} /> {pdfLoading ? "بيتجهّز..." : "نزّل PDF"}
+            </button>
+          </div>
         </ModalShell>
       )}
 
@@ -2505,11 +2733,14 @@ const S = {
   navItem: { width: "100%", display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", color: "#C7CDD1", padding: "9px 10px", borderRadius: 9, fontSize: 13.5, cursor: "pointer", marginBottom: 3, textAlign: "right", fontFamily: "inherit" },
   navItemActive: { background: "#202A30", color: "#F2EEE4", fontWeight: 700 },
   emptyBrands: { fontSize: 12, color: "#657078", padding: "6px 4px", lineHeight: 1.7 },
-  brandTab: { width: "100%", display: "flex", alignItems: "center", gap: 9, position: "relative", background: "#1B2328", border: "1px solid #222C31", color: "#C7CDD1", padding: "9px 10px 9px 14px", borderRadius: 9, fontSize: 13, cursor: "pointer", marginBottom: 6, textAlign: "right", overflow: "hidden", fontFamily: "inherit" },
+  brandTabRow: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 },
+  brandTab: { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9, position: "relative", background: "#1B2328", border: "1px solid #222C31", color: "#C7CDD1", padding: "9px 10px 9px 14px", borderRadius: 9, fontSize: 13, cursor: "pointer", textAlign: "right", overflow: "hidden", fontFamily: "inherit" },
   brandTabActive: (color) => ({ background: color + "1A", borderColor: color + "55", color: "#F2EEE4", fontWeight: 700 }),
   brandTabStripe: { position: "absolute", right: 0, top: 0, bottom: 0, width: 3 },
   brandTabEmoji: { fontSize: 14 },
   brandTabName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  brandDeleteBtn: { flexShrink: 0, width: 30, height: 34, borderRadius: 8, background: "#1B2328", border: "1px solid #222C31", color: "#8FA0A8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  upgradeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", marginTop: 10, background: "linear-gradient(135deg,#E7A33E,#C97B5F)", border: "none", color: "#161E23", padding: "10px", borderRadius: 9, fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" },
   main: { flex: 1, overflowY: "auto", padding: "26px 30px", maxHeight: 720, position: "relative" },
   section: {},
   sectionHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 22 },
@@ -2626,6 +2857,14 @@ const S = {
   refTemplateLabel: { fontSize: 11.5, fontWeight: 700, color: "#8FA0A8", marginBottom: 6 },
 
   aiAnalysisCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: 16, minHeight: 90 },
+  sectionCheckGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "10px 0 16px" },
+  sectionCheckLabel: { display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#D8D3C6", cursor: "pointer" },
+  reportPreview: { background: "#ffffff", color: "#1A1A1A", borderRadius: 10, padding: 22, maxHeight: 400, overflowY: "auto" },
+  reportPreviewTitle: { fontSize: 18, fontWeight: 800, margin: "0 0 2px" },
+  reportPreviewDate: { fontSize: 11, color: "#666", margin: "0 0 16px" },
+  reportSection: { marginBottom: 14 },
+  reportSectionTitle: { fontSize: 13, fontWeight: 800, color: "#B8722E", margin: "0 0 6px", borderBottom: "1px solid #eee", paddingBottom: 4 },
+  reportP: { fontSize: 12, lineHeight: 1.8, margin: "0 0 4px", color: "#333" },
   aiAnalysisText: { fontSize: 13, lineHeight: 1.9, color: "#D8D3C6", whiteSpace: "pre-wrap", margin: "0 0 12px" },
   aiLoadingRow: { display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#8FA0A8" },
   aiError: { fontSize: 12, color: "#F0997B" },

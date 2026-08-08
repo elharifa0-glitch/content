@@ -1,10 +1,20 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
+import { Check } from "lucide-react";
 
 export const PLANS = [
   { key: "starter", name: "Starter", brands: "لحد 2 براند", price: "199 جنيه/شهر", annual: "1,990 جنيه/سنة" },
-  { key: "pro", name: "Pro", brands: "لحد 10 براندات", price: "399 جنيه/شهر", annual: "3,990 جنيه/سنة", recommended: true },
+  { key: "pro", name: "Pro", brands: "لحد 5 براندات", price: "399 جنيه/شهر", annual: "3,990 جنيه/سنة", recommended: true },
   { key: "unlimited", name: "Unlimited", brands: "براندات غير محدودة", price: "699 جنيه/شهر", annual: "6,990 جنيه/سنة" },
+];
+
+const INCLUDED_FEATURES = [
+  "لوحة أفكار وتقويم نشر لكل براند",
+  "تتبع مدفوعات ومصاريف وربح صافي حقيقي",
+  "تحليل وتقارير كاملة لكل براند",
+  "تذكيرات ديدلاين وإشعارات متصفح",
+  "بحث ومقارنة عبر كل البراندات",
+  "تعمل من أي جهاز أو موبايل",
 ];
 
 const WHATSAPP_NUMBER = "201148769364";
@@ -74,7 +84,18 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
           </button>
         ))}
       </div>
-      <p style={styles.planNote}>كل الباقات فيها كل ميزات الأداة بدون استثناء — الفرق بس في عدد البراندات.</p>
+
+      <div style={styles.featuresBox}>
+        <div style={styles.featuresTitle}>كل الباقات بتديك بالظبط نفس الميزات — الفرق بس في عدد البراندات:</div>
+        <div style={styles.featuresGrid}>
+          {INCLUDED_FEATURES.map((f) => (
+            <div key={f} style={styles.featureRow}>
+              <Check size={13} style={{ color: "#4FB286", flexShrink: 0 }} />
+              <span>{f}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div style={styles.paySection}>
         <div style={styles.payLabel}>للدفع من مصر (فودافون كاش / InstaPay):</div>
@@ -120,7 +141,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
 }
 
 const styles = {
-  plansGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 8 },
+  plansGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginBottom: 14 },
   planCard: {
     position: "relative", background: "#1B2328", border: "1.5px solid #222C31", borderRadius: 12,
     padding: "14px 8px", cursor: "pointer", fontFamily: "inherit", textAlign: "center",
@@ -136,7 +157,11 @@ const styles = {
   planBrands: { color: "#8FA0A8", fontSize: 9.5, lineHeight: 1.4 },
   planPrice: { color: "#E7A33E", fontSize: 13, fontWeight: 800, marginTop: 4 },
   planAnnual: { color: "#657078", fontSize: 8.5, lineHeight: 1.4 },
-  planNote: { color: "#657078", fontSize: 11, lineHeight: 1.6, margin: "0 0 16px", textAlign: "center" },
+
+  featuresBox: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: 14, marginBottom: 16 },
+  featuresTitle: { color: "#8FA0A8", fontSize: 11.5, fontWeight: 700, marginBottom: 10, lineHeight: 1.6 },
+  featuresGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 },
+  featureRow: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#D8D3C6" },
 
   paySection: { marginBottom: 10 },
   payLabel: { color: "#8FA0A8", fontSize: 11.5, fontWeight: 700 },
