@@ -25,6 +25,10 @@ const STATUS_DEFS = [
 
 const TYPE_OPTIONS = ["بوست", "ريلز", "ستوري", "فيديو", "كاروسيل", "مقال", "تانى"];
 
+const PLAN_LIMITS = { starter: 3, pro: 10, unlimited: Infinity };
+const PLAN_LABELS = { starter: "Starter", pro: "Pro", unlimited: "Unlimited" };
+const UPGRADE_WHATSAPP = "201148769364";
+
 const MONTHS_AR = [
   "يناير","فبراير","مارس","أبريل","مايو","يونيو",
   "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر",
@@ -66,7 +70,7 @@ function fmtMoney(n) {
   return num.toLocaleString("ar-EG");
 }
 
-export default function ContentStudio({ session, onSignOut }) {
+export default function ContentStudio({ session, onSignOut, plan, isTrialing }) {
   const userId = session.user.id;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -79,10 +83,23 @@ export default function ContentStudio({ session, onSignOut }) {
   const [itemModal, setItemModal] = useState(null);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
   });
+
+  const brandLimit = isTrialing ? Infinity : (PLAN_LIMITS[plan] ?? Infinity);
+  const brandLimitReached = brands.length >= brandLimit;
+
+  function handleAddBrandClick() {
+    if (brandLimitReached) {
+      setLimitModalOpen(true);
+    } else {
+      setBrandModal({});
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -517,20 +534,6 @@ export default function ContentStudio({ session, onSignOut }) {
             flex: 1 1 120px !important;
           }
 
-          .studio-app .aiPanel {
-            position: fixed !important;
-            left: 12px !important;
-            right: 12px !important;
-            bottom: 12px !important;
-            width: auto !important;
-            max-height: 70vh !important;
-          }
-          .studio-app .aiFab {
-            position: fixed !important;
-            right: 14px !important;
-            bottom: 14px !important;
-          }
-
           .studio-app .compareTable {
             min-width: 520px !important;
           }
@@ -559,10 +562,13 @@ export default function ContentStudio({ session, onSignOut }) {
         brands={brands}
         view={view}
         setView={(v) => { setView(v); setBrandTab("board"); }}
-        onAddBrand={() => setBrandModal({})}
+        onAddBrand={handleAddBrandClick}
         saving={saving}
         userEmail={session.user.email}
-        onSignOut={onSignOut}
+        onSignOut={() => setConfirmSignOut(true)}
+        plan={plan}
+        isTrialing={isTrialing}
+        brandLimit={brandLimit}
       />
 
       <main style={S.main} className="scrollbar studio-main">
@@ -574,7 +580,7 @@ export default function ContentStudio({ session, onSignOut }) {
             weekPriorities={weekPriorities}
             overdueCount={overdueCount}
             onOpenBrand={(id) => setView(`brand:${id}`)}
-            onAddBrand={() => setBrandModal({})}
+            onAddBrand={handleAddBrandClick}
             tasks={tasks}
             onAddTask={addTask}
             onToggleTask={toggleTask}
@@ -663,13 +669,45 @@ export default function ContentStudio({ session, onSignOut }) {
           onConfirm={() => (confirmDelete.type === "brand" ? deleteBrand(confirmDelete.id) : deleteItem(confirmDelete.id))}
         />
       )}
+
+      {confirmSignOut && (
+        <ConfirmModal
+          text="هتخرج من حسابك دلوقتي. تقدر تسجل دخول تاني أي وقت بنفس الإيميل والباسورد."
+          confirmLabel="سجّل خروج"
+          danger={false}
+          onCancel={() => setConfirmSignOut(false)}
+          onConfirm={() => { setConfirmSignOut(false); onSignOut(); }}
+        />
+      )}
+
+      {limitModalOpen && (
+        <ModalShell onClose={() => setLimitModalOpen(false)}>
+          <div style={S.modalTitle}>وصلت لأقصى عدد براندات في باقتك</div>
+          <p style={S.confirmText}>
+            باقتك الحالية ({PLAN_LABELS[plan] || "الحالية"}) بتسمح بـ{" "}
+            {brandLimit === Infinity ? "براندات غير محدودة" : `${brandLimit} براندات`} بس، وإنت وصلت للحد ده.
+            رقّي باقتك عشان تضيف براندات أكتر.
+          </p>
+          <div style={S.modalFooter}>
+            <button onClick={() => setLimitModalOpen(false)} style={S.secondaryBtn}>رجوع</button>
+            <a
+              href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في استوديو الشغل.")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...S.primaryBtn("#E7A33E"), textDecoration: "none" }}
+            >
+              رقّي الباقة
+            </a>
+          </div>
+        </ModalShell>
+      )}
     </div>
   );
 }
 
 /* ---------- Sidebar ---------- */
 
-function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignOut }) {
+function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignOut, plan, isTrialing, brandLimit }) {
   return (
     <aside style={S.sidebar} className="scrollbar studio-sidebar">
       <div style={S.brandMark}>
@@ -690,7 +728,11 @@ function Sidebar({ brands, view, setView, onAddBrand, saving, userEmail, onSignO
       <div style={S.sidebarDivider} />
 
       <div style={S.sidebarLabelRow}>
-        <span style={S.sidebarLabel}>البراندات</span>
+        <span style={S.sidebarLabel}>
+          البراندات
+          {!isTrialing && brandLimit !== Infinity && ` (${brands.length}/${brandLimit})`}
+          {plan && !isTrialing && ` · ${PLAN_LABELS[plan] || plan}`}
+        </span>
         <button onClick={onAddBrand} style={S.iconBtnSm} title="ضيف براند"><Plus size={15} /></button>
       </div>
 
@@ -759,7 +801,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
     <div style={S.section}>
       <SectionHeader icon={<Sparkles size={20} />} title="أهلاً بيك" subtitle={`عندك ${brands.length} براند و ${totalOpen} حاجة لسه شغالة عليها`} />
 
-      <div style={S.statRow}>
+      <div style={S.statRow} className="statRow">
         <StatCard label="براندات" value={brands.length} />
         <StatCard label="أفكار جديدة" value={items.filter((i) => i.status === "idea").length} color={STATUS_DEFS[0].color} />
         <StatCard label="مجدولة" value={items.filter((i) => i.status === "scheduled").length} color={STATUS_DEFS[2].color} />
@@ -770,7 +812,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
       {brands.length > 0 && (
         <>
           <h3 style={S.h3}><Banknote size={14} style={{ verticalAlign: -2 }} /> دخلك من كل البراندات</h3>
-          <div style={S.statRow}>
+          <div style={S.statRow} className="statRow">
             <StatCard label="دخل الشهر ده" value={fmtMoney(monthIncome)} color="#4FB286" />
             <StatCard label="إجمالي المستلم من كل البراندات" value={fmtMoney(totalIncome)} color="#4FB286" />
             <StatCard label="متبقي ليك من كل البراندات" value={fmtMoney(totalRemaining)} color={totalRemaining < 0 ? "#D9707A" : "#E7A33E"} />
@@ -778,7 +820,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
         </>
       )}
 
-      <div style={S.dashGrid}>
+      <div style={S.dashGrid} className="dashGrid">
         <div>
           <h3 style={S.h3}>البراندات</h3>
           {brands.length === 0 ? (
@@ -787,7 +829,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
               <span>ضيف أول براند</span>
             </button>
           ) : (
-            <div style={S.brandCardGrid}>
+            <div style={S.brandCardGrid} className="brandCardGrid">
               {brands.map((b) => {
                 const c = brandCounts[b.id] || {};
                 return (
@@ -879,9 +921,9 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
 
 function StatCard({ label, value, color }) {
   return (
-    <div style={S.statCard}>
-      <div style={{ ...S.statValue, color: color || "#F2EEE4" }}>{value}</div>
-      <div style={S.statLabel}>{label}</div>
+    <div style={S.statCard} className="statCard">
+      <div style={{ ...S.statValue, color: color || "#F2EEE4" }} className="statValue">{value}</div>
+      <div style={S.statLabel} className="statLabel">{label}</div>
     </div>
   );
 }
@@ -909,7 +951,7 @@ function SearchView({ items, brands, onOpenItem }) {
     <div style={S.section}>
       <SectionHeader icon={<Search size={20} />} title="بحث في كل الأفكار" subtitle="دوّر بالاسم أو الملاحظات عبر كل البراندات مرة واحدة" />
 
-      <div style={S.searchBar}>
+      <div style={S.searchBar} className="searchBar">
         <input style={{ ...S.input, flex: 2 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن فكرة..." autoFocus />
         <select style={{ ...S.input, flex: 1 }} value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
           <option value="">كل البراندات</option>
@@ -982,7 +1024,7 @@ function CompareView({ brands, items, onOpenBrand }) {
       <SectionHeader icon={<BarChart3 size={20} />} title="مقارنة البراندات" subtitle="كل البراندات جنب بعض عشان تحدد مين محتاج اهتمام أكتر" />
 
       <div style={{ overflowX: "auto" }} className="scrollbar">
-        <table style={S.compareTable}>
+        <table style={S.compareTable} className="compareTable">
           <thead>
             <tr>
               <th style={S.compareTh}>البراند</th>
@@ -1023,18 +1065,18 @@ function BrandPage({
     <div style={S.section}>
       <div style={S.idBadge}>
         <div style={{ ...S.idBadgeStripe, background: brand.color }} />
-        <div style={S.idBadgeInner}>
+        <div style={S.idBadgeInner} className="idBadgeInner">
           <span style={{ ...S.idBadgeAvatar, background: brand.color + "26", color: brand.color }}>{brand.emoji}</span>
           <div style={{ flex: 1 }}>
-            <div style={S.idBadgeName}>{brand.name}</div>
-            <div style={S.idBadgeHandle}>{brand.handle || "بدون بيانات تواصل"}</div>
+            <div style={S.idBadgeName} className="idBadgeName">{brand.name}</div>
+            <div style={S.idBadgeHandle} className="idBadgeHandle">{brand.handle || "بدون بيانات تواصل"}</div>
           </div>
           <button onClick={onEditBrand} style={S.iconBtnSm} title="عدّل البراند"><Pencil size={14} /></button>
           <button onClick={onDeleteBrand} style={S.iconBtnSmDanger} title="امسح البراند"><Trash2 size={14} /></button>
         </div>
       </div>
 
-      <div style={S.tabRow}>
+      <div style={S.tabRow} className="tabRow">
         <button onClick={() => setTab("board")} style={{ ...S.tabBtn, ...(tab === "board" ? S.tabBtnActive : {}) }}>
           <LayoutGrid size={15} /> لوحة الأفكار
         </button>
@@ -1085,17 +1127,17 @@ function BrandPage({
 
 function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
   return (
-    <div style={S.board} className="scrollbar">
+    <div style={S.board} className="scrollbar board">
       {STATUS_DEFS.map((sd, colIdx) => {
         const colItems = items.filter((it) => it.status === sd.key);
         return (
-          <div key={sd.key} style={S.column}>
+          <div key={sd.key} style={S.column} className="column">
             <div style={S.columnHead}>
               <span style={{ ...S.dot, background: sd.color }} />
               <span style={S.columnTitle}>{sd.label}</span>
               <span style={S.columnCount}>{colItems.length}</span>
             </div>
-            <div style={S.columnBody} className="scrollbar">
+            <div style={S.columnBody} className="scrollbar columnBody">
               {colItems.length === 0 && <div style={S.columnEmpty}>مفيش أفكار هنا</div>}
               {colItems.map((it) => (
                 <TicketCard
@@ -1175,7 +1217,7 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
         </div>
       )}
 
-      <div style={S.ticketFooter}>
+      <div style={S.ticketFooter} className="ticketFooter">
         <span style={S.ticketDate}>
           {item.date ? <><Clock size={11} style={{ verticalAlign: -1 }} /> {fmtDate(item.date)}</> : "بدون معاد"}
         </span>
@@ -1189,7 +1231,7 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
           <label style={S.perfLinkLabel}>لينك المنشور</label>
           <input style={{ ...S.input, fontSize: 11.5, padding: "6px 8px" }} value={linkVal} onChange={(e) => setLinkVal(e.target.value)} placeholder="حط لينك المنشور هنا بعد النشر" />
           <p style={S.aiHint}>حط الأرقام بعد ما تشوفها بنفسك من صفحة المنشور.</p>
-          <div style={S.perfInputsRow}>
+          <div style={S.perfInputsRow} className="perfInputsRow">
             <input type="number" min="0" style={S.perfInput} value={views} onChange={(e) => setViews(e.target.value)} placeholder="مشاهدات" />
             <input type="number" min="0" style={S.perfInput} value={likes} onChange={(e) => setLikes(e.target.value)} placeholder="لايكات" />
             <input type="number" min="0" style={S.perfInput} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="كومنتات" />
@@ -1353,7 +1395,7 @@ function BrandInsights({ brand, items, onPatchBrand }) {
 
   return (
     <div>
-      <div style={S.statRow}>
+      <div style={S.statRow} className="statRow">
         <StatCard label="إجمالي الأفكار" value={total} />
         <StatCard label="نسبة الإنجاز" value={`${completionRate}%`} color="#4FB286" />
         <StatCard label="مجدولة دلوقتي" value={items.filter((i) => i.status === "scheduled").length} color="#E7A33E" />
@@ -1362,10 +1404,10 @@ function BrandInsights({ brand, items, onPatchBrand }) {
       </div>
 
       <h3 style={S.h3}><Eye size={14} style={{ verticalAlign: -2 }} /> أداء المحتوى مع البراند ده</h3>
-      <div style={S.perfTotalsGrid}>
+      <div style={S.perfTotalsGrid} className="perfTotalsGrid">
         <div style={S.perfTotalsCol}>
           <span style={S.perfTotalsLabel}>الشهر ده</span>
-          <div style={S.statRow}>
+          <div style={S.statRow} className="statRow">
             <StatCard label="مشاهدات" value={fmtMoney(perfTotals.monthViews)} color="#5FA8D3" />
             <StatCard label="لايكات" value={fmtMoney(perfTotals.monthLikes)} color="#4FB286" />
             <StatCard label="كومنتات" value={fmtMoney(perfTotals.monthComments)} color="#E7A33E" />
@@ -1373,7 +1415,7 @@ function BrandInsights({ brand, items, onPatchBrand }) {
         </div>
         <div style={S.perfTotalsCol}>
           <span style={S.perfTotalsLabel}>إجمالي كل الوقت</span>
-          <div style={S.statRow}>
+          <div style={S.statRow} className="statRow">
             <StatCard label="مشاهدات" value={fmtMoney(perfTotals.views)} color="#5FA8D3" />
             <StatCard label="لايكات" value={fmtMoney(perfTotals.likes)} color="#4FB286" />
             <StatCard label="كومنتات" value={fmtMoney(perfTotals.comments)} color="#E7A33E" />
@@ -1384,7 +1426,7 @@ function BrandInsights({ brand, items, onPatchBrand }) {
         <p style={S.aiHint}>الأرقام دي بتتجمع من "نتيجة النشر" اللي بتسجلها في كل فكرة — سجّل المشاهدات واللايكات بعد النشر وهتلاقي الإجمالي هنا.</p>
       )}
 
-      <div style={S.dashGrid}>
+      <div style={S.dashGrid} className="dashGrid">
         <div>
           <h3 style={S.h3}><Target size={13} style={{ verticalAlign: -2 }} /> ميزان المحتوى (الفعلي مقابل المستهدف)</h3>
           <div style={S.barList}>
@@ -1453,7 +1495,7 @@ function BrandInsights({ brand, items, onPatchBrand }) {
               <div style={{ ...S.refCard, maxHeight: 420, overflowY: "auto" }} className="scrollbar">
                 <p style={{ ...S.aiAnalysisText, margin: 0 }}>{reportText}</p>
               </div>
-              <div style={{ ...S.modalFooter, justifyContent: "flex-start", marginTop: 12 }}>
+              <div style={{ ...S.modalFooter, justifyContent: "flex-start", marginTop: 12 }} className="modalFooter">
                 <button onClick={copyReport} style={S.secondaryBtn}><Copy size={14} /> {reportCopied ? "اتنسخ" : "انسخ التقرير"}</button>
                 <button onClick={downloadReport} style={S.secondaryBtn}><Download size={14} /> نزّل كملف نصي</button>
               </div>
@@ -1513,7 +1555,7 @@ function PageTrackingCard({ brand, onPatchBrand }) {
         <input style={S.input} value={pageLink} onChange={(e) => setPageLink(e.target.value)} onBlur={savePageLink} placeholder="لينك صفحة البراند (انستجرام، تيك توك...)" />
         <p style={S.aiHint}>سجّل أول قياس أول ما تمسك البراند، وكرر التسجيل كل فترة عشان تبني سجل نمو حقيقي.</p>
 
-        <div style={{ ...S.rowTwo, marginTop: 10 }}>
+        <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
           <div style={S.formGroup}>
             <label style={S.label}>عدد المتابعين</label>
             <input type="number" min="0" style={S.input} value={followersInput} onChange={(e) => setFollowersInput(e.target.value)} placeholder="اكتب الرقم اللي شفته" />
@@ -1618,13 +1660,13 @@ function PaymentsTab({ brand, onPatchBrand }) {
 
   return (
     <div>
-      <div style={S.statRow}>
+      <div style={S.statRow} className="statRow">
         <StatCard label="الإجمالي المتفق عليه" value={fmtMoney(total)} />
         <StatCard label="المستلم لحد دلوقتي" value={fmtMoney(received)} color="#4FB286" />
         <StatCard label="المتبقي" value={fmtMoney(remaining)} color={remaining < 0 ? "#D9707A" : remaining === 0 ? "#4FB286" : "#E7A33E"} />
       </div>
 
-      <div style={S.dashGrid}>
+      <div style={S.dashGrid} className="dashGrid">
         <div>
           <h3 style={S.h3}><Banknote size={14} style={{ verticalAlign: -2 }} /> الإجمالي المتفق عليه مع البراند</h3>
           <div style={S.refCard}>
@@ -1639,7 +1681,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
         <div>
           <h3 style={S.h3}>سجّل دفعة جديدة</h3>
           <div style={S.refCard}>
-            <div style={S.rowTwo}>
+            <div style={S.rowTwo} className="rowTwo">
               <div style={S.formGroup}>
                 <label style={S.label}>المبلغ</label>
                 <input type="number" min="0" style={S.input} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="مثلاً 2000" />
@@ -1664,7 +1706,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
         {payments.map((p) =>
           editingId === p.id ? (
             <div key={p.id} style={S.refCard}>
-              <div style={S.rowTwo}>
+              <div style={S.rowTwo} className="rowTwo">
                 <div style={S.formGroup}>
                   <label style={S.label}>المبلغ</label>
                   <input type="number" min="0" style={S.input} value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
@@ -1759,7 +1801,7 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
         />
       </div>
 
-      <div style={S.dashGrid}>
+      <div style={S.dashGrid} className="dashGrid">
         <div>
           <h3 style={S.h3}><Hash size={14} style={{ verticalAlign: -2 }} /> هاشتاجات البراند</h3>
         <div style={S.refCard}>
@@ -1868,26 +1910,27 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
           ))}
         </div>
       )}
-      <div style={S.calHeader}>
+      <div style={S.calHeader} className="calHeader">
         <button onClick={() => setMonth((cm) => normMonth(cm.y, cm.m - 1))} style={S.iconBtnSm}><ChevronRight size={15} /></button>
         <span style={S.calTitle}>{MONTHS_AR[m]} {y}</span>
         <button onClick={() => setMonth((cm) => normMonth(cm.y, cm.m + 1))} style={S.iconBtnSm}><ChevronLeft size={15} /></button>
       </div>
-      <div style={S.calGrid}>
-        {WEEKDAYS_AR.map((wd) => <div key={wd} style={S.calWeekday}>{wd}</div>)}
+      <div style={S.calGrid} className="calGrid">
+        {WEEKDAYS_AR.map((wd) => <div key={wd} style={S.calWeekday} className="calWeekday">{wd}</div>)}
         {cells.map((d, i) => {
-          if (d === null) return <div key={i} style={S.calCellEmpty} />;
+          if (d === null) return <div key={i} style={S.calCellEmpty} className="calCellEmpty" />;
           const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
           const dayItems = itemsByDate[dateStr] || [];
           const isToday = dateStr === today;
           return (
-            <div key={i} style={{ ...S.calCell, ...(isToday ? S.calCellToday : {}) }} onClick={() => onDayClick(dateStr)}>
-              <div style={S.calDayNum}>{d}</div>
+            <div key={i} style={{ ...S.calCell, ...(isToday ? S.calCellToday : {}) }} className="calCell" onClick={() => onDayClick(dateStr)}>
+              <div style={S.calDayNum} className="calDayNum">{d}</div>
               <div style={S.calItems}>
                 {dayItems.slice(0, 3).map((it) => (
                   <div
                     key={it.id}
                     onClick={(e) => { e.stopPropagation(); onItemClick(it); }}
+                    className="calChip"
                     style={{
                       ...S.calChip,
                       background: showBrandColor ? brandColor(it.brandId) + "24" : (STATUS_DEFS.find((s) => s.key === it.status)?.bg),
@@ -1918,8 +1961,8 @@ function normMonth(y, m) {
 
 function ModalShell({ onClose, children, wide }) {
   return (
-    <div style={S.overlay} onClick={onClose}>
-      <div style={{ ...S.modal, ...(wide ? { maxWidth: 520 } : {}) }} className="scrollbar" onClick={(e) => e.stopPropagation()}>
+    <div style={S.overlay} className="overlay" onClick={onClose}>
+      <div style={{ ...S.modal, ...(wide ? { maxWidth: 520 } : {}) }} className="scrollbar modal" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -1962,7 +2005,7 @@ function BrandModal({ brand, onClose, onSave }) {
           ))}
         </div>
       </div>
-      <div style={S.modalFooter}>
+      <div style={S.modalFooter} className="modalFooter">
         <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
         <button disabled={!name.trim()} onClick={() => onSave({ id: brand?.id, name: name.trim(), handle: handle.trim(), emoji, color })} style={S.primaryBtn(color)}>
           <Check size={15} /> حفظ
@@ -1997,7 +2040,7 @@ function BulkAddModal({ brand, onClose, onSave }) {
         <p style={S.aiHint}>{lines.length} فكرة هتتضاف. تقدر تعدّل كل واحدة بتفاصيلها بعد ما تضيفها.</p>
       </div>
 
-      <div style={S.rowTwo}>
+      <div style={S.rowTwo} className="rowTwo">
         <div style={S.formGroup}>
           <label style={S.label}>النوع (لكل الأفكار)</label>
           <select style={S.input} value={type} onChange={(e) => setType(e.target.value)}>
@@ -2012,7 +2055,7 @@ function BulkAddModal({ brand, onClose, onSave }) {
         </div>
       </div>
 
-      <div style={S.modalFooter}>
+      <div style={S.modalFooter} className="modalFooter">
         <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
         <button disabled={lines.length === 0} onClick={() => onSave(lines, type, status)} style={S.primaryBtn(brand?.color || PALETTE[0])}>
           <ListPlus size={15} /> ضيف {lines.length || ""} فكرة
@@ -2064,7 +2107,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
         <input style={S.input} value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder="لينك المحتوى اللي استلهمت منه الفكرة" />
       </div>
 
-      <div style={S.rowTwo}>
+      <div style={S.rowTwo} className="rowTwo">
         <div style={S.formGroup}>
           <label style={S.label}>النوع</label>
           <select style={S.input} value={type} onChange={(e) => setType(e.target.value)}>
@@ -2084,7 +2127,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
 
       <div style={S.formGroup}>
         <label style={S.label}>نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)</label>
-        <div style={{ ...S.rowTwo, marginTop: 4 }}>
+        <div style={{ ...S.rowTwo, marginTop: 4 }} className="rowTwo">
           <div>
             <label style={S.label}>المشاهدات</label>
             <input type="number" min="0" style={S.input} value={views} onChange={(e) => setViews(e.target.value)} placeholder="بعد النشر" />
@@ -2125,7 +2168,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
         <textarea style={{ ...S.input, minHeight: 50, resize: "vertical" }} value={successNote} onChange={(e) => setSuccessNote(e.target.value)} placeholder="ملاحظة سريعة ليه المحتوى ده اشتغل كويس..." />
       </div>
 
-      <div style={S.modalFooter}>
+      <div style={S.modalFooter} className="modalFooter">
         <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
         <button
           disabled={!title.trim() || !brandId}
@@ -2146,14 +2189,16 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
   );
 }
 
-function ConfirmModal({ text, onCancel, onConfirm }) {
+function ConfirmModal({ text, onCancel, onConfirm, confirmLabel, confirmIcon, danger = true }) {
   return (
     <ModalShell onClose={onCancel}>
       <div style={S.modalTitle}>متأكد؟</div>
       <p style={S.confirmText}>{text}</p>
-      <div style={S.modalFooter}>
+      <div style={S.modalFooter} className="modalFooter">
         <button onClick={onCancel} style={S.secondaryBtn}>رجوع</button>
-        <button onClick={onConfirm} style={S.dangerBtn}><Trash2 size={14} /> مسح نهائي</button>
+        <button onClick={onConfirm} style={danger ? S.dangerBtn : S.primaryBtn("#E7A33E")}>
+          {confirmIcon || (danger && <Trash2 size={14} />)} {confirmLabel || "مسح نهائي"}
+        </button>
       </div>
     </ModalShell>
   );
@@ -2161,11 +2206,11 @@ function ConfirmModal({ text, onCancel, onConfirm }) {
 
 function SectionHeader({ icon, title, subtitle }) {
   return (
-    <div style={S.sectionHeader}>
+    <div style={S.sectionHeader} className="sectionHeader">
       <span style={S.sectionHeaderIcon}>{icon}</span>
       <div>
-        <h2 style={S.sectionHeaderTitle}>{title}</h2>
-        {subtitle && <p style={S.sectionHeaderSub}>{subtitle}</p>}
+        <h2 style={S.sectionHeaderTitle} className="sectionHeaderTitle">{title}</h2>
+        {subtitle && <p style={S.sectionHeaderSub} className="sectionHeaderSub">{subtitle}</p>}
       </div>
     </div>
   );

@@ -3,10 +3,16 @@ import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
 import ContentStudio from "./ContentStudio";
 import ResetPassword from "./ResetPassword";
+import Paywall from "./Paywall";
 
 export default function App() {
   const [session, setSession] = useState(undefined);
   const [isRecovery, setIsRecovery] = useState(false);
+  const [subStatus, setSubStatus] = useState(undefined); // undefined = checking, "allowed" | "blocked"
+  const [trialEndsAt, setTrialEndsAt] = useState(null);
+  const [trialDaysLeft, setTrialDaysLeft] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [isTrialing, setIsTrialing] = useState(false);
 
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange(
@@ -32,6 +38,49 @@ export default function App() {
 
     return () => listener?.subscription?.unsubscribe();
   }, []);
+
+  async function checkSubscription(userId) {
+    setSubStatus(undefined);
+    try {
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .select("status, trial_ends_at, current_period_end, plan")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        // مفيش سجل اشتراك لسه (مثلاً حساب اتعمل قبل ما نظام الاشتراك يتفعّل)
+        // نسمحله يدخل عشان محدش يتقفل بره حسابه بالغلط
+        setSubStatus("allowed");
+        return;
+      }
+
+      const now = new Date();
+      const trialEnd = data.trial_ends_at ? new Date(data.trial_ends_at) : null;
+      const periodEnd = data.current_period_end ? new Date(data.current_period_end) : null;
+
+      const isActive = data.status === "active" && (!periodEnd || periodEnd > now);
+      const trialing = data.status === "trial" && trialEnd && trialEnd > now;
+
+      setTrialEndsAt(data.trial_ends_at);
+      setTrialDaysLeft(trialing ? Math.max(0, Math.ceil((trialEnd - now) / 86400000)) : null);
+      setPlan(data.plan || null);
+      setIsTrialing(trialing);
+      setSubStatus(isActive || trialing ? "allowed" : "blocked");
+    } catch (e) {
+      console.error("تعذر التحقق من الاشتراك", e);
+      // في حالة أي مشكلة اتصال، نسمح بالدخول بدل ما نقفل حساب حقيقي بالغلط
+      setSubStatus("allowed");
+    }
+  }
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      checkSubscription(session.user.id);
+    }
+  }, [session?.user?.id]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -63,9 +112,40 @@ export default function App() {
 
   if (!session) return <Auth />;
 
+  if (subStatus === undefined) {
+    return (
+      <div style={{
+        minHeight: "100vh", display: "flex", alignItems: "center",
+        justifyContent: "center", background: "#11171B",
+        color: "#8FA0A8", fontFamily: "sans-serif"
+      }}>
+        بيحمّل...
+      </div>
+    );
+  }
+
+  if (subStatus === "blocked") {
+    return (
+      <Paywall
+        trialEndsAt={trialEndsAt}
+        onSignOut={handleSignOut}
+        onRecheck={() => checkSubscription(session.user.id)}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#11171B", padding: 16 }}>
-      <ContentStudio session={session} onSignOut={handleSignOut} />
+      {trialDaysLeft !== null && (
+        <div style={{
+          maxWidth: 1400, margin: "0 auto 10px", background: "#1B2328", border: "1px solid #E7A33E55",
+          borderRadius: 10, padding: "8px 14px", color: "#E7A33E", fontSize: 12.5, fontWeight: 700,
+          textAlign: "center", fontFamily: "'Tajawal', sans-serif", direction: "rtl",
+        }}>
+          {trialDaysLeft === 0 ? "آخر يوم في فترة التجربة المجانية" : `باقي ${trialDaysLeft} يوم على انتهاء فترة التجربة المجانية`}
+        </div>
+      )}
+      <ContentStudio session={session} onSignOut={handleSignOut} plan={plan} isTrialing={isTrialing} />
     </div>
   );
 }
