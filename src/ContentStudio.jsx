@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import PlanPicker from "./PlanPicker";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   Plus, X, Calendar as CalendarIcon, LayoutGrid, Home, Trash2, Pencil,
   ChevronRight, ChevronLeft, Check, Clock, Sparkles, CheckCircle2, Circle,
@@ -489,6 +490,11 @@ export default function ContentStudio({
             grid-template-columns: 1fr 1fr !important;
           }
 
+          .studio-app .topHeader {
+            flex-wrap: wrap !important;
+            gap: 10px !important;
+          }
+
           .studio-app .brandCardGrid {
             grid-template-columns: 1fr !important;
           }
@@ -639,6 +645,13 @@ export default function ContentStudio({
       />
 
       <main style={S.main} className="scrollbar studio-main">
+        <TopHeader
+          session={session}
+          plan={plan}
+          isTrialing={isTrialing}
+          items={items}
+          onOpenSearch={() => setView("search")}
+        />
         {view === "dashboard" && (
           <Dashboard
             brands={brands}
@@ -874,6 +887,64 @@ function NavItem({ icon, label, active, onClick }) {
   );
 }
 
+/* ---------- Top header (avatar, plan badge, search shortcut, notifications) ---------- */
+
+function TopHeader({ session, plan, isTrialing, items, onOpenSearch }) {
+  const [notifOpen, setNotifOpen] = useState(false);
+  const today = todayISO();
+
+  const overdueItems = useMemo(
+    () => items.filter((i) => i.date && i.date < today && i.status !== "done"),
+    [items, today]
+  );
+  const todaysReminders = useMemo(() => getTodaysReminders(items), [items]);
+  const attentionList = useMemo(() => [...overdueItems, ...todaysReminders].slice(0, 6), [overdueItems, todaysReminders]);
+  const attentionCount = overdueItems.length + todaysReminders.length;
+
+  const emailName = (session?.user?.email || "").split("@")[0] || "مستخدم";
+  const initial = emailName.charAt(0).toUpperCase();
+
+  return (
+    <div style={S.topHeader} className="topHeader">
+      <div style={S.topHeaderUser}>
+        <div style={S.topHeaderAvatar}>{initial}</div>
+        <div>
+          <div style={S.topHeaderName}>{emailName}</div>
+          {isTrialing ? (
+            <div style={{ ...S.topHeaderPlanBadge, color: "#E7A33E" }}>تجربة مجانية</div>
+          ) : plan ? (
+            <div style={{ ...S.topHeaderPlanBadge, color: planColor(plan) }}>باقة {planLabel(plan)}</div>
+          ) : null}
+        </div>
+      </div>
+
+      <div style={S.topHeaderActions}>
+        <button onClick={onOpenSearch} style={S.topHeaderIconBtn} title="بحث في كل الأفكار">
+          <Search size={16} />
+        </button>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setNotifOpen((o) => !o)} style={S.topHeaderIconBtn} title="يحتاج انتباهك">
+            <Bell size={16} />
+            {attentionCount > 0 && <span style={S.topHeaderBadge}>{attentionCount}</span>}
+          </button>
+          {notifOpen && (
+            <div style={S.notifDropdown}>
+              <div style={S.notifDropdownTitle}>يحتاج انتباهك</div>
+              {attentionList.length === 0 && <p style={S.aiHint}>مفيش حاجة مستعجلة دلوقتي 👍</p>}
+              {attentionList.map((it) => (
+                <div key={it.id} style={S.notifRow}>
+                  <span style={{ ...S.dot, background: "#D9707A", flexShrink: 0 }} />
+                  <span style={S.notifRowText}>{it.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Dashboard ---------- */
 
 function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, onOpenBrand, onAddBrand, tasks, onAddTask, onToggleTask, onDeleteTask }) {
@@ -942,6 +1013,21 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
     return list.slice(0, 6);
   }, [overdueItems, todaysReminders]);
 
+  const perfChartData = useMemo(() => {
+    const map = {};
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    items.forEach((it) => {
+      if (!it.date || it.views === undefined || it.views === null || it.views === "") return;
+      const d = new Date(it.date + "T00:00:00");
+      if (d < cutoff) return;
+      map[it.date] = (map[it.date] || 0) + Number(it.views || 0);
+    });
+    return Object.entries(map)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, views]) => ({ date: fmtDate(date), views }));
+  }, [items]);
+
   return (
     <div style={S.section}>
       <div style={S.dashHeaderRow}>
@@ -988,6 +1074,36 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
             <span>الصافي الكلي: <b style={{ color: totalNetProfit < 0 ? "#D9707A" : "#4FB286" }}>{fmtMoney(totalNetProfit)}</b></span>
             <span>متبقي ليك: <b style={{ color: "#E7A33E" }}>{fmtMoney(totalRemaining)}</b></span>
           </div>
+        </div>
+      )}
+
+      {/* Performance chart */}
+      {brands.length > 0 && (
+        <div style={S.dashSection}>
+          <h3 style={S.dashSectionTitle}><BarChart3 size={14} /> أداء المحتوى (آخر 30 يوم)</h3>
+          {perfChartData.length > 1 ? (
+            <div style={S.chartCard}>
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={perfChartData} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="perfGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#E7A33E" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#E7A33E" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#222C31" vertical={false} />
+                  <XAxis dataKey="date" stroke="#657078" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#657078" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ background: "#1B2328", border: "1px solid #2C383F", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#F2EEE4" }} itemStyle={{ color: "#E7A33E" }} />
+                  <Area type="monotone" dataKey="views" name="مشاهدات" stroke="#E7A33E" strokeWidth={2} fill="url(#perfGradient)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={S.chartCard}>
+              <p style={S.aiHint}>سجّل المشاهدات في "نتيجة النشر" لأي فكرة عشان يبدأ يظهر هنا رسم بياني لأدائك بمرور الوقت.</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1536,6 +1652,10 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
   const [views, setViews] = useState(item.views ?? "");
   const [likes, setLikes] = useState(item.likes ?? "");
   const [comments, setComments] = useState(item.comments ?? "");
+  const [shares, setShares] = useState(item.shares ?? "");
+  const [saves, setSaves] = useState(item.saves ?? "");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeMsg, setAnalyzeMsg] = useState("");
 
   function savePerf() {
     onSavePerf({
@@ -1543,8 +1663,38 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
       views: views === "" ? null : Number(views),
       likes: likes === "" ? null : Number(likes),
       comments: comments === "" ? null : Number(comments),
+      shares: shares === "" ? null : Number(shares),
+      saves: saves === "" ? null : Number(saves),
     });
     setPerfOpen(false);
+  }
+
+  async function analyzeLink() {
+    if (!linkVal.trim()) return;
+    setAnalyzing(true);
+    setAnalyzeMsg("");
+    try {
+      const res = await fetch("/api/analyze-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: linkVal.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setAnalyzeMsg(data.message || "معرفناش نجيب البيانات.");
+      } else {
+        if (data.views !== null && data.views !== undefined) setViews(data.views);
+        if (data.likes !== null && data.likes !== undefined) setLikes(data.likes);
+        if (data.comments !== null && data.comments !== undefined) setComments(data.comments);
+        if (data.shares !== null && data.shares !== undefined) setShares(data.shares);
+        if (data.saves !== null && data.saves !== undefined) setSaves(data.saves);
+        setAnalyzeMsg("تم الجلب ✓");
+      }
+    } catch (e) {
+      setAnalyzeMsg("حصلت مشكلة، جرب تاني.");
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   const hasPerf = (item.views !== undefined && item.views !== null && item.views !== "") || (item.likes !== undefined && item.likes !== null && item.likes !== "");
@@ -1600,11 +1750,23 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
         <div style={S.perfPanel}>
           <label style={S.perfLinkLabel}>لينك المنشور</label>
           <input style={{ ...S.input, fontSize: 11.5, padding: "6px 8px" }} value={linkVal} onChange={(e) => setLinkVal(e.target.value)} placeholder="حط لينك المنشور هنا بعد النشر" />
-          <p style={S.aiHint}>حط الأرقام بعد ما تشوفها بنفسك من صفحة المنشور.</p>
+
+          {linkVal.trim() && (
+            <button type="button" onClick={analyzeLink} disabled={analyzing} style={{ ...S.moveTextBtn, marginTop: 6, borderStyle: "solid" }}>
+              {analyzing ? "بيجيب البيانات..." : "🔍 اجلب الأرقام تلقائي"}
+            </button>
+          )}
+          {analyzeMsg && <p style={{ ...S.aiHint, fontSize: 10, marginTop: 4 }}>{analyzeMsg}</p>}
+
+          <p style={S.aiHint}>أو حط الأرقام بنفسك تحت.</p>
           <div style={S.perfInputsRow} className="perfInputsRow">
             <input type="number" min="0" style={S.perfInput} value={views} onChange={(e) => setViews(e.target.value)} placeholder="مشاهدات" />
             <input type="number" min="0" style={S.perfInput} value={likes} onChange={(e) => setLikes(e.target.value)} placeholder="لايكات" />
             <input type="number" min="0" style={S.perfInput} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="كومنتات" />
+          </div>
+          <div style={{ ...S.perfInputsRow, marginTop: 5 }} className="perfInputsRow">
+            <input type="number" min="0" style={S.perfInput} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="مشاركات" />
+            <input type="number" min="0" style={S.perfInput} value={saves} onChange={(e) => setSaves(e.target.value)} placeholder="حفظ" />
           </div>
           <button onClick={savePerf} style={{ ...S.moveTextBtn, marginTop: 6 }}><Save size={12} style={{ verticalAlign: -1 }} /> احفظ نتيجة النشر</button>
         </div>
@@ -2679,7 +2841,39 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
   const [views, setViews] = useState(item?.views ?? item?.metric ?? "");
   const [likes, setLikes] = useState(item?.likes ?? "");
   const [comments, setComments] = useState(item?.comments ?? "");
+  const [shares, setShares] = useState(item?.shares ?? "");
+  const [saves, setSaves] = useState(item?.saves ?? "");
   const [successNote, setSuccessNote] = useState(item?.successNote || "");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeMsg, setAnalyzeMsg] = useState("");
+
+  async function analyzeLink() {
+    if (!link.trim()) return;
+    setAnalyzing(true);
+    setAnalyzeMsg("");
+    try {
+      const res = await fetch("/api/analyze-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: link.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setAnalyzeMsg(data.message || "معرفناش نجيب البيانات، حط الأرقام يدوي.");
+      } else {
+        if (data.views !== null && data.views !== undefined) setViews(data.views);
+        if (data.likes !== null && data.likes !== undefined) setLikes(data.likes);
+        if (data.comments !== null && data.comments !== undefined) setComments(data.comments);
+        if (data.shares !== null && data.shares !== undefined) setShares(data.shares);
+        if (data.saves !== null && data.saves !== undefined) setSaves(data.saves);
+        setAnalyzeMsg("تم الجلب، راجع الأرقام تحت.");
+      }
+    } catch (e) {
+      setAnalyzeMsg("حصلت مشكلة في الاتصال، جرب تاني.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   const brand = brands.find((b) => b.id === brandId);
 
@@ -2741,6 +2935,16 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
 
       <div style={S.formGroup}>
         <label style={S.label}>نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)</label>
+
+        {link.trim() && (
+          <div style={{ marginBottom: 10 }}>
+            <button type="button" onClick={analyzeLink} disabled={analyzing} style={S.secondaryBtn}>
+              {analyzing ? "بيجيب البيانات..." : "🔍 اجلب الأرقام تلقائي من اللينك"}
+            </button>
+            {analyzeMsg && <p style={{ ...S.aiHint, marginTop: 6 }}>{analyzeMsg}</p>}
+          </div>
+        )}
+
         <div style={{ ...S.rowTwo, marginTop: 4 }} className="rowTwo">
           <div>
             <label style={S.label}>المشاهدات</label>
@@ -2751,9 +2955,19 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
             <input type="number" min="0" style={S.input} value={likes} onChange={(e) => setLikes(e.target.value)} placeholder="بعد النشر" />
           </div>
         </div>
+        <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
+          <div>
+            <label style={S.label}>الكومنتات</label>
+            <input type="number" min="0" style={S.input} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="بعد النشر" />
+          </div>
+          <div>
+            <label style={S.label}>المشاركات (Shares)</label>
+            <input type="number" min="0" style={S.input} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="بعد النشر" />
+          </div>
+        </div>
         <div style={{ marginTop: 10 }}>
-          <label style={S.label}>الكومنتات</label>
-          <input type="number" min="0" style={S.input} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="بعد النشر" />
+          <label style={S.label}>الحفظ (Saves)</label>
+          <input type="number" min="0" style={S.input} value={saves} onChange={(e) => setSaves(e.target.value)} placeholder="بعد النشر" />
         </div>
       </div>
 
@@ -2793,6 +3007,8 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
             views: views === "" ? null : Number(views),
             likes: likes === "" ? null : Number(likes),
             comments: comments === "" ? null : Number(comments),
+            shares: shares === "" ? null : Number(shares),
+            saves: saves === "" ? null : Number(saves),
             successNote: successNote.trim(),
           })}
           style={S.primaryBtn(brand?.color || PALETTE[0])}
@@ -2901,6 +3117,21 @@ const S = {
   brandMiniName: { fontSize: 12.5, fontWeight: 700, color: "#F2EEE4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   brandMiniMeta: { fontSize: 10.5, color: "#657078", marginTop: 1 },
   brandMiniAdd: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1.5px dashed #2C383F", color: "#8FA0A8", borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12 },
+  chartCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "16px 8px 8px" },
+
+  /* Top header */
+  topHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: "1px solid #1B2328" },
+  topHeaderUser: { display: "flex", alignItems: "center", gap: 10 },
+  topHeaderAvatar: { width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg,#E7A33E,#C97B5F)", color: "#161E23", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15, flexShrink: 0 },
+  topHeaderName: { fontSize: 13, fontWeight: 700, color: "#F2EEE4" },
+  topHeaderPlanBadge: { fontSize: 10.5, fontWeight: 700, marginTop: 1 },
+  topHeaderActions: { display: "flex", alignItems: "center", gap: 8 },
+  topHeaderIconBtn: { position: "relative", width: 36, height: 36, borderRadius: 9, background: "#1B2328", border: "1px solid #222C31", color: "#C7CDD1", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  topHeaderBadge: { position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, borderRadius: 999, background: "#D9707A", color: "#fff", fontSize: 9.5, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" },
+  notifDropdown: { position: "absolute", top: 44, left: 0, width: 260, background: "#161E23", border: "1px solid #2C383F", borderRadius: 12, padding: 12, zIndex: 50, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" },
+  notifDropdownTitle: { fontSize: 12, fontWeight: 800, color: "#F2EEE4", marginBottom: 8 },
+  notifRow: { display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", borderBottom: "1px solid #1B2328", fontSize: 11.5, color: "#D8D3C6" },
+  notifRowText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   perfTotalsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 10 },
   perfTotalsCol: { display: "flex", flexDirection: "column", gap: 8 },
   perfTotalsLabel: { fontSize: 11.5, color: "#8FA0A8", fontWeight: 700 },

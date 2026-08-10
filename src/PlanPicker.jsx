@@ -106,7 +106,10 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
       </div>
       <div style={styles.paySection}>
         <div style={styles.payLabel}>للدفع من بره مصر:</div>
-        <div style={styles.payValue}>غيّر ده للينك دفع دولي بتاعك (مثلاً Payoneer أو رابط Stripe)</div>
+        <div style={{ ...styles.payValue, color: "#8FA0A8", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={styles.comingSoonDot} />
+          الدفع الدولي تحت الإنشاء حاليًا — قريبًا
+        </div>
       </div>
 
       <a
@@ -166,6 +169,7 @@ const styles = {
   paySection: { marginBottom: 10 },
   payLabel: { color: "#8FA0A8", fontSize: 11.5, fontWeight: 700 },
   payValue: { color: "#F2EEE4", fontSize: 13, marginTop: 2 },
+  comingSoonDot: { width: 6, height: 6, borderRadius: "50%", background: "#E7A33E", flexShrink: 0 },
   payRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 },
   copyBtn: { background: "#1B2328", border: "1px solid #2C383F", color: "#C7CDD1", padding: "4px 10px", borderRadius: 7, fontSize: 11, cursor: "pointer", fontFamily: "inherit" },
   whatsappBtn: {
