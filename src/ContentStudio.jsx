@@ -10,6 +10,7 @@ import {
   AlertTriangle, Eye, Wallet, Hash, Copy, Repeat, BookOpen, Award, Banknote,
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
   ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
+  ArrowUpRight, ArrowDownRight, ListChecks, CalendarClock,
 } from "lucide-react";
 
 const PALETTE = [
@@ -360,6 +361,9 @@ export default function ContentStudio({
           .studio-app .dashGrid {
             grid-template-columns: 1fr !important;
           }
+          .studio-app .dashTwoCol {
+            grid-template-columns: 1fr !important;
+          }
           .studio-app .perfTotalsGrid {
             grid-template-columns: 1fr !important;
           }
@@ -474,9 +478,15 @@ export default function ContentStudio({
           }
 
           .studio-app .dashGrid,
+          .studio-app .dashTwoCol,
           .studio-app .perfTotalsGrid {
             grid-template-columns: 1fr !important;
             gap: 18px !important;
+          }
+
+          .studio-app .kpiRow,
+          .studio-app .financeRow {
+            grid-template-columns: 1fr 1fr !important;
           }
 
           .studio-app .brandCardGrid {
@@ -758,6 +768,11 @@ export default function ContentStudio({
             {brandLimit === Infinity ? "براندات غير محدودة" : `${brandLimit} براندات`} بس، وإنت وصلت للحد ده.
             رقّي باقتك عشان تضيف براندات أكتر.
           </p>
+          {brands.length > brandLimit && (
+            <p style={{ ...S.confirmText, color: "#4FB286", fontSize: 12 }}>
+              اطمّن: البراندات الزيادة من فترة التجربة مش هتتمسح ولا تختفي — هتفضل موجودة وتقدر تشتغل عليها زي ما هي، بس مش هتقدر تضيف واحد جديد لحد ما ترقّي أو تمسح واحد قديم.
+            </p>
+          )}
           <div style={S.modalFooter}>
             <button onClick={() => setLimitModalOpen(false)} style={S.secondaryBtn}>رجوع</button>
             <a
@@ -864,12 +879,22 @@ function NavItem({ icon, label, active, onClick }) {
 function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, onOpenBrand, onAddBrand, tasks, onAddTask, onToggleTask, onDeleteTask }) {
   const totalOpen = items.filter((i) => i.status !== "done").length;
   const [newTask, setNewTask] = useState("");
+  const today = todayISO();
+  const monthPrefix = today.slice(0, 7);
 
-  const monthPrefix = todayISO().slice(0, 7);
+  const prevMonthPrefix = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return isoFromDate(d).slice(0, 7);
+  }, []);
+
   let monthIncome = 0;
+  let prevMonthIncome = 0;
   let totalIncome = 0;
   let totalRemaining = 0;
   let totalExpenses = 0;
+  let monthExpenses = 0;
   brands.forEach((b) => {
     const payments = b.payments || [];
     const expenses = b.expenses || [];
@@ -879,10 +904,17 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
     totalExpenses += spent;
     totalRemaining += (Number(b.paymentTotal) || 0) - received;
     payments.forEach((p) => {
-      if (p.date && p.date.slice(0, 7) === monthPrefix) monthIncome += Number(p.amount || 0);
+      if (!p.date) return;
+      if (p.date.slice(0, 7) === monthPrefix) monthIncome += Number(p.amount || 0);
+      if (p.date.slice(0, 7) === prevMonthPrefix) prevMonthIncome += Number(p.amount || 0);
+    });
+    expenses.forEach((p) => {
+      if (p.date && p.date.slice(0, 7) === monthPrefix) monthExpenses += Number(p.amount || 0);
     });
   });
   const totalNetProfit = totalIncome - totalExpenses;
+  const monthNet = monthIncome - monthExpenses;
+  const incomeChangePct = prevMonthIncome > 0 ? Math.round(((monthIncome - prevMonthIncome) / prevMonthIncome) * 100) : null;
 
   function submitTask() {
     onAddTask(newTask);
@@ -893,143 +925,224 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
   const doneTasks = tasks.filter((t) => t.done);
   const todaysReminders = useMemo(() => getTodaysReminders(items), [items]);
 
+  const todayContent = useMemo(
+    () => items.filter((i) => i.date === today).sort((a, b) => (a.brandId || "").localeCompare(b.brandId || "")),
+    [items, today]
+  );
+
+  const overdueItems = useMemo(
+    () => items.filter((i) => i.date && i.date < today && i.status !== "done").sort((a, b) => a.date.localeCompare(b.date)),
+    [items, today]
+  );
+
+  const attentionItems = useMemo(() => {
+    const list = [];
+    overdueItems.forEach((it) => list.push({ kind: "overdue", item: it }));
+    todaysReminders.forEach((it) => list.push({ kind: "reminder", item: it }));
+    return list.slice(0, 6);
+  }, [overdueItems, todaysReminders]);
+
   return (
     <div style={S.section}>
-      <SectionHeader icon={<Sparkles size={20} />} title="أهلاً بيك" subtitle={`عندك ${brands.length} براند و ${totalOpen} حاجة لسه شغالة عليها`} />
-
-      {todaysReminders.length > 0 && (
-        <div style={S.reminderBanner}>
-          <div style={S.reminderBannerHead}><Bell size={15} /> تذكيرات النهاردة</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-            {todaysReminders.map((it) => {
-              const b = brands.find((x) => x.id === it.brandId);
-              return (
-                <div key={it.id} style={S.reminderRow}>
-                  <span style={{ ...S.dot, background: b?.color || "#666" }} />
-                  <span style={{ flex: 1, fontSize: 12.5 }}>{it.title}</span>
-                  <span style={{ fontSize: 11, color: "#8FA0A8" }}>{b?.name} · الميعاد {fmtDate(it.date)}</span>
-                </div>
-              );
-            })}
-          </div>
+      <div style={S.dashHeaderRow}>
+        <div>
+          <h2 style={S.dashGreeting}>أهلاً بيك 👋</h2>
+          <p style={S.dashGreetingSub}>دي نظرة سريعة على شغلك النهارده.</p>
         </div>
-      )}
-
-      <div style={S.statRow} className="statRow">
-        <StatCard label="براندات" value={brands.length} />
-        <StatCard label="أفكار جديدة" value={items.filter((i) => i.status === "idea").length} color={STATUS_DEFS[0].color} />
-        <StatCard label="مجدولة" value={items.filter((i) => i.status === "scheduled").length} color={STATUS_DEFS[2].color} />
-        <StatCard label="اتنشرت" value={items.filter((i) => i.status === "done").length} color={STATUS_DEFS[3].color} />
-        <StatCard label="متأخرة عن معادها" value={overdueCount} color="#D9707A" />
       </div>
 
+      {/* KPI summary — compact, at-a-glance */}
+      <div style={S.kpiRow} className="kpiRow">
+        <KpiCard label="البراندات" value={brands.length} icon={<Users size={15} />} />
+        <KpiCard label="أفكار جديدة" value={items.filter((i) => i.status === "idea").length} icon={<Sparkles size={15} />} color={STATUS_DEFS[0].color} />
+        <KpiCard label="محتوى مجدول" value={items.filter((i) => i.status === "scheduled").length} icon={<CalendarClock size={15} />} color={STATUS_DEFS[2].color} />
+        <KpiCard label="محتوى متأخر" value={overdueCount} icon={<AlertTriangle size={15} />} color={overdueCount > 0 ? "#D9707A" : "#4FB286"} />
+      </div>
+
+      {/* Financial overview */}
       {brands.length > 0 && (
-        <>
-          <h3 style={S.h3}><Banknote size={14} style={{ verticalAlign: -2 }} /> دخلك من كل البراندات</h3>
-          <div style={S.statRow} className="statRow">
-            <StatCard label="دخل الشهر ده" value={fmtMoney(monthIncome)} color="#4FB286" />
-            <StatCard label="إجمالي المستلم من كل البراندات" value={fmtMoney(totalIncome)} color="#4FB286" />
-            <StatCard label="إجمالي المصاريف" value={fmtMoney(totalExpenses)} color="#D9707A" />
-            <StatCard label="الصافي (ربحك الحقيقي)" value={fmtMoney(totalNetProfit)} color={totalNetProfit < 0 ? "#D9707A" : "#4FB286"} />
-            <StatCard label="متبقي ليك من كل البراندات" value={fmtMoney(totalRemaining)} color={totalRemaining < 0 ? "#D9707A" : "#E7A33E"} />
+        <div style={S.dashSection}>
+          <h3 style={S.dashSectionTitle}><Banknote size={14} /> الوضع المالي</h3>
+          <div style={S.financeRow} className="financeRow">
+            <div style={S.financeCard}>
+              <div style={S.financeLabel}>الدخل الشهر ده</div>
+              <div style={S.financeValue}>{fmtMoney(monthIncome)}</div>
+              {incomeChangePct !== null && (
+                <div style={{ ...S.financeTrend, color: incomeChangePct >= 0 ? "#4FB286" : "#D9707A" }}>
+                  {incomeChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                  {Math.abs(incomeChangePct)}% عن الشهر اللي فات
+                </div>
+              )}
+            </div>
+            <div style={S.financeCard}>
+              <div style={S.financeLabel}>المصاريف الشهر ده</div>
+              <div style={{ ...S.financeValue, color: "#D9707A" }}>{fmtMoney(monthExpenses)}</div>
+            </div>
+            <div style={S.financeCard}>
+              <div style={S.financeLabel}>صافي الربح الشهر ده</div>
+              <div style={{ ...S.financeValue, color: monthNet < 0 ? "#D9707A" : "#4FB286" }}>{fmtMoney(monthNet)}</div>
+            </div>
           </div>
-        </>
+          <div style={S.financeFooterRow}>
+            <span>إجمالي كل الوقت: <b style={{ color: "#F2EEE4" }}>{fmtMoney(totalIncome)}</b></span>
+            <span>الصافي الكلي: <b style={{ color: totalNetProfit < 0 ? "#D9707A" : "#4FB286" }}>{fmtMoney(totalNetProfit)}</b></span>
+            <span>متبقي ليك: <b style={{ color: "#E7A33E" }}>{fmtMoney(totalRemaining)}</b></span>
+          </div>
+        </div>
       )}
 
-      <div style={S.dashGrid} className="dashGrid">
-        <div>
-          <h3 style={S.h3}>البراندات</h3>
-          {brands.length === 0 ? (
-            <button onClick={onAddBrand} style={S.dashedAddCard}>
-              <Plus size={18} />
-              <span>ضيف أول براند</span>
-            </button>
-          ) : (
-            <div style={S.brandCardGrid} className="brandCardGrid">
-              {brands.map((b) => {
-                const c = brandCounts[b.id] || {};
+      <div style={S.dashTwoCol} className="dashTwoCol">
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Today's content */}
+          <div>
+            <h3 style={S.dashSectionTitle}><ListChecks size={14} /> محتوى النهارده</h3>
+            <div style={S.compactList}>
+              {todayContent.length === 0 && <div style={S.emptyBrands}>مفيش محتوى مجدول النهارده.</div>}
+              {todayContent.map((it) => {
+                const b = brands.find((x) => x.id === it.brandId);
+                const sd = STATUS_DEFS.find((s) => s.key === it.status);
                 return (
-                  <button key={b.id} onClick={() => onOpenBrand(b.id)} style={{ ...S.idCard, borderColor: b.color + "55" }}>
-                    <div style={{ ...S.idCardStripe, background: b.color }} />
-                    <div style={S.idCardTop}>
-                      <span style={{ ...S.idCardAvatar, background: b.color + "26", color: b.color }}>{b.emoji}</span>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={S.idCardName}>{b.name}</div>
-                        {b.handle && <div style={S.idCardHandle}>{b.handle}</div>}
-                      </div>
+                  <div key={it.id} style={S.compactRow}>
+                    <span style={{ ...S.dot, background: b?.color || "#666" }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.upcomingTitle}>{it.title}</div>
+                      <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
                     </div>
-                    <div style={S.idCardStats}>
-                      {STATUS_DEFS.map((sd) => (
-                        <span key={sd.key} style={{ ...S.idCardChip, color: sd.color, background: sd.bg }}>
-                          {c[sd.key] || 0} {sd.label}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
+                    <span style={{ ...S.miniBadge, color: sd?.color, background: sd?.bg }}>{sd?.label}</span>
+                  </div>
                 );
               })}
-              <button onClick={onAddBrand} style={S.dashedAddCardSmall}>
-                <Plus size={16} />
-                <span>براند جديد</span>
-              </button>
-            </div>
-          )}
-
-          <h3 style={{ ...S.h3, marginTop: 22 }}><ClipboardList size={14} style={{ verticalAlign: -2 }} /> مهام عامة (برة الأفكار)</h3>
-          <div style={S.refCard}>
-            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-              <input
-                style={S.input}
-                value={newTask}
-                onChange={(e) => setNewTask(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") submitTask(); }}
-                placeholder="مهمة إدارية مش مرتبطة بفكرة معينة..."
-              />
-              <button onClick={submitTask} style={S.primaryBtn("#E7A33E")}><Plus size={14} /></button>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }} className="scrollbar">
-              {tasks.length === 0 && <div style={S.emptyBrands}>لسه مفيش مهام مسجلة.</div>}
-              {pendingTasks.map((t) => (
-                <div key={t.id} style={S.taskRow}>
-                  <button onClick={() => onToggleTask(t.id)} style={S.taskCheckBtn} title="خلصت"><Circle size={14} /></button>
-                  <span style={S.taskText}>{t.text}</span>
-                  <button onClick={() => onDeleteTask(t.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
-                </div>
-              ))}
-              {doneTasks.map((t) => (
-                <div key={t.id} style={{ ...S.taskRow, opacity: 0.55 }}>
-                  <button onClick={() => onToggleTask(t.id)} style={S.taskCheckBtn} title="ارجعها"><CheckCircle2 size={14} /></button>
-                  <span style={{ ...S.taskText, textDecoration: "line-through" }}>{t.text}</span>
-                  <button onClick={() => onDeleteTask(t.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
-                </div>
-              ))}
             </div>
           </div>
-        </div>
 
-        <div>
-          <h3 style={S.h3}>أولويات الأسبوع الجاي</h3>
-          <div style={S.upcomingList}>
-            {weekPriorities.length === 0 && <div style={S.emptyBrands}>مفيش حاجة مجدولة في السبع أيام الجايين.</div>}
-            {weekPriorities.map((it) => {
-              const b = brands.find((x) => x.id === it.brandId);
-              const dLeft = daysUntil(it.date);
-              const near = dLeft !== null && dLeft <= 2;
-              return (
-                <div key={it.id} style={S.upcomingRow}>
-                  <span style={{ ...S.dot, background: b?.color || "#666" }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={S.upcomingTitle}>{it.title}</div>
-                    <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
+          {/* Needs attention */}
+          <div>
+            <h3 style={S.dashSectionTitle}><AlertTriangle size={14} color="#D9707A" /> يحتاج انتباهك</h3>
+            <div style={S.compactList}>
+              {attentionItems.length === 0 && <div style={S.emptyBrands}>مفيش حاجة مستعجلة دلوقتي — تمام كده 👍</div>}
+              {attentionItems.map(({ kind, item: it }) => {
+                const b = brands.find((x) => x.id === it.brandId);
+                const dLeft = daysUntil(it.date);
+                return (
+                  <div key={`${kind}-${it.id}`} style={S.attentionRow}>
+                    <span style={S.attentionIcon}><AlertTriangle size={13} /></span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.upcomingTitle}>{it.title}</div>
+                      <div style={S.upcomingMeta}>{b?.name}</div>
+                    </div>
+                    <span style={S.attentionTag}>
+                      {kind === "overdue" ? `متأخرة ${Math.abs(dLeft)} يوم` : "تذكير النهاردة"}
+                    </span>
                   </div>
-                  <span style={{ ...S.miniBadge, color: near ? "#D9707A" : "#E7A33E", background: near ? "rgba(217,112,122,0.16)" : "rgba(231,163,62,0.16)" }}>
-                    {near && <AlertTriangle size={10} style={{ verticalAlign: -1 }} />} {fmtDate(it.date)}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* General tasks (existing feature, preserved) */}
+          <div>
+            <h3 style={S.dashSectionTitle}><ClipboardList size={14} /> مهام عامة (برة الأفكار)</h3>
+            <div style={S.refCard}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                <input
+                  style={S.input}
+                  value={newTask}
+                  onChange={(e) => setNewTask(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitTask(); }}
+                  placeholder="مهمة إدارية مش مرتبطة بفكرة معينة..."
+                />
+                <button onClick={submitTask} style={S.primaryBtn("#E7A33E")}><Plus size={14} /></button>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }} className="scrollbar">
+                {tasks.length === 0 && <div style={S.emptyBrands}>لسه مفيش مهام مسجلة.</div>}
+                {pendingTasks.map((t) => (
+                  <div key={t.id} style={S.taskRow}>
+                    <button onClick={() => onToggleTask(t.id)} style={S.taskCheckBtn} title="خلصت"><Circle size={14} /></button>
+                    <span style={S.taskText}>{t.text}</span>
+                    <button onClick={() => onDeleteTask(t.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
+                  </div>
+                ))}
+                {doneTasks.map((t) => (
+                  <div key={t.id} style={{ ...S.taskRow, opacity: 0.55 }}>
+                    <button onClick={() => onToggleTask(t.id)} style={S.taskCheckBtn} title="ارجعها"><CheckCircle2 size={14} /></button>
+                    <span style={{ ...S.taskText, textDecoration: "line-through" }}>{t.text}</span>
+                    <button onClick={() => onDeleteTask(t.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Brands — compact */}
+          <div>
+            <h3 style={S.dashSectionTitle}><Users size={14} /> برانداتك</h3>
+            {brands.length === 0 ? (
+              <button onClick={onAddBrand} style={S.dashedAddCard}>
+                <Plus size={18} />
+                <span>ضيف أول براند</span>
+              </button>
+            ) : (
+              <div style={S.brandMiniList}>
+                {brands.map((b) => {
+                  const c = brandCounts[b.id] || {};
+                  const activeCount = (c.idea || 0) + (c.ready || 0) + (c.scheduled || 0);
+                  return (
+                    <button key={b.id} onClick={() => onOpenBrand(b.id)} style={S.brandMiniCard}>
+                      <span style={{ ...S.idCardAvatar, width: 32, height: 32, fontSize: 14, background: b.color + "26", color: b.color }}>{b.emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
+                        <div style={S.brandMiniName}>{b.name}</div>
+                        <div style={S.brandMiniMeta}>{activeCount} حاجة شغالة</div>
+                      </div>
+                      <span style={{ ...S.dot, background: b.color }} />
+                    </button>
+                  );
+                })}
+                <button onClick={onAddBrand} style={S.brandMiniAdd}>
+                  <Plus size={15} /> براند جديد
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Week priorities (existing feature, preserved) */}
+          <div>
+            <h3 style={S.dashSectionTitle}><CalendarIcon size={14} /> أولويات الأسبوع الجاي</h3>
+            <div style={S.compactList}>
+              {weekPriorities.length === 0 && <div style={S.emptyBrands}>مفيش حاجة مجدولة في السبع أيام الجايين.</div>}
+              {weekPriorities.map((it) => {
+                const b = brands.find((x) => x.id === it.brandId);
+                const dLeft = daysUntil(it.date);
+                const near = dLeft !== null && dLeft <= 2;
+                return (
+                  <div key={it.id} style={S.compactRow}>
+                    <span style={{ ...S.dot, background: b?.color || "#666" }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={S.upcomingTitle}>{it.title}</div>
+                      <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
+                    </div>
+                    <span style={{ ...S.miniBadge, color: near ? "#D9707A" : "#E7A33E", background: near ? "rgba(217,112,122,0.16)" : "rgba(231,163,62,0.16)" }}>
+                      {near && <AlertTriangle size={10} style={{ verticalAlign: -1 }} />} {fmtDate(it.date)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, icon, color }) {
+  return (
+    <div style={S.kpiCard}>
+      <span style={{ ...S.kpiIcon, color: color || "#8FA0A8" }}>{icon}</span>
+      <div>
+        <div style={{ ...S.kpiValue, color: color || "#F2EEE4" }}>{value}</div>
+        <div style={S.kpiLabel}>{label}</div>
       </div>
     </div>
   );
@@ -1222,7 +1335,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
       )}
 
       <h3 style={{ ...S.h3, marginTop: 24 }}>{plan ? "غيّر أو رقّي باقتك" : "اشترك دلوقتي"}</h3>
-      <PlanPicker onRecheck={onRecheck} defaultPlan={plan || "pro"} />
+      <PlanPicker onRecheck={onRecheck} defaultPlan={(plan || "pro").toString().trim().toLowerCase()} />
     </div>
   );
 }
@@ -2759,6 +2872,35 @@ const S = {
   statValue: { fontSize: 22, fontWeight: 800 },
   statLabel: { fontSize: 11.5, color: "#8FA0A8", marginTop: 2 },
   dashGrid: { display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 28, alignItems: "start" },
+
+  /* New Home Dashboard tokens (Redesign phase 1) */
+  dashHeaderRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 },
+  dashGreeting: { fontSize: 20, fontWeight: 800, margin: 0, color: "#F2EEE4" },
+  dashGreetingSub: { fontSize: 12.5, color: "#8FA0A8", margin: "4px 0 0" },
+  kpiRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 24 },
+  kpiCard: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "12px 14px" },
+  kpiIcon: { width: 30, height: 30, borderRadius: 9, background: "#161E23", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  kpiValue: { fontSize: 18, fontWeight: 800, lineHeight: 1.2 },
+  kpiLabel: { fontSize: 10.5, color: "#8FA0A8", marginTop: 1 },
+  dashSection: { marginBottom: 26 },
+  dashSectionTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, margin: "0 0 12px", color: "#D8D3C6" },
+  financeRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 },
+  financeCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "14px 16px" },
+  financeLabel: { fontSize: 11, color: "#8FA0A8" },
+  financeValue: { fontSize: 19, fontWeight: 800, marginTop: 4, color: "#F2EEE4" },
+  financeTrend: { display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, marginTop: 6 },
+  financeFooterRow: { display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 12, fontSize: 11.5, color: "#8FA0A8" },
+  dashTwoCol: { display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 28, alignItems: "start" },
+  compactList: { display: "flex", flexDirection: "column", gap: 7 },
+  compactRow: { display: "flex", alignItems: "center", gap: 9, background: "#1B2328", border: "1px solid #222C31", borderRadius: 9, padding: "8px 11px" },
+  attentionRow: { display: "flex", alignItems: "center", gap: 9, background: "#1B2328", border: "1px solid #D9707A33", borderRadius: 9, padding: "8px 11px" },
+  attentionIcon: { color: "#D9707A", display: "flex", flexShrink: 0 },
+  attentionTag: { fontSize: 10, fontWeight: 700, color: "#D9707A", background: "rgba(217,112,122,0.14)", padding: "3px 8px", borderRadius: 999, flexShrink: 0, whiteSpace: "nowrap" },
+  brandMiniList: { display: "flex", flexDirection: "column", gap: 7 },
+  brandMiniCard: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", width: "100%", textAlign: "right" },
+  brandMiniName: { fontSize: 12.5, fontWeight: 700, color: "#F2EEE4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  brandMiniMeta: { fontSize: 10.5, color: "#657078", marginTop: 1 },
+  brandMiniAdd: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1.5px dashed #2C383F", color: "#8FA0A8", borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12 },
   perfTotalsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 10 },
   perfTotalsCol: { display: "flex", flexDirection: "column", gap: 8 },
   perfTotalsLabel: { fontSize: 11.5, color: "#8FA0A8", fontWeight: 700 },

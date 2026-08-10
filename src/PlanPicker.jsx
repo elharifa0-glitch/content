@@ -30,7 +30,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
   const [redeemMsg, setRedeemMsg] = useState("");
   const [redeemOk, setRedeemOk] = useState(false);
 
-  const plan = PLANS.find((p) => p.key === selectedPlan);
+  const plan = PLANS.find((p) => p.key === selectedPlan) || PLANS.find((p) => p.recommended) || PLANS[0];
   const whatsappMsg = encodeURIComponent(
     `أهلاً، عايز أشترك في باقة ${plan.name} في استوديو الشغل. ده إثبات الدفع:`
   );
@@ -106,7 +106,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
       </div>
       <div style={styles.paySection}>
         <div style={styles.payLabel}>للدفع من بره مصر:</div>
-        <div style={styles.payValue}>لسة تحت الانشاء</div>
+        <div style={styles.payValue}>غيّر ده للينك دفع دولي بتاعك (مثلاً Payoneer أو رابط Stripe)</div>
       </div>
 
       <a
