@@ -25,20 +25,20 @@ const PALETTE = [
 const EMOJI_OPTIONS = ["🟠", "🟢", "🔵", "🟣", "🟡", "🔴", "⚪️", "⚫️", "🟤"];
 
 const STATUS_DEFS = [
-  { key: "idea", label: "فكرة جديدة", color: "#8FA0A8", bg: "rgba(143,160,168,0.14)" },
-  { key: "ready", label: "جاهزة", color: "#5FA8D3", bg: "rgba(95,168,211,0.14)" },
-  { key: "scheduled", label: "مجدولة", color: "#E7A33E", bg: "rgba(231,163,62,0.16)" },
-  { key: "done", label: "اتنشرت", color: "#4FB286", bg: "rgba(79,178,134,0.16)" },
+  { key: "idea", label: "فكرة جديدة", color: colors.status.idea, bg: softBg.default },
+  { key: "ready", label: "جاهزة", color: colors.status.ready, bg: softBg.info },
+  { key: "scheduled", label: "مجدولة", color: colors.status.scheduled, bg: softBg.warning },
+  { key: "done", label: "اتنشرت", color: colors.status.done, bg: softBg.success },
 ];
 
 const TYPE_OPTIONS = ["بوست", "ريلز", "ستوري", "فيديو", "كاروسيل", "مقال", "تانى"];
 
 const PLAN_LIMITS = { starter: 2, pro: 5, unlimited: Infinity };
 const PLAN_LABELS = { starter: "Starter", pro: "Pro", unlimited: "Unlimited" };
-const PLAN_COLORS = { starter: "#5FA8D3", pro: "#E7A33E", unlimited: "#4FB286" };
+const PLAN_COLORS = { starter: colors.info, pro: colors.warning, unlimited: colors.good };
 function planColor(p) {
   const n = (p || "").toString().trim().toLowerCase();
-  return PLAN_COLORS[n] || "#657078";
+  return PLAN_COLORS[n] || colors.textFaint;
 }
 function planLabel(p) {
   const n = (p || "").toString().trim().toLowerCase();
@@ -754,7 +754,7 @@ export default function ContentStudio({
             رقّي باقتك عشان تضيف براندات أكتر.
           </p>
           {brands.length > brandLimit && (
-            <p style={{ ...S.confirmText, color: "#4FB286", fontSize: 12 }}>
+            <p style={{ ...S.confirmText, color: colors.good, fontSize: 12 }}>
               اطمّن: البراندات الزيادة من فترة التجربة مش هتتمسح ولا تختفي — هتفضل موجودة وتقدر تشتغل عليها زي ما هي، بس مش هتقدر تضيف واحد جديد لحد ما ترقّي أو تمسح واحد قديم.
             </p>
           )}
@@ -764,7 +764,7 @@ export default function ContentStudio({
               href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في استوديو الشغل.")}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ ...S.primaryBtn("#E7A33E"), textDecoration: "none" }}
+              style={{ ...S.primaryBtn(colors.warning), textDecoration: "none" }}
             >
               رقّي الباقة
             </a>
@@ -1042,7 +1042,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
         <KpiCard label="البراندات" value={brands.length} icon={<Users size={15} />} />
         <KpiCard label="أفكار جديدة" value={items.filter((i) => i.status === "idea").length} icon={<Sparkles size={15} />} color={STATUS_DEFS[0].color} />
         <KpiCard label="محتوى مجدول" value={items.filter((i) => i.status === "scheduled").length} icon={<CalendarClock size={15} />} color={STATUS_DEFS[2].color} />
-        <KpiCard label="محتوى متأخر" value={overdueCount} icon={<AlertTriangle size={15} />} color={overdueCount > 0 ? "#D9707A" : "#4FB286"} />
+        <KpiCard label="محتوى متأخر" value={overdueCount} icon={<AlertTriangle size={15} />} color={overdueCount > 0 ? colors.danger : colors.good} />
       </div>
 
       {/* Financial overview */}
@@ -1054,7 +1054,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
               <div style={S.financeLabel}>الدخل الشهر ده</div>
               <div style={S.financeValue}>{fmtMoney(monthIncome)}</div>
               {incomeChangePct !== null && (
-                <div style={{ ...S.financeTrend, color: incomeChangePct >= 0 ? "#4FB286" : "#D9707A" }}>
+                <div style={{ ...S.financeTrend, color: incomeChangePct >= 0 ? colors.good : colors.danger }}>
                   {incomeChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
                   {Math.abs(incomeChangePct)}% عن الشهر اللي فات
                 </div>
@@ -1062,17 +1062,17 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
             </div>
             <div style={S.financeCard}>
               <div style={S.financeLabel}>المصاريف الشهر ده</div>
-              <div style={{ ...S.financeValue, color: "#D9707A" }}>{fmtMoney(monthExpenses)}</div>
+              <div style={{ ...S.financeValue, color: colors.danger }}>{fmtMoney(monthExpenses)}</div>
             </div>
             <div style={S.financeCard}>
               <div style={S.financeLabel}>صافي الربح الشهر ده</div>
-              <div style={{ ...S.financeValue, color: monthNet < 0 ? "#D9707A" : "#4FB286" }}>{fmtMoney(monthNet)}</div>
+              <div style={{ ...S.financeValue, color: monthNet < 0 ? colors.danger : colors.good }}>{fmtMoney(monthNet)}</div>
             </div>
           </div>
           <div style={S.financeFooterRow}>
-            <span>إجمالي كل الوقت: <b style={{ color: "#F2EEE4" }}>{fmtMoney(totalIncome)}</b></span>
-            <span>الصافي الكلي: <b style={{ color: totalNetProfit < 0 ? "#D9707A" : "#4FB286" }}>{fmtMoney(totalNetProfit)}</b></span>
-            <span>متبقي ليك: <b style={{ color: "#E7A33E" }}>{fmtMoney(totalRemaining)}</b></span>
+            <span>إجمالي كل الوقت: <b style={{ color: colors.text }}>{fmtMoney(totalIncome)}</b></span>
+            <span>الصافي الكلي: <b style={{ color: totalNetProfit < 0 ? colors.danger : colors.good }}>{fmtMoney(totalNetProfit)}</b></span>
+            <span>متبقي ليك: <b style={{ color: colors.warning }}>{fmtMoney(totalRemaining)}</b></span>
           </div>
         </div>
       )}
@@ -1087,15 +1087,15 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
                 <AreaChart data={perfChartData} margin={{ top: 6, right: 6, left: -18, bottom: 0 }}>
                   <defs>
                     <linearGradient id="perfGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#E7A33E" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#E7A33E" stopOpacity={0} />
+                      <stop offset="5%" stopColor={colors.warning} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={colors.warning} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#222C31" vertical={false} />
-                  <XAxis dataKey="date" stroke="#657078" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#657078" fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "#1B2328", border: "1px solid #2C383F", borderRadius: 8, fontSize: 12 }} labelStyle={{ color: "#F2EEE4" }} itemStyle={{ color: "#E7A33E" }} />
-                  <Area type="monotone" dataKey="views" name="مشاهدات" stroke="#E7A33E" strokeWidth={2} fill="url(#perfGradient)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={colors.border} vertical={false} />
+                  <XAxis dataKey="date" stroke={colors.textFaint} fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis stroke={colors.textFaint} fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ background: colors.card, border: `1px solid ${colors.borderStrong}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: colors.text }} itemStyle={{ color: colors.warning }} />
+                  <Area type="monotone" dataKey="views" name="مشاهدات" stroke={colors.warning} strokeWidth={2} fill="url(#perfGradient)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -1133,7 +1133,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
 
           {/* Needs attention */}
           <div>
-            <h3 style={S.dashSectionTitle}><AlertTriangle size={14} color="#D9707A" /> يحتاج انتباهك</h3>
+            <h3 style={S.dashSectionTitle}><AlertTriangle size={14} color={colors.danger} /> يحتاج انتباهك</h3>
             <div style={S.compactList}>
               {attentionItems.length === 0 && <div style={S.emptyBrands}>مفيش حاجة مستعجلة دلوقتي — تمام كده 👍</div>}
               {attentionItems.map(({ kind, item: it }) => {
@@ -1167,7 +1167,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
                   onKeyDown={(e) => { if (e.key === "Enter") submitTask(); }}
                   placeholder="مهمة إدارية مش مرتبطة بفكرة معينة..."
                 />
-                <button onClick={submitTask} style={S.primaryBtn("#E7A33E")}><Plus size={14} /></button>
+                <button onClick={submitTask} style={S.primaryBtn(colors.warning)}><Plus size={14} /></button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }} className="scrollbar">
                 {tasks.length === 0 && <div style={S.emptyBrands}>لسه مفيش مهام مسجلة.</div>}
@@ -1238,7 +1238,7 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
                       <div style={S.upcomingTitle}>{it.title}</div>
                       <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
                     </div>
-                    <span style={{ ...S.miniBadge, color: near ? "#D9707A" : "#E7A33E", background: near ? "rgba(217,112,122,0.16)" : "rgba(231,163,62,0.16)" }}>
+                    <span style={{ ...S.miniBadge, color: near ? colors.danger : colors.warning, background: near ? "rgba(217,112,122,0.16)" : "rgba(231,163,62,0.16)" }}>
                       {near && <AlertTriangle size={10} style={{ verticalAlign: -1 }} />} {fmtDate(it.date)}
                     </span>
                   </div>
@@ -1255,9 +1255,9 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
 function KpiCard({ label, value, icon, color }) {
   return (
     <div style={S.kpiCard}>
-      <span style={{ ...S.kpiIcon, color: color || "#8FA0A8" }}>{icon}</span>
+      <span style={{ ...S.kpiIcon, color: color || colors.textDim }}>{icon}</span>
       <div>
-        <div style={{ ...S.kpiValue, color: color || "#F2EEE4" }}>{value}</div>
+        <div style={{ ...S.kpiValue, color: color || colors.text }}>{value}</div>
         <div style={S.kpiLabel}>{label}</div>
       </div>
     </div>
@@ -1267,7 +1267,7 @@ function KpiCard({ label, value, icon, color }) {
 function StatCard({ label, value, color }) {
   return (
     <div style={S.statCard} className="statCard">
-      <div style={{ ...S.statValue, color: color || "#F2EEE4" }} className="statValue">{value}</div>
+      <div style={{ ...S.statValue, color: color || colors.text }} className="statValue">{value}</div>
       <div style={S.statLabel} className="statLabel">{label}</div>
     </div>
   );
@@ -1387,10 +1387,10 @@ function CompareView({ brands, items, onOpenBrand }) {
                   <span style={{ ...S.dot, background: r.brand.color }} /> {r.brand.emoji} {r.brand.name}
                 </td>
                 <td style={S.compareTd}>{r.completionRate}%</td>
-                <td style={{ ...S.compareTd, color: r.overdue > 0 ? "#D9707A" : "#8FA0A8" }}>{r.overdue}</td>
+                <td style={{ ...S.compareTd, color: r.overdue > 0 ? colors.danger : colors.textDim }}>{r.overdue}</td>
                 <td style={S.compareTd}>{r.followers != null ? fmtMoney(r.followers) : "—"}</td>
                 <td style={S.compareTd}>{fmtMoney(r.views)}</td>
-                <td style={{ ...S.compareTd, color: r.remaining < 0 ? "#D9707A" : "#E7A33E" }}>{fmtMoney(r.remaining)}</td>
+                <td style={{ ...S.compareTd, color: r.remaining < 0 ? colors.danger : colors.warning }}>{fmtMoney(r.remaining)}</td>
               </tr>
             ))}
           </tbody>
@@ -1411,7 +1411,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
         ? "غير مفعّل"
         : "لسه مفيش اشتراك مسجل";
 
-  const statusColor = isTrialing ? "#E7A33E" : plan ? "#4FB286" : "#D9707A";
+  const statusColor = isTrialing ? colors.warning : plan ? colors.good : colors.danger;
 
   let dateLine = null;
   if (isTrialing && trialEndsAt) {
@@ -1429,16 +1429,16 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
       <div style={S.refCard}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 11.5, color: "#8FA0A8", fontWeight: 700, marginBottom: 4 }}>الحالة</div>
+            <div style={{ fontSize: 11.5, color: colors.textDim, fontWeight: 700, marginBottom: 4 }}>الحالة</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: statusColor }}>
               {statusLabel}{plan ? <> — <span style={{ color: planColor(plan) }}>{planLabel(plan) || plan}</span></> : ""}
             </div>
-            {dateLine && <div style={{ fontSize: 12, color: "#657078", marginTop: 4 }}>{dateLine}</div>}
+            {dateLine && <div style={{ fontSize: 12, color: colors.textFaint, marginTop: 4 }}>{dateLine}</div>}
           </div>
           {!isTrialing && brandLimit !== Infinity && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: "#F2EEE4" }}>{brandsCount}/{brandLimit}</div>
-              <div style={{ fontSize: 10.5, color: "#657078" }}>البراندات المستخدمة</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: colors.text }}>{brandsCount}/{brandLimit}</div>
+              <div style={{ fontSize: 10.5, color: colors.textFaint }}>البراندات المستخدمة</div>
             </div>
           )}
         </div>
@@ -1512,7 +1512,7 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
         اللينك ده صفحة للقراءة بس، تقدر تبعتها لعميل {brand.name} من غير ما يحتاج يسجل دخول. هتوريه المحتوى الجاي والمنشور بس — مفيش أي بيانات مالية أو براندات تانية.
       </p>
 
-      {error && <p style={{ color: "#F0997B", fontSize: 12, marginTop: 8 }}>{error}</p>}
+      {error && <p style={{ color: colors.danger, fontSize: 12, marginTop: 8 }}>{error}</p>}
 
       {brand.shareToken ? (
         <>
@@ -1984,10 +1984,10 @@ function BrandInsights({ brand, items, onPatchBrand }) {
     <div>
       <div style={S.statRow} className="statRow">
         <StatCard label="إجمالي الأفكار" value={total} />
-        <StatCard label="نسبة الإنجاز" value={`${completionRate}%`} color="#4FB286" />
-        <StatCard label="مجدولة دلوقتي" value={items.filter((i) => i.status === "scheduled").length} color="#E7A33E" />
-        <StatCard label="متأخرة عن معادها" value={overdue} color="#D9707A" />
-        <StatCard label="المتبقي من البراند" value={fmtMoney(remaining)} color={remaining < 0 ? "#D9707A" : remaining === 0 ? "#4FB286" : "#E7A33E"} />
+        <StatCard label="نسبة الإنجاز" value={`${completionRate}%`} color={colors.good} />
+        <StatCard label="مجدولة دلوقتي" value={items.filter((i) => i.status === "scheduled").length} color={colors.warning} />
+        <StatCard label="متأخرة عن معادها" value={overdue} color={colors.danger} />
+        <StatCard label="المتبقي من البراند" value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
       </div>
 
       <h3 style={S.h3}><Eye size={14} style={{ verticalAlign: -2 }} /> أداء المحتوى مع البراند ده</h3>
@@ -1995,17 +1995,17 @@ function BrandInsights({ brand, items, onPatchBrand }) {
         <div style={S.perfTotalsCol}>
           <span style={S.perfTotalsLabel}>الشهر ده</span>
           <div style={S.statRow} className="statRow">
-            <StatCard label="مشاهدات" value={fmtMoney(perfTotals.monthViews)} color="#5FA8D3" />
-            <StatCard label="لايكات" value={fmtMoney(perfTotals.monthLikes)} color="#4FB286" />
-            <StatCard label="كومنتات" value={fmtMoney(perfTotals.monthComments)} color="#E7A33E" />
+            <StatCard label="مشاهدات" value={fmtMoney(perfTotals.monthViews)} color={colors.info} />
+            <StatCard label="لايكات" value={fmtMoney(perfTotals.monthLikes)} color={colors.good} />
+            <StatCard label="كومنتات" value={fmtMoney(perfTotals.monthComments)} color={colors.warning} />
           </div>
         </div>
         <div style={S.perfTotalsCol}>
           <span style={S.perfTotalsLabel}>إجمالي كل الوقت</span>
           <div style={S.statRow} className="statRow">
-            <StatCard label="مشاهدات" value={fmtMoney(perfTotals.views)} color="#5FA8D3" />
-            <StatCard label="لايكات" value={fmtMoney(perfTotals.likes)} color="#4FB286" />
-            <StatCard label="كومنتات" value={fmtMoney(perfTotals.comments)} color="#E7A33E" />
+            <StatCard label="مشاهدات" value={fmtMoney(perfTotals.views)} color={colors.info} />
+            <StatCard label="لايكات" value={fmtMoney(perfTotals.likes)} color={colors.good} />
+            <StatCard label="كومنتات" value={fmtMoney(perfTotals.comments)} color={colors.warning} />
           </div>
         </div>
       </div>
@@ -2366,10 +2366,10 @@ function PaymentsTab({ brand, onPatchBrand }) {
     <div>
       <div style={S.statRow} className="statRow">
         <StatCard label="الإجمالي المتفق عليه" value={fmtMoney(total)} />
-        <StatCard label="المستلم لحد دلوقتي" value={fmtMoney(received)} color="#4FB286" />
-        <StatCard label="المتبقي" value={fmtMoney(remaining)} color={remaining < 0 ? "#D9707A" : remaining === 0 ? "#4FB286" : "#E7A33E"} />
-        <StatCard label="إجمالي المصاريف" value={fmtMoney(spent)} color="#D9707A" />
-        <StatCard label="الصافي (ربحك الحقيقي)" value={fmtMoney(netProfit)} color={netProfit < 0 ? "#D9707A" : "#4FB286"} />
+        <StatCard label="المستلم لحد دلوقتي" value={fmtMoney(received)} color={colors.good} />
+        <StatCard label="المتبقي" value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
+        <StatCard label="إجمالي المصاريف" value={fmtMoney(spent)} color={colors.danger} />
+        <StatCard label="الصافي (ربحك الحقيقي)" value={fmtMoney(netProfit)} color={netProfit < 0 ? colors.danger : colors.good} />
       </div>
 
       <div style={S.dashGrid} className="dashGrid">
@@ -2433,7 +2433,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
             </div>
           ) : (
             <div key={p.id} style={S.upcomingRow}>
-              <span style={{ ...S.dot, background: "#4FB286" }} />
+              <span style={{ ...S.dot, background: colors.good }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={S.upcomingTitle}>{fmtMoney(p.amount)} {p.note && `· ${p.note}`}</div>
                 <div style={S.upcomingMeta}>{fmtDate(p.date)}</div>
@@ -2490,7 +2490,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
             </div>
           ) : (
             <div key={p.id} style={S.upcomingRow}>
-              <span style={{ ...S.dot, background: "#D9707A" }} />
+              <span style={{ ...S.dot, background: colors.danger }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={S.upcomingTitle}>{fmtMoney(p.amount)} {p.note && `· ${p.note}`}</div>
                 <div style={S.upcomingMeta}>{fmtDate(p.date)}</div>
@@ -2605,7 +2605,7 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
             {sources.length === 0 && <div style={S.emptyBrands}>لسه مفيش ريفرنسات مسجلة.</div>}
             {sources.map((s) => (
               <div key={s.id} style={S.upcomingRow}>
-                <a href={normalizeUrl(s.url)} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: "none", color: "#F2EEE4" }}>
+                <a href={normalizeUrl(s.url)} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: "none", color: colors.text }}>
                   <div style={S.upcomingTitle}>{s.title || s.url}</div>
                   {s.title && <div style={S.upcomingMeta}>{s.url}</div>}
                 </a>
@@ -2661,7 +2661,7 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
     return map;
   }, [items]);
 
-  const brandColor = (id) => brands.find((b) => b.id === id)?.color || "#8FA0A8";
+  const brandColor = (id) => brands.find((b) => b.id === id)?.color || colors.textDim;
   const today = todayISO();
 
   return (
@@ -2978,7 +2978,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
             <button
               key={sd.key}
               onClick={() => setStatus(sd.key)}
-              style={{ ...S.statusPickerBtn, color: sd.color, background: status === sd.key ? sd.bg : "transparent", borderColor: status === sd.key ? sd.color : "#2C383F" }}
+              style={{ ...S.statusPickerBtn, color: sd.color, background: status === sd.key ? sd.bg : "transparent", borderColor: status === sd.key ? sd.color : colors.borderStrong }}
             >
               {status === sd.key ? <CheckCircle2 size={13} /> : <Circle size={13} />} {sd.label}
             </button>
@@ -3027,7 +3027,7 @@ function ConfirmModal({ text, onCancel, onConfirm, confirmLabel, confirmIcon, da
       <p style={S.confirmText}>{text}</p>
       <div style={S.modalFooter} className="modalFooter">
         <button onClick={onCancel} style={S.secondaryBtn}>رجوع</button>
-        <button onClick={onConfirm} style={danger ? S.dangerBtn : S.primaryBtn("#E7A33E")}>
+        <button onClick={onConfirm} style={danger ? S.dangerBtn : S.primaryBtn(colors.warning)}>
           {confirmIcon || (danger && <Trash2 size={14} />)} {confirmLabel || "مسح نهائي"}
         </button>
       </div>
@@ -3074,7 +3074,7 @@ const S = {
   emptyBrands: { fontSize: 12, color: colors.textFaint, padding: "6px 4px", lineHeight: 1.7 },
   brandTabRow: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 },
   brandTab: { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 9, position: "relative", background: colors.card, border: `1px solid ${colors.border}`, color: colors.textDim, padding: "9px 10px 9px 14px", borderRadius: radius.sm, fontSize: 13, cursor: "pointer", textAlign: "right", overflow: "hidden", fontFamily: "inherit" },
-  brandTabActive: (color) => ({ background: color + "1A", borderColor: color + "55", color: colors.text, fontWeight: 700 }),
+  brandTabActive: (color) => ({ background: color + "1A", border: `1px solid ${color}55`, color: colors.text, fontWeight: 700 }),
   brandTabStripe: { position: "absolute", right: 0, top: 0, bottom: 0, width: 3 },
   brandTabEmoji: { fontSize: 14 },
   brandTabName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -3083,44 +3083,44 @@ const S = {
   main: { flex: 1, overflowY: "auto", padding: "26px 30px", maxHeight: 720, position: "relative" },
   section: {},
   sectionHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 22 },
-  sectionHeaderIcon: { width: 38, height: 38, borderRadius: 10, background: "#1B2328", display: "flex", alignItems: "center", justifyContent: "center", color: "#E7A33E" },
+  sectionHeaderIcon: { width: 38, height: 38, borderRadius: 10, background: colors.card, display: "flex", alignItems: "center", justifyContent: "center", color: colors.warning },
   sectionHeaderTitle: { fontSize: 19, fontWeight: 800, margin: 0 },
-  sectionHeaderSub: { fontSize: 12.5, color: "#8FA0A8", margin: "3px 0 0" },
+  sectionHeaderSub: { fontSize: 12.5, color: colors.textDim, margin: "3px 0 0" },
   statRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 12, marginBottom: 26 },
-  statCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "14px 16px" },
+  statCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "14px 16px" },
   statValue: { fontSize: 22, fontWeight: 800 },
-  statLabel: { fontSize: 11.5, color: "#8FA0A8", marginTop: 2 },
+  statLabel: { fontSize: 11.5, color: colors.textDim, marginTop: 2 },
   dashGrid: { display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 28, alignItems: "start" },
 
   /* New Home Dashboard tokens (Redesign phase 1) */
   dashHeaderRow: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 },
-  dashGreeting: { fontSize: 20, fontWeight: 800, margin: 0, color: "#F2EEE4" },
-  dashGreetingSub: { fontSize: 12.5, color: "#8FA0A8", margin: "4px 0 0" },
+  dashGreeting: { fontSize: 20, fontWeight: 800, margin: 0, color: colors.text },
+  dashGreetingSub: { fontSize: 12.5, color: colors.textDim, margin: "4px 0 0" },
   kpiRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 24 },
-  kpiCard: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "12px 14px" },
-  kpiIcon: { width: 30, height: 30, borderRadius: 9, background: "#161E23", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  kpiCard: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "12px 14px" },
+  kpiIcon: { width: 30, height: 30, borderRadius: 9, background: colors.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   kpiValue: { fontSize: 18, fontWeight: 800, lineHeight: 1.2 },
-  kpiLabel: { fontSize: 10.5, color: "#8FA0A8", marginTop: 1 },
+  kpiLabel: { fontSize: 10.5, color: colors.textDim, marginTop: 1 },
   dashSection: { marginBottom: 26 },
-  dashSectionTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, margin: "0 0 12px", color: "#D8D3C6" },
+  dashSectionTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, margin: "0 0 12px", color: colors.textDim },
   financeRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 },
-  financeCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "14px 16px" },
-  financeLabel: { fontSize: 11, color: "#8FA0A8" },
-  financeValue: { fontSize: 19, fontWeight: 800, marginTop: 4, color: "#F2EEE4" },
+  financeCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "14px 16px" },
+  financeLabel: { fontSize: 11, color: colors.textDim },
+  financeValue: { fontSize: 19, fontWeight: 800, marginTop: 4, color: colors.text },
   financeTrend: { display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, marginTop: 6 },
-  financeFooterRow: { display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 12, fontSize: 11.5, color: "#8FA0A8" },
+  financeFooterRow: { display: "flex", flexWrap: "wrap", gap: "6px 18px", marginTop: 12, fontSize: 11.5, color: colors.textDim },
   dashTwoCol: { display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 28, alignItems: "start" },
   compactList: { display: "flex", flexDirection: "column", gap: 7 },
-  compactRow: { display: "flex", alignItems: "center", gap: 9, background: "#1B2328", border: "1px solid #222C31", borderRadius: 9, padding: "8px 11px" },
-  attentionRow: { display: "flex", alignItems: "center", gap: 9, background: "#1B2328", border: "1px solid #D9707A33", borderRadius: 9, padding: "8px 11px" },
-  attentionIcon: { color: "#D9707A", display: "flex", flexShrink: 0 },
-  attentionTag: { fontSize: 10, fontWeight: 700, color: "#D9707A", background: "rgba(217,112,122,0.14)", padding: "3px 8px", borderRadius: 999, flexShrink: 0, whiteSpace: "nowrap" },
+  compactRow: { display: "flex", alignItems: "center", gap: 9, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 9, padding: "8px 11px" },
+  attentionRow: { display: "flex", alignItems: "center", gap: 9, background: colors.card, border: `1px solid ${borderTint.danger}`, borderRadius: 9, padding: "8px 11px" },
+  attentionIcon: { color: colors.danger, display: "flex", flexShrink: 0 },
+  attentionTag: { fontSize: 10, fontWeight: 700, color: colors.danger, background: "rgba(217,112,122,0.14)", padding: "3px 8px", borderRadius: 999, flexShrink: 0, whiteSpace: "nowrap" },
   brandMiniList: { display: "flex", flexDirection: "column", gap: 7 },
-  brandMiniCard: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", width: "100%", textAlign: "right" },
-  brandMiniName: { fontSize: 12.5, fontWeight: 700, color: "#F2EEE4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  brandMiniMeta: { fontSize: 10.5, color: "#657078", marginTop: 1 },
-  brandMiniAdd: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: "1.5px dashed #2C383F", color: "#8FA0A8", borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12 },
-  chartCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: "16px 8px 8px" },
+  brandMiniCard: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", width: "100%", textAlign: "right" },
+  brandMiniName: { fontSize: 12.5, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  brandMiniMeta: { fontSize: 10.5, color: colors.textFaint, marginTop: 1 },
+  brandMiniAdd: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: "transparent", border: `1.5px dashed ${colors.borderStrong}`, color: colors.textDim, borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", fontSize: 12 },
+  chartCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "16px 8px 8px" },
 
   /* Top header */
   topHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${colors.border}` },
@@ -3137,156 +3137,156 @@ const S = {
   notifRowText: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   perfTotalsGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 10 },
   perfTotalsCol: { display: "flex", flexDirection: "column", gap: 8 },
-  perfTotalsLabel: { fontSize: 11.5, color: "#8FA0A8", fontWeight: 700 },
-  h3: { fontSize: 14, fontWeight: 700, margin: "0 0 12px", color: "#D8D3C6" },
+  perfTotalsLabel: { fontSize: 11.5, color: colors.textDim, fontWeight: 700 },
+  h3: { fontSize: 14, fontWeight: 700, margin: "0 0 12px", color: colors.textDim },
   brandCardGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-  idCard: { position: "relative", background: "#1B2328", border: "1px solid", borderRadius: 13, padding: "16px 14px 14px", textAlign: "right", cursor: "pointer", overflow: "hidden", fontFamily: "inherit" },
+  idCard: { position: "relative", background: colors.card, border: "1px solid", borderRadius: 13, padding: "16px 14px 14px", textAlign: "right", cursor: "pointer", overflow: "hidden", fontFamily: "inherit" },
   idCardStripe: { position: "absolute", top: 0, right: 0, left: 0, height: 3 },
   idCardTop: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 },
   idCardAvatar: { width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 },
-  idCardName: { fontSize: 14, fontWeight: 700, color: "#F2EEE4" },
-  idCardHandle: { fontSize: 11, color: "#657078", marginTop: 1 },
-  idCardStats: { display: "flex", flexWrap: "wrap", gap: 5, borderTop: "1px dashed #2C383F", paddingTop: 10 },
+  idCardName: { fontSize: 14, fontWeight: 700, color: colors.text },
+  idCardHandle: { fontSize: 11, color: colors.textFaint, marginTop: 1 },
+  idCardStats: { display: "flex", flexWrap: "wrap", gap: 5, borderTop: `1px dashed ${colors.borderStrong}`, paddingTop: 10 },
   idCardChip: { fontSize: 10.5, padding: "3px 7px", borderRadius: 6, fontWeight: 700 },
-  dashedAddCard: { width: "100%", border: "1.5px dashed #2C383F", borderRadius: 13, background: "transparent", color: "#8FA0A8", padding: "26px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, fontFamily: "inherit" },
-  dashedAddCardSmall: { border: "1.5px dashed #2C383F", borderRadius: 13, background: "transparent", color: "#8FA0A8", padding: "14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", fontSize: 12, fontFamily: "inherit", minHeight: 96 },
+  dashedAddCard: { width: "100%", border: `1.5px dashed ${colors.borderStrong}`, borderRadius: 13, background: "transparent", color: colors.textDim, padding: "26px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, fontFamily: "inherit" },
+  dashedAddCardSmall: { border: `1.5px dashed ${colors.borderStrong}`, borderRadius: 13, background: "transparent", color: colors.textDim, padding: "14px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, cursor: "pointer", fontSize: 12, fontFamily: "inherit", minHeight: 96 },
   upcomingList: { display: "flex", flexDirection: "column", gap: 8 },
-  upcomingRow: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 10, padding: "9px 12px" },
-  taskRow: { display: "flex", alignItems: "center", gap: 8, background: "#1B2328", border: "1px solid #222C31", borderRadius: 9, padding: "7px 10px" },
-  taskCheckBtn: { background: "transparent", border: "none", color: "#8FA0A8", cursor: "pointer", padding: 2, display: "flex", flexShrink: 0 },
-  taskText: { fontSize: 12.5, color: "#F2EEE4", flex: 1 },
+  upcomingRow: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 12px" },
+  taskRow: { display: "flex", alignItems: "center", gap: 8, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 9, padding: "7px 10px" },
+  taskCheckBtn: { background: "transparent", border: "none", color: colors.textDim, cursor: "pointer", padding: 2, display: "flex", flexShrink: 0 },
+  taskText: { fontSize: 12.5, color: colors.text, flex: 1 },
   searchBar: { display: "flex", gap: 8, flexWrap: "wrap" },
-  searchResultRow: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 10, padding: "9px 12px", width: "100%", cursor: "pointer", fontFamily: "inherit", textAlign: "right" },
+  searchResultRow: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 12px", width: "100%", cursor: "pointer", fontFamily: "inherit", textAlign: "right" },
   compareTable: { width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 560 },
-  compareTh: { textAlign: "right", padding: "8px 10px", color: "#8FA0A8", fontWeight: 700, fontSize: 11.5, borderBottom: "1px solid #222C31" },
+  compareTh: { textAlign: "right", padding: "8px 10px", color: colors.textDim, fontWeight: 700, fontSize: 11.5, borderBottom: `1px solid ${colors.border}` },
   compareTr: { cursor: "pointer" },
-  compareTd: { padding: "10px 10px", color: "#F2EEE4", borderBottom: "1px solid #1B2328" },
-  compareTdName: { padding: "10px 10px", color: "#F2EEE4", borderBottom: "1px solid #1B2328", fontWeight: 700, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" },
+  compareTd: { padding: "10px 10px", color: colors.text, borderBottom: `1px solid ${colors.card}` },
+  compareTdName: { padding: "10px 10px", color: colors.text, borderBottom: `1px solid ${colors.card}`, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" },
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   upcomingTitle: { fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  upcomingMeta: { fontSize: 11, color: "#657078", marginTop: 1 },
+  upcomingMeta: { fontSize: 11, color: colors.textFaint, marginTop: 1 },
   miniBadge: { fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 6, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3 },
 
-  idBadge: { position: "relative", background: "#1B2328", border: "1px solid #222C31", borderRadius: 14, overflow: "hidden", marginBottom: 18 },
+  idBadge: { position: "relative", background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 14, overflow: "hidden", marginBottom: 18 },
   idBadgeStripe: { height: 4 },
   idBadgeInner: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" },
   idBadgeAvatar: { width: 42, height: 42, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 },
   idBadgeName: { fontSize: 17, fontWeight: 800 },
-  idBadgeHandle: { fontSize: 12, color: "#8FA0A8", marginTop: 1 },
+  idBadgeHandle: { fontSize: 12, color: colors.textDim, marginTop: 1 },
 
   tabRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 18, flexWrap: "wrap" },
-  tabBtn: { display: "flex", alignItems: "center", gap: 7, background: "transparent", border: "1px solid #222C31", color: "#8FA0A8", padding: "8px 14px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-  tabBtnActive: { background: "#1B2328", color: "#F2EEE4", borderColor: "#3A464D", fontWeight: 700 },
+  tabBtn: { display: "flex", alignItems: "center", gap: 7, background: "transparent", border: `1px solid ${colors.border}`, color: colors.textDim, padding: "8px 14px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  tabBtnActive: { background: colors.card, color: colors.text, borderColor: colors.borderStrong, fontWeight: 700 },
 
   board: { display: "grid", gridTemplateColumns: "repeat(4,minmax(220px,1fr))", gap: 12, overflowX: "auto" },
-  column: { background: "#151C21", border: "1px solid #222C31", borderRadius: 12, display: "flex", flexDirection: "column", maxHeight: 560, transition: "border-color .12s" },
+  column: { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, display: "flex", flexDirection: "column", maxHeight: 560, transition: "border-color .12s" },
   columnHead: { display: "flex", alignItems: "center", gap: 8, padding: "12px 12px 10px" },
   columnTitle: { fontSize: 12.5, fontWeight: 700, flex: 1 },
-  columnCount: { fontSize: 11, color: "#657078", background: "#1B2328", padding: "1px 7px", borderRadius: 999 },
+  columnCount: { fontSize: 11, color: colors.textFaint, background: colors.card, padding: "1px 7px", borderRadius: 999 },
   columnBody: { padding: "0 10px 10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, flex: 1 },
-  columnEmpty: { fontSize: 11.5, color: "#4E585F", textAlign: "center", padding: "18px 0" },
-  ticket: { background: "#1B2328", border: "1px solid #222C31", borderTop: "2.5px solid", borderRadius: 10, padding: "10px 11px 9px" },
+  columnEmpty: { fontSize: 11.5, color: colors.textFaint, textAlign: "center", padding: "18px 0" },
+  ticket: { background: colors.card, border: `1px solid ${colors.border}`, borderTop: "2.5px solid", borderRadius: 10, padding: "10px 11px 9px" },
   ticketHead: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 },
-  ticketType: { fontSize: 10, fontWeight: 700, color: "#8FA0A8", background: "#161E23", padding: "2px 7px", borderRadius: 5, flex: 1 },
-  ticketIconBtn: { background: "transparent", border: "none", color: "#657078", cursor: "pointer", padding: 3, display: "flex" },
-  ticketIconBtnDanger: { background: "transparent", border: "none", color: "#657078", cursor: "pointer", padding: 3 },
+  ticketType: { fontSize: 10, fontWeight: 700, color: colors.textDim, background: colors.surface, padding: "2px 7px", borderRadius: 5, flex: 1 },
+  ticketIconBtn: { background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", padding: 3, display: "flex" },
+  ticketIconBtnDanger: { background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", padding: 3 },
   ticketTitle: { fontSize: 13, fontWeight: 600, lineHeight: 1.5, marginBottom: 4 },
-  ticketNotes: { fontSize: 11.5, color: "#8FA0A8", lineHeight: 1.6, marginBottom: 6 },
+  ticketNotes: { fontSize: 11.5, color: colors.textDim, lineHeight: 1.6, marginBottom: 6 },
   ticketBadgesRow: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 },
-  badgeDanger: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: "#F0997B", background: "rgba(217,112,122,0.16)", padding: "2px 6px", borderRadius: 5 },
-  badgeWarning: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: "#E7A33E", background: "rgba(231,163,62,0.16)", padding: "2px 6px", borderRadius: 5 },
-  badgeGeneric: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: "#8FA0A8", background: "#161E23", padding: "2px 6px", borderRadius: 5 },
-  ticketFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px dashed #2C383F", paddingTop: 7, marginTop: 4 },
-  ticketDate: { fontSize: 10.5, color: "#657078" },
-  ticketMoveLabel: { display: "block", fontSize: 10, color: "#657078", fontWeight: 600, marginTop: 8 },
-  ticketStatusSelect: { width: "100%", background: "#161E23", border: "1px solid #2C383F", borderRadius: 7, color: "#F2EEE4", fontSize: 11.5, padding: "6px 8px", fontFamily: "inherit", marginTop: 4, cursor: "pointer" },
-  moveTextBtn: { width: "100%", marginTop: 6, background: "transparent", border: "1px dashed #E7A33E55", color: "#E7A33E", fontSize: 10.5, fontWeight: 700, borderRadius: 7, padding: "6px 8px", cursor: "pointer", fontFamily: "inherit" },
-  perfToggleBtn: { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "none", color: "#8FA0A8", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 },
-  perfPanel: { background: "#161E23", border: "1px solid #2C383F", borderRadius: 8, padding: 8, marginTop: 6 },
-  perfLinkLabel: { display: "block", fontSize: 10, color: "#657078", fontWeight: 600, marginBottom: 4 },
+  badgeDanger: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.danger, background: "rgba(217,112,122,0.16)", padding: "2px 6px", borderRadius: 5 },
+  badgeWarning: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.warning, background: "rgba(231,163,62,0.16)", padding: "2px 6px", borderRadius: 5 },
+  badgeGeneric: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.textDim, background: colors.surface, padding: "2px 6px", borderRadius: 5 },
+  ticketFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px dashed ${colors.borderStrong}`, paddingTop: 7, marginTop: 4 },
+  ticketDate: { fontSize: 10.5, color: colors.textFaint },
+  ticketMoveLabel: { display: "block", fontSize: 10, color: colors.textFaint, fontWeight: 600, marginTop: 8 },
+  ticketStatusSelect: { width: "100%", background: colors.surface, border: `1px solid ${colors.borderStrong}`, borderRadius: 7, color: colors.text, fontSize: 11.5, padding: "6px 8px", fontFamily: "inherit", marginTop: 4, cursor: "pointer" },
+  moveTextBtn: { width: "100%", marginTop: 6, background: "transparent", border: `1px dashed ${borderTint.warning}`, color: colors.warning, fontSize: 10.5, fontWeight: 700, borderRadius: 7, padding: "6px 8px", cursor: "pointer", fontFamily: "inherit" },
+  perfToggleBtn: { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "none", color: colors.textDim, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 },
+  perfPanel: { background: colors.surface, border: `1px solid ${colors.borderStrong}`, borderRadius: 8, padding: 8, marginTop: 6 },
+  perfLinkLabel: { display: "block", fontSize: 10, color: colors.textFaint, fontWeight: 600, marginBottom: 4 },
   perfInputsRow: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 6 },
-  perfInput: { width: "100%", background: "#1B2328", border: "1px solid #2C383F", borderRadius: 6, color: "#F2EEE4", padding: "5px 6px", fontSize: 10.5, fontFamily: "inherit", outline: "none" },
+  perfInput: { width: "100%", background: colors.card, border: `1px solid ${colors.borderStrong}`, borderRadius: 6, color: colors.text, padding: "5px 6px", fontSize: 10.5, fontFamily: "inherit", outline: "none" },
 
   calHeader: { display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 14 },
   calTitle: { fontSize: 14.5, fontWeight: 700, minWidth: 110, textAlign: "center" },
   calGrid: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 },
-  calWeekday: { fontSize: 11, color: "#657078", textAlign: "center", paddingBottom: 4, fontWeight: 700 },
+  calWeekday: { fontSize: 11, color: colors.textFaint, textAlign: "center", paddingBottom: 4, fontWeight: 700 },
   calCellEmpty: { minHeight: 74, borderRadius: 9 },
-  calCell: { minHeight: 74, background: "#1B2328", border: "1px solid #222C31", borderRadius: 9, padding: "6px 6px", cursor: "pointer" },
-  calCellToday: { borderColor: "#E7A33E88" },
-  calDayNum: { fontSize: 11, color: "#8FA0A8", marginBottom: 4, textAlign: "left" },
+  calCell: { minHeight: 74, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 9, padding: "6px 6px", cursor: "pointer" },
+  calCellToday: { borderColor: borderTint.warning },
+  calDayNum: { fontSize: 11, color: colors.textDim, marginBottom: 4, textAlign: "left" },
   calItems: { display: "flex", flexDirection: "column", gap: 3 },
   calChip: { fontSize: 9.5, fontWeight: 700, padding: "2px 5px", borderRadius: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  calMore: { fontSize: 9, color: "#657078" },
+  calMore: { fontSize: 9, color: colors.textFaint },
   legendRow: { display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 14, justifyContent: "center" },
-  legendChip: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "#C7CDD1" },
+  legendChip: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: colors.textDim },
 
   barList: { display: "flex", flexDirection: "column", gap: 9 },
   barRow: { display: "flex", alignItems: "center", gap: 10 },
-  barLabel: { fontSize: 11.5, color: "#C7CDD1", width: 70, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  barTrack: { flex: 1, height: 8, background: "#1B2328", borderRadius: 6, overflow: "hidden" },
+  barLabel: { fontSize: 11.5, color: colors.textDim, width: 70, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  barTrack: { flex: 1, height: 8, background: colors.card, borderRadius: 6, overflow: "hidden" },
   barFill: { height: "100%", borderRadius: 6 },
-  barValue: { fontSize: 11, color: "#8FA0A8", width: 20, textAlign: "left" },
+  barValue: { fontSize: 11, color: colors.textDim, width: 20, textAlign: "left" },
   mixRow: { display: "flex", alignItems: "center", gap: 10 },
-  mixTargetMarker: { position: "absolute", top: 0, bottom: 0, width: 2, background: "#F2EEE4", opacity: 0.85 },
-  mixTargetInput: { width: 46, background: "#161E23", border: "1px solid #2C383F", borderRadius: 6, color: "#F2EEE4", fontSize: 10.5, padding: "3px 4px", fontFamily: "inherit", textAlign: "center", flexShrink: 0 },
+  mixTargetMarker: { position: "absolute", top: 0, bottom: 0, width: 2, background: colors.text, opacity: 0.85 },
+  mixTargetInput: { width: 46, background: colors.surface, border: `1px solid ${colors.borderStrong}`, borderRadius: 6, color: colors.text, fontSize: 10.5, padding: "3px 4px", fontFamily: "inherit", textAlign: "center", flexShrink: 0 },
 
   leaderboard: { display: "flex", flexDirection: "column", gap: 8 },
-  leaderRow: { display: "flex", alignItems: "center", gap: 10, background: "#1B2328", border: "1px solid #222C31", borderRadius: 10, padding: "9px 12px" },
-  leaderRank: { width: 20, height: 20, borderRadius: 6, background: "#161E23", color: "#E7A33E", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  leaderNote: { fontSize: 10.5, color: "#657078", marginTop: 2, fontStyle: "italic" },
+  leaderRow: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 12px" },
+  leaderRank: { width: 20, height: 20, borderRadius: 6, background: colors.surface, color: colors.warning, fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  leaderNote: { fontSize: 10.5, color: colors.textFaint, marginTop: 2, fontStyle: "italic" },
 
-  refCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: 14 },
-  refTemplateLabel: { fontSize: 11.5, fontWeight: 700, color: "#8FA0A8", marginBottom: 6 },
+  refCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: 14 },
+  refTemplateLabel: { fontSize: 11.5, fontWeight: 700, color: colors.textDim, marginBottom: 6 },
 
-  aiAnalysisCard: { background: "#1B2328", border: "1px solid #222C31", borderRadius: 12, padding: 16, minHeight: 90 },
+  aiAnalysisCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: 16, minHeight: 90 },
   sectionCheckGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "10px 0 16px" },
-  sectionCheckLabel: { display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#D8D3C6", cursor: "pointer" },
+  sectionCheckLabel: { display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: colors.textDim, cursor: "pointer" },
   reportPreview: { background: "#ffffff", color: "#1A1A1A", borderRadius: 10, padding: 22, maxHeight: 400, overflowY: "auto" },
   reportPreviewTitle: { fontSize: 18, fontWeight: 800, margin: "0 0 2px" },
   reportPreviewDate: { fontSize: 11, color: "#666", margin: "0 0 16px" },
   reportSection: { marginBottom: 14 },
   reportSectionTitle: { fontSize: 13, fontWeight: 800, color: "#B8722E", margin: "0 0 6px", borderBottom: "1px solid #eee", paddingBottom: 4 },
   reportP: { fontSize: 12, lineHeight: 1.8, margin: "0 0 4px", color: "#333" },
-  aiAnalysisText: { fontSize: 13, lineHeight: 1.9, color: "#D8D3C6", whiteSpace: "pre-wrap", margin: "0 0 12px" },
-  aiLoadingRow: { display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: "#8FA0A8" },
-  aiError: { fontSize: 12, color: "#F0997B" },
-  aiHint: { fontSize: 11.5, color: "#657078", margin: "10px 0 0", lineHeight: 1.7 },
+  aiAnalysisText: { fontSize: 13, lineHeight: 1.9, color: colors.textDim, whiteSpace: "pre-wrap", margin: "0 0 12px" },
+  aiLoadingRow: { display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: colors.textDim },
+  aiError: { fontSize: 12, color: colors.danger },
+  aiHint: { fontSize: 11.5, color: colors.textFaint, margin: "10px 0 0", lineHeight: 1.7 },
 
   overlay: { position: "fixed", inset: 0, background: "rgba(6,9,11,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 20 },
-  modal: { width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto", background: "#161E23", border: "1px solid #2C383F", borderRadius: 14, padding: 20, direction: "rtl" },
+  modal: { width: "100%", maxWidth: 420, maxHeight: "85vh", overflowY: "auto", background: colors.surface, border: `1px solid ${colors.borderStrong}`, borderRadius: 14, padding: 20, direction: "rtl" },
   modalHead: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontSize: 15.5, fontWeight: 800 },
   formGroup: { marginBottom: 14 },
   rowTwo: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
-  label: { display: "block", fontSize: 12, color: "#8FA0A8", marginBottom: 6, fontWeight: 600 },
-  input: { width: "100%", background: "#1B2328", border: "1px solid #2C383F", borderRadius: 9, color: "#F2EEE4", padding: "9px 11px", fontSize: 13.5, fontFamily: "inherit", outline: "none" },
+  label: { display: "block", fontSize: 12, color: colors.textDim, marginBottom: 6, fontWeight: 600 },
+  input: { width: "100%", background: colors.card, border: `1px solid ${colors.borderStrong}`, borderRadius: 9, color: colors.text, padding: "9px 11px", fontSize: 13.5, fontFamily: "inherit", outline: "none" },
   swatchRow: { display: "flex", flexWrap: "wrap", gap: 8 },
-  emojiSwatch: { width: 34, height: 34, borderRadius: 9, background: "#1B2328", border: "1.5px solid #2C383F", fontSize: 15, cursor: "pointer" },
-  emojiSwatchActive: { borderColor: "#E7A33E" },
+  emojiSwatch: { width: 34, height: 34, borderRadius: 9, background: colors.card, border: `1.5px solid ${colors.borderStrong}`, fontSize: 15, cursor: "pointer" },
+  emojiSwatchActive: { borderColor: colors.warning },
   colorSwatch: { width: 26, height: 26, borderRadius: "50%", border: "2px solid transparent", cursor: "pointer" },
-  colorSwatchActive: { border: "2px solid #F2EEE4" },
+  colorSwatchActive: { border: `2px solid ${colors.text}` },
   statusPicker: { display: "flex", flexWrap: "wrap", gap: 7 },
   statusPickerBtn: { display: "flex", alignItems: "center", gap: 5, border: "1.3px solid", borderRadius: 8, padding: "6px 11px", fontSize: 12, fontWeight: 700, cursor: "pointer", background: "transparent", fontFamily: "inherit" },
   modalFooter: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 },
-  secondaryBtn: { background: "transparent", border: "1px solid #2C383F", color: "#C7CDD1", padding: "9px 16px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-  dangerBtn: { display: "flex", alignItems: "center", gap: 6, background: "#4A1B0C", border: "1px solid #6B2A14", color: "#F0997B", padding: "9px 16px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 700 },
-  primaryBtn: (color) => ({ display: "flex", alignItems: "center", gap: 6, background: color, border: "none", color: "#161E23", padding: "9px 16px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontWeight: 800, fontFamily: "inherit" }),
-  confirmText: { fontSize: 13, color: "#C7CDD1", lineHeight: 1.7, margin: "10px 0 18px" },
+  secondaryBtn: { background: "transparent", border: `1px solid ${colors.borderStrong}`, color: colors.textDim, padding: "9px 16px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  dangerBtn: { display: "flex", alignItems: "center", gap: 6, background: softBg.danger, border: `1px solid ${borderTint.danger}`, color: colors.danger, padding: "9px 16px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 700 },
+  primaryBtn: (color) => ({ display: "flex", alignItems: "center", gap: 6, background: color, border: "none", color: colors.surface, padding: "9px 16px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontWeight: 800, fontFamily: "inherit" }),
+  confirmText: { fontSize: 13, color: colors.textDim, lineHeight: 1.7, margin: "10px 0 18px" },
 
-  iconBtnSm: { width: 28, height: 28, borderRadius: 8, background: "#1B2328", border: "1px solid #222C31", color: "#C7CDD1", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  iconBtnSmDanger: { width: 28, height: 28, borderRadius: 8, background: "#1B2328", border: "1px solid #222C31", color: "#D9707A", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  iconBtnSm: { width: 28, height: 28, borderRadius: 8, background: colors.card, border: `1px solid ${colors.border}`, color: colors.textDim, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  iconBtnSmDanger: { width: 28, height: 28, borderRadius: 8, background: colors.card, border: `1px solid ${colors.border}`, color: colors.danger, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
 
-  aiFab: { position: "absolute", bottom: 18, right: 18, width: 46, height: 46, borderRadius: "50%", background: "#E7A33E", border: "none", color: "#161E23", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 40 },
-  aiPanel: { position: "absolute", bottom: 74, right: 18, width: 320, maxHeight: 440, background: "#161E23", border: "1px solid #2C383F", borderRadius: 14, display: "flex", flexDirection: "column", zIndex: 45, overflow: "hidden" },
-  aiPanelHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: "1px solid #222C31" },
+  aiFab: { position: "absolute", bottom: 18, right: 18, width: 46, height: 46, borderRadius: "50%", background: colors.warning, border: "none", color: colors.surface, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", zIndex: 40 },
+  aiPanel: { position: "absolute", bottom: 74, right: 18, width: 320, maxHeight: 440, background: colors.surface, border: `1px solid ${colors.borderStrong}`, borderRadius: 14, display: "flex", flexDirection: "column", zIndex: 45, overflow: "hidden" },
+  aiPanelHead: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderBottom: `1px solid ${colors.border}` },
   aiMessages: { flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: 8, minHeight: 160 },
-  aiEmpty: { fontSize: 11.5, color: "#657078", lineHeight: 1.8, padding: "10px 4px" },
+  aiEmpty: { fontSize: 11.5, color: colors.textFaint, lineHeight: 1.8, padding: "10px 4px" },
   aiMsg: { fontSize: 12.5, lineHeight: 1.7, padding: "8px 10px", borderRadius: 10, maxWidth: "92%" },
-  aiMsgUser: { background: "#E7A33E1F", color: "#F2EEE4", alignSelf: "flex-start" },
-  aiMsgAssistant: { background: "#1B2328", color: "#D8D3C6", alignSelf: "flex-end", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 },
-  aiUseBtn: { display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: "#E7A33E", background: "transparent", border: "1px solid #E7A33E55", borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" },
-  aiInputRow: { display: "flex", gap: 6, padding: "10px", borderTop: "1px solid #222C31" },
-  aiInput: { flex: 1, background: "#1B2328", border: "1px solid #2C383F", borderRadius: 9, color: "#F2EEE4", padding: "8px 10px", fontSize: 12.5, fontFamily: "inherit", outline: "none" },
-  aiSendBtn: { width: 34, height: 34, borderRadius: 9, background: "#E7A33E", border: "none", color: "#161E23", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
+  aiMsgUser: { background: softBg.warning, color: colors.text, alignSelf: "flex-start" },
+  aiMsgAssistant: { background: colors.card, color: colors.textDim, alignSelf: "flex-end", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 },
+  aiUseBtn: { display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, color: colors.warning, background: "transparent", border: `1px solid ${borderTint.warning}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", fontFamily: "inherit" },
+  aiInputRow: { display: "flex", gap: 6, padding: "10px", borderTop: `1px solid ${colors.border}` },
+  aiInput: { flex: 1, background: colors.card, border: `1px solid ${colors.borderStrong}`, borderRadius: 9, color: colors.text, padding: "8px 10px", fontSize: 12.5, fontFamily: "inherit", outline: "none" },
+  aiSendBtn: { width: 34, height: 34, borderRadius: 9, background: colors.warning, border: "none", color: colors.surface, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 },
 };
