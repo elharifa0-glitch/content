@@ -144,10 +144,12 @@ export default function ContentStudio({
   const [brands, setBrands] = useState([]);
   const [items, setItems] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [socialAnalyses, setSocialAnalyses] = useState([]);
   const [view, setView] = useState("dashboard");
   const [brandTab, setBrandTab] = useState("board");
   const [brandModal, setBrandModal] = useState(null);
   const [itemModal, setItemModal] = useState(null);
+  const [analyzePrefill, setAnalyzePrefill] = useState(null); // { brandId, ideaId } | null
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
@@ -231,11 +233,12 @@ export default function ContentStudio({
           setBrands(parsed.brands || []);
           setItems(fixedItems);
           setTasks(parsed.tasks || []);
+          setSocialAnalyses(parsed.socialAnalyses || []);
           if (repaired) {
             try {
               await supabase.from("user_data").upsert({
                 user_id: userId,
-                data: { brands: parsed.brands || [], items: fixedItems, tasks: parsed.tasks || [] },
+                data: { brands: parsed.brands || [], items: fixedItems, tasks: parsed.tasks || [], socialAnalyses: parsed.socialAnalyses || [] },
                 updated_at: new Date().toISOString(),
               });
             } catch (e2) {
@@ -251,12 +254,12 @@ export default function ContentStudio({
     })();
   }, [userId]);
 
-  const persist = useCallback(async (nextBrands, nextItems, nextTasks) => {
+  const persist = useCallback(async (nextBrands, nextItems, nextTasks, nextSocialAnalyses) => {
     setSaving(true);
     try {
       const { error } = await supabase.from("user_data").upsert({
         user_id: userId,
-        data: { brands: nextBrands, items: nextItems, tasks: nextTasks },
+        data: { brands: nextBrands, items: nextItems, tasks: nextTasks, socialAnalyses: nextSocialAnalyses },
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
@@ -267,9 +270,10 @@ export default function ContentStudio({
     }
   }, [userId]);
 
-  const updateBrands = (next) => { setBrands(next); persist(next, items, tasks); };
-  const updateItems = (next) => { setItems(next); persist(brands, next, tasks); };
-  const updateTasks = (next) => { setTasks(next); persist(brands, items, next); };
+  const updateBrands = (next) => { setBrands(next); persist(next, items, tasks, socialAnalyses); };
+  const updateItems = (next) => { setItems(next); persist(brands, next, tasks, socialAnalyses); };
+  const updateTasks = (next) => { setTasks(next); persist(brands, items, next, socialAnalyses); };
+  const updateSocialAnalyses = (next) => { setSocialAnalyses(next); persist(brands, items, tasks, next); };
 
   const activeBrandId = view.startsWith("brand:") ? view.slice(6) : null;
   const activeBrand = brands.find((b) => b.id === activeBrandId) || null;
@@ -370,6 +374,37 @@ export default function ContentStudio({
 
   function openPrefilledIdea(brandId, title, notes) {
     setItemModal({ brandId: brandId || activeBrandId || brands[0]?.id, title, notes });
+  }
+
+  function saveSocialAnalysis(data) {
+    const record = { id: uid(), analyzedAt: new Date().toISOString(), ideaId: null, ...data };
+    updateSocialAnalyses([record, ...socialAnalyses]);
+    return record;
+  }
+
+  function setAnalysisIdea(analysisId, ideaId) {
+    updateSocialAnalyses(socialAnalyses.map((a) => (a.id === analysisId ? { ...a, ideaId } : a)));
+  }
+
+  function deleteSocialAnalysis(id) {
+    updateSocialAnalyses(socialAnalyses.filter((a) => a.id !== id));
+    setConfirmDelete(null);
+  }
+
+  function openBrandInsights(brandId) {
+    setView(`brand:${brandId}`);
+    setBrandTab("insights");
+  }
+
+  function goAnalyzePerformance(brandId, ideaId) {
+    setItemModal(null);
+    openBrandInsights(brandId);
+    setAnalyzePrefill({ brandId, ideaId });
+  }
+
+  function goViewAnalysis(brandId) {
+    setItemModal(null);
+    openBrandInsights(brandId);
   }
 
   if (loading) {
@@ -702,8 +737,6 @@ export default function ContentStudio({
           <CompareView brands={brands} items={items} onOpenBrand={(id) => setView(`brand:${id}`)} />
         )}
 
-        {view === "content-analytics" && <ContentAnalyticsView />}
-
         {view === "account" && (
           <AccountView
             plan={plan}
@@ -735,6 +768,12 @@ export default function ContentStudio({
             onUseIdea={openPrefilledIdea}
             calMonth={calMonth}
             setCalMonth={setCalMonth}
+            analyses={socialAnalyses.filter((a) => a.brandId === activeBrand.id)}
+            onSaveAnalysis={saveSocialAnalysis}
+            onSetAnalysisIdea={setAnalysisIdea}
+            onDeleteAnalysis={(id, label) => setConfirmDelete({ type: "analysis", id, label })}
+            analyzePrefillIdeaId={analyzePrefill && analyzePrefill.brandId === activeBrand.id ? analyzePrefill.ideaId : null}
+            onConsumeAnalyzePrefill={() => setAnalyzePrefill(null)}
           />
         )}
       </main>
@@ -751,8 +790,11 @@ export default function ContentStudio({
           defaultDate={itemModal.date}
           defaultTitle={itemModal.title}
           defaultNotes={itemModal.notes}
+          linkedAnalysis={itemModal.id ? socialAnalyses.find((a) => a.ideaId === itemModal.id) : null}
           onClose={() => setItemModal(null)}
           onSave={saveItem}
+          onAnalyzePerformance={goAnalyzePerformance}
+          onViewAnalysis={goViewAnalysis}
         />
       )}
 
@@ -769,10 +811,16 @@ export default function ContentStudio({
           text={
             confirmDelete.type === "brand"
               ? `هتمسح براند "${confirmDelete.label}" وكل الأفكار اللي جواه. الخطوة دي مفيهاش رجوع.`
-              : `هتمسح "${confirmDelete.label}". الخطوة دي مفيهاش رجوع.`
+              : confirmDelete.type === "analysis"
+                ? `هتمسح تحليل "${confirmDelete.label}". الخطوة دي مفيهاش رجوع.`
+                : `هتمسح "${confirmDelete.label}". الخطوة دي مفيهاش رجوع.`
           }
           onCancel={() => setConfirmDelete(null)}
-          onConfirm={() => (confirmDelete.type === "brand" ? deleteBrand(confirmDelete.id) : deleteItem(confirmDelete.id))}
+          onConfirm={() => {
+            if (confirmDelete.type === "brand") deleteBrand(confirmDelete.id);
+            else if (confirmDelete.type === "analysis") deleteSocialAnalysis(confirmDelete.id);
+            else deleteItem(confirmDelete.id);
+          }}
         />
       )}
 
@@ -854,7 +902,6 @@ function Sidebar({
         <NavItem icon={<CalendarIcon size={17} />} label="التقويم العام" active={view === "calendar"} onClick={() => setView("calendar")} />
         <NavItem icon={<Search size={17} />} label="بحث في كل الأفكار" active={view === "search"} onClick={() => setView("search")} />
         <NavItem icon={<BarChart3 size={17} />} label="مقارنة البراندات" active={view === "compare"} onClick={() => setView("compare")} />
-        <NavItem icon={<TrendingUp size={17} />} label="تحليلات المحتوى" active={view === "content-analytics"} onClick={() => setView("content-analytics")} />
         <NavItem icon={<Wallet size={17} />} label="الاشتراك والباقة" active={view === "account"} onClick={() => setView("account")} />
       </nav>
 
@@ -1444,16 +1491,71 @@ function CompareView({ brands, items, onOpenBrand }) {
 
 /* ---------- Content analytics (post-publication) ---------- */
 
-function ContentAnalyticsView() {
+function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState(currentIdeaId || null);
+  const q = query.trim().toLowerCase();
+  const filtered = q ? items.filter((it) => it.title.toLowerCase().includes(q)) : items;
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={S.modalHead}>
+        <span style={S.modalTitle}>ربط التحليل بفكرة</span>
+        <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
+      </div>
+      <p style={S.aiHint}>اختر الفكرة المرتبطة بهذا المحتوى من أفكار البراند.</p>
+
+      <input
+        style={{ ...S.input, marginTop: 10 }}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="ابحث في أفكار البراند..."
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, maxHeight: 280, overflowY: "auto" }} className="scrollbar">
+        {items.length === 0 && <div style={S.emptyBrands}>مفيش أفكار في البراند ده لسه.</div>}
+        {items.length > 0 && filtered.length === 0 && <div style={S.emptyBrands}>مفيش أفكار تطابق البحث.</div>}
+        {filtered.map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            onClick={() => setSelected(it.id)}
+            style={{ ...S.searchResultRow, ...(selected === it.id ? { border: `1px solid ${colors.accentBlue}`, background: softBg.info } : {}) }}
+          >
+            <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</div>
+              <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>
+                {it.type}{it.date ? ` · ${fmtDate(it.date)}` : ""}
+              </div>
+            </div>
+            {selected === it.id && <Check size={15} color={colors.good} />}
+          </button>
+        ))}
+      </div>
+
+      <div style={S.modalFooter} className="modalFooter">
+        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
+        <button disabled={!selected} onClick={() => onConfirm(selected)} style={S.primaryBtn(colors.accentBlue)}>
+          <Link2 size={14} /> ربط
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+/* Brand-scoped analyzer: input card + results list + optional idea linking.
+   Reused by both the per-brand "تحليل البراند" tab and the global sidebar page. */
+function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, prefillIdeaId, onConsumePrefill }) {
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [results, setResults] = useState([]);
+  const [linkModalFor, setLinkModalFor] = useState(null);
   const urlInputRef = useRef(null);
 
   const trimmedUrl = url.trim();
   const urlValid = isLikelyUrl(trimmedUrl);
   const canAnalyze = urlValid && !analyzing;
+  const prefillIdea = prefillIdeaId ? items.find((it) => it.id === prefillIdeaId) : null;
 
   async function analyze() {
     if (!canAnalyze) return;
@@ -1469,20 +1571,19 @@ function ContentAnalyticsView() {
       if (!data.ok) {
         setErrorMsg(data.message || "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.");
       } else {
-        setResults((prev) => [
-          {
-            id: uid(),
-            url: trimmedUrl,
-            analyzedAt: new Date().toISOString(),
-            views: data.views ?? null,
-            likes: data.likes ?? null,
-            comments: data.comments ?? null,
-            shares: data.shares ?? null,
-            saves: data.saves ?? null,
-          },
-          ...prev,
-        ]);
+        onSaveAnalysis({
+          brandId: brand.id,
+          ideaId: prefillIdeaId || null,
+          platform: detectPlatform(trimmedUrl)?.key || null,
+          url: trimmedUrl,
+          views: data.views ?? null,
+          likes: data.likes ?? null,
+          comments: data.comments ?? null,
+          shares: data.shares ?? null,
+          saves: data.saves ?? null,
+        });
         setUrl("");
+        if (prefillIdeaId) onConsumePrefill?.();
       }
     } catch (e) {
       setErrorMsg("حصلت مشكلة في الاتصال، جرب تاني.");
@@ -1491,17 +1592,19 @@ function ContentAnalyticsView() {
     }
   }
 
-  return (
-    <div style={S.section}>
-      <SectionHeader
-        icon={<TrendingUp size={20} />}
-        title="تحليلات المحتوى"
-        subtitle="تابع أداء المحتوى المنشور واعرف إيه اللي نجح وإيه اللي محتاج يتحسن."
-      />
+  const linkModalAnalysis = linkModalFor ? analyses.find((a) => a.id === linkModalFor) : null;
 
+  return (
+    <div>
       <div style={S.analyzerCard}>
         <h3 style={S.analyzerTitle}>تحليل محتوى جديد</h3>
         <p style={S.analyzerDesc}>اعرف أداء أي Reel أو Post أو Video من خلال رابطه.</p>
+
+        {prefillIdea && (
+          <p style={{ ...S.aiHint, color: colors.accentBlue }}>
+            <Link2 size={11} style={{ verticalAlign: -1 }} /> هيتربط التحليل ده تلقائي بفكرة "{prefillIdea.title}" بعد التحليل.
+          </p>
+        )}
 
         <div style={S.analyzerInputRow}>
           <input
@@ -1539,7 +1642,7 @@ function ContentAnalyticsView() {
         </div>
       </div>
 
-      {results.length === 0 ? (
+      {analyses.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={20} />}
           title="ابدأ بتحليل أول محتوى"
@@ -1552,28 +1655,59 @@ function ContentAnalyticsView() {
         />
       ) : (
         <div style={S.analyzerResultsList}>
-          {results.map((r) => {
-            const platform = detectPlatform(r.url);
+          {analyses.map((a) => {
+            const platform = ANALYZER_PLATFORMS.find((p) => p.key === a.platform) || detectPlatform(a.url);
+            const linkedIdea = a.ideaId ? items.find((it) => it.id === a.ideaId) : null;
             return (
-              <div key={r.id} style={S.analyzerResultCard}>
+              <div key={a.id} style={S.analyzerResultCard}>
                 <div style={S.analyzerResultHead}>
                   {platform && <platform.Icon size={15} style={{ flexShrink: 0, color: colors.textDim }} />}
-                  <a href={normalizeUrl(r.url)} target="_blank" rel="noopener noreferrer" style={S.analyzerResultUrl}>
-                    {r.url}
+                  <a href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer" style={S.analyzerResultUrl}>
+                    {a.url}
                   </a>
                   <ExternalLink size={12} style={{ flexShrink: 0, color: colors.textFaint }} />
+                  <button
+                    type="button"
+                    onClick={() => onDeleteAnalysis(a.id, a.url)}
+                    style={{ ...S.iconBtnSm, width: 24, height: 24, flexShrink: 0 }}
+                    title="امسح التحليل"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
                 <div style={S.analyzerMetricsRow}>
-                  {r.views !== null && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(r.views)}</span>}
-                  {r.likes !== null && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(r.likes)}</span>}
-                  {r.comments !== null && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(r.comments)}</span>}
-                  {r.shares !== null && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(r.shares)}</span>}
-                  {r.saves !== null && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(r.saves)}</span>}
+                  {a.views !== null && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
+                  {a.likes !== null && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(a.likes)}</span>}
+                  {a.comments !== null && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(a.comments)}</span>}
+                  {a.shares !== null && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(a.shares)}</span>}
+                  {a.saves !== null && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(a.saves)}</span>}
+                </div>
+                <div style={S.analyzerLinkRow}>
+                  {linkedIdea ? (
+                    <>
+                      <span style={S.analyzerLinkedBadge}><Link2 size={11} /> الفكرة: {linkedIdea.title}</span>
+                      <button type="button" onClick={() => setLinkModalFor(a.id)} style={S.analyzerLinkBtn}>تغيير الفكرة</button>
+                      <button type="button" onClick={() => onSetAnalysisIdea(a.id, null)} style={S.analyzerLinkBtnDanger}>إزالة الربط</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setLinkModalFor(a.id)} style={S.analyzerLinkBtn}>
+                      <Link2 size={11} /> ربط بفكرة
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {linkModalFor && (
+        <LinkIdeaModal
+          items={items}
+          currentIdeaId={linkModalAnalysis?.ideaId || null}
+          onClose={() => setLinkModalFor(null)}
+          onConfirm={(ideaId) => { onSetAnalysisIdea(linkModalFor, ideaId); setLinkModalFor(null); }}
+        />
       )}
     </div>
   );
@@ -1717,6 +1851,7 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
 function BrandPage({
   brand, items, tab, setTab, onEditBrand, onDeleteBrand,
   onAddItem, onBulkAdd, onEditItem, onDeleteItem, onSetStatus, onPatchItem, onPatchBrand, onUseIdea, calMonth, setCalMonth,
+  analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, analyzePrefillIdeaId, onConsumeAnalyzePrefill,
 }) {
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -1778,7 +1913,19 @@ function BrandPage({
           onItemClick={onEditItem}
         />
       )}
-      {tab === "insights" && <BrandInsights brand={brand} items={items} onPatchBrand={onPatchBrand} />}
+      {tab === "insights" && (
+        <BrandInsights
+          brand={brand}
+          items={items}
+          onPatchBrand={onPatchBrand}
+          analyses={analyses}
+          onSaveAnalysis={onSaveAnalysis}
+          onSetAnalysisIdea={onSetAnalysisIdea}
+          onDeleteAnalysis={onDeleteAnalysis}
+          analyzePrefillIdeaId={analyzePrefillIdeaId}
+          onConsumeAnalyzePrefill={onConsumeAnalyzePrefill}
+        />
+      )}
       {tab === "payments" && <PaymentsTab brand={brand} onPatchBrand={onPatchBrand} />}
       {tab === "reference" && <ReferenceTab brand={brand} onPatchBrand={onPatchBrand} onUseIdea={onUseIdea} />}
     </div>
@@ -1973,7 +2120,7 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
 
 /* ---------- Brand insights ---------- */
 
-function BrandInsights({ brand, items, onPatchBrand }) {
+function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, analyzePrefillIdeaId, onConsumeAnalyzePrefill }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -2161,6 +2308,20 @@ function BrandInsights({ brand, items, onPatchBrand }) {
 
   return (
     <div>
+      <h3 style={S.h3}><TrendingUp size={13} style={{ verticalAlign: -2 }} /> تحليل محتوى منشور</h3>
+      <div style={{ marginBottom: 26 }}>
+        <SocialAnalyzer
+          brand={brand}
+          items={items}
+          analyses={analyses}
+          onSaveAnalysis={onSaveAnalysis}
+          onSetAnalysisIdea={onSetAnalysisIdea}
+          onDeleteAnalysis={onDeleteAnalysis}
+          prefillIdeaId={analyzePrefillIdeaId}
+          onConsumePrefill={onConsumeAnalyzePrefill}
+        />
+      </div>
+
       <div style={S.statRow} className="statRow">
         <StatCard label="إجمالي الأفكار" value={total} />
         <StatCard label="نسبة الإنجاز" value={`${completionRate}%`} color={colors.good} />
@@ -3007,7 +3168,7 @@ function BulkAddModal({ brand, onClose, onSave }) {
   );
 }
 
-function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, defaultNotes, onClose, onSave }) {
+function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, defaultNotes, linkedAnalysis, onClose, onSave, onAnalyzePerformance, onViewAnalysis }) {
   const [title, setTitle] = useState(item?.title || defaultTitle || "");
   const [notes, setNotes] = useState(item?.notes || defaultNotes || "");
   const [link, setLink] = useState(item?.link || "");
@@ -3084,7 +3245,32 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
 
       <div style={S.formGroup}>
         <label style={S.label}>نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)</label>
-        <p style={S.aiHint}>عايز تجيب الأرقام تلقائي من اللينك؟ استخدم صفحة "تحليلات المحتوى" من القائمة الجانبية.</p>
+
+        {linkedAnalysis ? (
+          <div style={{ ...S.analyzerResultCard, marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: colors.text }}>
+                <TrendingUp size={13} style={{ verticalAlign: -2 }} /> أداء المحتوى
+              </span>
+              <button type="button" onClick={() => onViewAnalysis(item.brandId)} style={S.analyzerLinkBtn}>عرض التحليل</button>
+            </div>
+            <div style={S.analyzerMetricsRow}>
+              {linkedAnalysis.views !== null && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(linkedAnalysis.views)}</span>}
+              {linkedAnalysis.likes !== null && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(linkedAnalysis.likes)}</span>}
+              {linkedAnalysis.comments !== null && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(linkedAnalysis.comments)}</span>}
+              {linkedAnalysis.shares !== null && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(linkedAnalysis.shares)}</span>}
+            </div>
+          </div>
+        ) : item ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <p style={{ ...S.aiHint, margin: 0 }}>عايز تجيب الأرقام تلقائي من اللينك؟</p>
+            <button type="button" onClick={() => onAnalyzePerformance(item.brandId, item.id)} style={S.analyzerLinkBtn}>
+              <BarChart3 size={11} /> تحليل الأداء
+            </button>
+          </div>
+        ) : (
+          <p style={S.aiHint}>عايز تجيب الأرقام تلقائي من اللينك؟ احفظ الفكرة الأول، وبعدها هتلاقي زرار "تحليل الأداء" هنا.</p>
+        )}
 
         <div style={{ ...S.rowTwo, marginTop: 4 }} className="rowTwo">
           <div>
@@ -3317,6 +3503,10 @@ const S = {
   analyzerResultUrl: { flex: 1, minWidth: 0, fontSize: 12, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" },
   analyzerMetricsRow: { display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 10 },
   analyzerMetric: { display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: colors.text },
+  analyzerLinkRow: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${colors.border}` },
+  analyzerLinkedBadge: { display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: colors.accentBlue, background: softBg.info, borderRadius: 999, padding: "4px 10px" },
+  analyzerLinkBtn: { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: `1px solid ${colors.borderStrong}`, color: colors.textDim, fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" },
+  analyzerLinkBtnDanger: { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: `1px solid ${borderTint.danger}`, color: colors.danger, fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" },
 
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   upcomingTitle: { fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },

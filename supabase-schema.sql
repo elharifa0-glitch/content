@@ -3,9 +3,13 @@
 
 create table if not exists user_data (
   user_id uuid references auth.users(id) on delete cascade primary key,
-  data jsonb not null default '{"brands":[],"items":[],"tasks":[]}'::jsonb,
+  data jsonb not null default '{"brands":[],"items":[],"tasks":[],"socialAnalyses":[]}'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+-- ملحوظة: socialAnalyses هي تحليلات محتوى منشور (رابط + مقاييس)، كل واحدة تابعة
+-- لبراند (brandId مطلوب) ومربوطة اختياريًا بفكرة داخلية (ideaId ممكن يكون null).
+-- بتتخزن جوا نفس عمود data الموجود، زي brands/items/tasks بالظبط — من غير جدول جديد.
 
 alter table user_data enable row level security;
 
