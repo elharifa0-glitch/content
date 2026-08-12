@@ -13,7 +13,7 @@ const fakeSession = { user: { id: "preview-user", email: "preview@example.com" }
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ThemeProvider>
-      <div style={{ minHeight: "100vh", background: "var(--cs-bg)", padding: 16 }}>
+      <div style={{ minHeight: "100dvh", background: "var(--cs-bg)", padding: 16, display: "flex", flexDirection: "column" }}>
         <ContentStudio
           session={fakeSession}
           onSignOut={() => {}}

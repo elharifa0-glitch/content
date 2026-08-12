@@ -163,7 +163,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#11171B", padding: 16 }}>
+    <div style={{ minHeight: "100dvh", background: "#11171B", padding: 16, display: "flex", flexDirection: "column" }}>
       {trialDaysLeft !== null && (
         <div style={{
           maxWidth: 1400, margin: "0 auto 10px", background: "#1B2328", border: "1px solid #E7A33E55",

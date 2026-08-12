@@ -12,10 +12,49 @@ import {
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
   ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
   ArrowUpRight, ArrowDownRight, ListChecks, CalendarClock, Menu, LogOut, Crown, Sun, Moon,
+  Instagram, Facebook, Youtube,
 } from "lucide-react";
 import { colors, radius, spacing, shadows, transitions, softBg, borderTint } from "./theme";
-import { Button, Badge } from "./components";
+import { Button, Badge, EmptyState } from "./components";
 import { useTheme } from "./ThemeContext";
+
+/* ---------- Platform icons ---------- */
+
+function TiktokIcon({ size = 16, style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style} aria-hidden="true">
+      <path d="M16.6 5.82c-.7-.77-1.09-1.76-1.1-2.82h-2.99v13.39a2.6 2.6 0 1 1-1.86-2.49v-3.05a5.6 5.6 0 1 0 4.85 5.55V9.4a7.05 7.05 0 0 0 4.1 1.31V7.68c-1.11 0-2.15-.36-2.99-1a4.62 4.62 0 0 1-.01-.86z" />
+    </svg>
+  );
+}
+
+const ANALYZER_PLATFORMS = [
+  { key: "instagram", label: "Instagram", Icon: Instagram },
+  { key: "tiktok", label: "TikTok", Icon: TiktokIcon },
+  { key: "facebook", label: "Facebook", Icon: Facebook },
+  { key: "youtube", label: "YouTube", Icon: Youtube },
+];
+
+function detectPlatform(url) {
+  const u = (url || "").toLowerCase();
+  if (u.includes("instagram.com")) return ANALYZER_PLATFORMS[0];
+  if (u.includes("tiktok.com")) return ANALYZER_PLATFORMS[1];
+  if (u.includes("facebook.com") || u.includes("fb.watch")) return ANALYZER_PLATFORMS[2];
+  if (u.includes("youtube.com") || u.includes("youtu.be")) return ANALYZER_PLATFORMS[3];
+  return null;
+}
+
+function isLikelyUrl(str) {
+  if (!str || !str.trim()) return false;
+  const trimmed = str.trim();
+  try {
+    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const u = new URL(withProto);
+    return u.hostname.includes(".");
+  } catch {
+    return false;
+  }
+}
 
 const PALETTE = [
   "#E7A33E", "#4FB286", "#5FA8D3", "#D9707A",
@@ -399,7 +438,7 @@ export default function ContentStudio({
           .studio-app {
             display: block !important;
             width: 100% !important;
-            min-height: 100vh !important;
+            min-height: 100dvh !important;
             border-radius: 0 !important;
             border-left: 0 !important;
             border-right: 0 !important;
@@ -409,7 +448,7 @@ export default function ContentStudio({
           .studio-main {
             width: 100% !important;
             max-height: none !important;
-            min-height: calc(100vh - 160px) !important;
+            min-height: calc(100dvh - 160px) !important;
             padding: 16px 12px 28px !important;
             overflow-x: hidden !important;
             overflow-y: visible !important;
@@ -663,6 +702,8 @@ export default function ContentStudio({
           <CompareView brands={brands} items={items} onOpenBrand={(id) => setView(`brand:${id}`)} />
         )}
 
+        {view === "content-analytics" && <ContentAnalyticsView />}
+
         {view === "account" && (
           <AccountView
             plan={plan}
@@ -813,6 +854,7 @@ function Sidebar({
         <NavItem icon={<CalendarIcon size={17} />} label="التقويم العام" active={view === "calendar"} onClick={() => setView("calendar")} />
         <NavItem icon={<Search size={17} />} label="بحث في كل الأفكار" active={view === "search"} onClick={() => setView("search")} />
         <NavItem icon={<BarChart3 size={17} />} label="مقارنة البراندات" active={view === "compare"} onClick={() => setView("compare")} />
+        <NavItem icon={<TrendingUp size={17} />} label="تحليلات المحتوى" active={view === "content-analytics"} onClick={() => setView("content-analytics")} />
         <NavItem icon={<Wallet size={17} />} label="الاشتراك والباقة" active={view === "account"} onClick={() => setView("account")} />
       </nav>
 
@@ -1396,6 +1438,143 @@ function CompareView({ brands, items, onOpenBrand }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/* ---------- Content analytics (post-publication) ---------- */
+
+function ContentAnalyticsView() {
+  const [url, setUrl] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [results, setResults] = useState([]);
+  const urlInputRef = useRef(null);
+
+  const trimmedUrl = url.trim();
+  const urlValid = isLikelyUrl(trimmedUrl);
+  const canAnalyze = urlValid && !analyzing;
+
+  async function analyze() {
+    if (!canAnalyze) return;
+    setAnalyzing(true);
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/analyze-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmedUrl }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setErrorMsg(data.message || "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.");
+      } else {
+        setResults((prev) => [
+          {
+            id: uid(),
+            url: trimmedUrl,
+            analyzedAt: new Date().toISOString(),
+            views: data.views ?? null,
+            likes: data.likes ?? null,
+            comments: data.comments ?? null,
+            shares: data.shares ?? null,
+            saves: data.saves ?? null,
+          },
+          ...prev,
+        ]);
+        setUrl("");
+      }
+    } catch (e) {
+      setErrorMsg("حصلت مشكلة في الاتصال، جرب تاني.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  return (
+    <div style={S.section}>
+      <SectionHeader
+        icon={<TrendingUp size={20} />}
+        title="تحليلات المحتوى"
+        subtitle="تابع أداء المحتوى المنشور واعرف إيه اللي نجح وإيه اللي محتاج يتحسن."
+      />
+
+      <div style={S.analyzerCard}>
+        <h3 style={S.analyzerTitle}>تحليل محتوى جديد</h3>
+        <p style={S.analyzerDesc}>اعرف أداء أي Reel أو Post أو Video من خلال رابطه.</p>
+
+        <div style={S.analyzerInputRow}>
+          <input
+            ref={urlInputRef}
+            style={S.input}
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); setErrorMsg(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter") analyze(); }}
+            placeholder="الصق رابط المحتوى هنا..."
+            dir="ltr"
+          />
+          <button
+            type="button"
+            onClick={analyze}
+            disabled={!canAnalyze}
+            style={{ ...S.primaryBtn(colors.accentBlue), opacity: canAnalyze ? 1 : 0.5, cursor: canAnalyze ? "pointer" : "not-allowed" }}
+          >
+            {analyzing ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={15} />}
+            {analyzing ? "بيحلل..." : "تحليل المحتوى"}
+          </button>
+        </div>
+
+        {!urlValid && trimmedUrl.length > 0 && (
+          <p style={{ ...S.aiHint, color: colors.danger }}>الرابط ده مش شكله صح، تأكد منه وجرب تاني.</p>
+        )}
+        {errorMsg && <p style={{ ...S.aiHint, color: colors.danger }}>{errorMsg}</p>}
+
+        <div style={S.analyzerPlatformsRow}>
+          {ANALYZER_PLATFORMS.map(({ key, label, Icon }) => (
+            <span key={key} style={S.analyzerPlatformChip}>
+              <Icon size={13} />
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {results.length === 0 ? (
+        <EmptyState
+          icon={<TrendingUp size={20} />}
+          title="ابدأ بتحليل أول محتوى"
+          description="الصق رابط Reel أو Post أو Video منشور وشوف أداءه بالأرقام."
+          action={
+            <button type="button" onClick={() => urlInputRef.current?.focus()} style={S.secondaryBtn}>
+              <Search size={13} style={{ verticalAlign: -2 }} /> تحليل محتوى
+            </button>
+          }
+        />
+      ) : (
+        <div style={S.analyzerResultsList}>
+          {results.map((r) => {
+            const platform = detectPlatform(r.url);
+            return (
+              <div key={r.id} style={S.analyzerResultCard}>
+                <div style={S.analyzerResultHead}>
+                  {platform && <platform.Icon size={15} style={{ flexShrink: 0, color: colors.textDim }} />}
+                  <a href={normalizeUrl(r.url)} target="_blank" rel="noopener noreferrer" style={S.analyzerResultUrl}>
+                    {r.url}
+                  </a>
+                  <ExternalLink size={12} style={{ flexShrink: 0, color: colors.textFaint }} />
+                </div>
+                <div style={S.analyzerMetricsRow}>
+                  {r.views !== null && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(r.views)}</span>}
+                  {r.likes !== null && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(r.likes)}</span>}
+                  {r.comments !== null && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(r.comments)}</span>}
+                  {r.shares !== null && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(r.shares)}</span>}
+                  {r.saves !== null && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(r.saves)}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -2844,36 +3023,6 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
   const [shares, setShares] = useState(item?.shares ?? "");
   const [saves, setSaves] = useState(item?.saves ?? "");
   const [successNote, setSuccessNote] = useState(item?.successNote || "");
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeMsg, setAnalyzeMsg] = useState("");
-
-  async function analyzeLink() {
-    if (!link.trim()) return;
-    setAnalyzing(true);
-    setAnalyzeMsg("");
-    try {
-      const res = await fetch("/api/analyze-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: link.trim() }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setAnalyzeMsg(data.message || "معرفناش نجيب البيانات، حط الأرقام يدوي.");
-      } else {
-        if (data.views !== null && data.views !== undefined) setViews(data.views);
-        if (data.likes !== null && data.likes !== undefined) setLikes(data.likes);
-        if (data.comments !== null && data.comments !== undefined) setComments(data.comments);
-        if (data.shares !== null && data.shares !== undefined) setShares(data.shares);
-        if (data.saves !== null && data.saves !== undefined) setSaves(data.saves);
-        setAnalyzeMsg("تم الجلب، راجع الأرقام تحت.");
-      }
-    } catch (e) {
-      setAnalyzeMsg("حصلت مشكلة في الاتصال، جرب تاني.");
-    } finally {
-      setAnalyzing(false);
-    }
-  }
 
   const brand = brands.find((b) => b.id === brandId);
 
@@ -2935,15 +3084,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
 
       <div style={S.formGroup}>
         <label style={S.label}>نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)</label>
-
-        {link.trim() && (
-          <div style={{ marginBottom: 10 }}>
-            <button type="button" onClick={analyzeLink} disabled={analyzing} style={S.secondaryBtn}>
-              {analyzing ? "بيجيب البيانات..." : "🔍 اجلب الأرقام تلقائي من اللينك"}
-            </button>
-            {analyzeMsg && <p style={{ ...S.aiHint, marginTop: 6 }}>{analyzeMsg}</p>}
-          </div>
-        )}
+        <p style={S.aiHint}>عايز تجيب الأرقام تلقائي من اللينك؟ استخدم صفحة "تحليلات المحتوى" من القائمة الجانبية.</p>
 
         <div style={{ ...S.rowTwo, marginTop: 4 }} className="rowTwo">
           <div>
@@ -3050,9 +3191,9 @@ function SectionHeader({ icon, title, subtitle }) {
 /* ---------- Styles ---------- */
 
 const S = {
-  app: { position: "relative", display: "flex", minHeight: 640, background: colors.bg, color: colors.text, borderRadius: radius.lg, overflow: "hidden", border: `1px solid ${colors.border}` },
-  loadingWrap: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300, color: colors.textDim, fontSize: 14 },
-  sidebar: { width: 260, background: colors.surface, borderLeft: `1px solid ${colors.border}`, padding: "18px 14px", flexShrink: 0, maxHeight: 720, overflowY: "auto" },
+  app: { position: "relative", display: "flex", flex: 1, background: colors.bg, color: colors.text, borderRadius: radius.lg, border: `1px solid ${colors.border}` },
+  loadingWrap: { display: "flex", flex: 1, alignItems: "center", justifyContent: "center", minHeight: 300, color: colors.textDim, fontSize: 14 },
+  sidebar: { width: 260, background: colors.surface, borderLeft: `1px solid ${colors.border}`, padding: "18px 14px", flexShrink: 0, position: "sticky", top: 0, maxHeight: "100dvh", overflowY: "auto" },
   brandMark: { display: "flex", alignItems: "center", gap: 10 },
   brandMarkDot: { width: 32, height: 32, borderRadius: radius.sm, background: colors.accentGradient, boxShadow: shadows.accentGlow },
   brandMarkTitle: { fontSize: 15, fontWeight: 800, color: colors.text },
@@ -3080,7 +3221,7 @@ const S = {
   brandTabName: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   brandDeleteBtn: { flexShrink: 0, width: 30, height: 34, borderRadius: radius.sm, background: colors.card, border: `1px solid ${colors.border}`, color: colors.textDim, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
   upgradeBtn: { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", marginTop: 10, background: colors.accentGradient, border: "none", color: colors.onAccent, padding: "10px", borderRadius: radius.sm, fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" },
-  main: { flex: 1, overflowY: "auto", padding: "26px 30px", maxHeight: 720, position: "relative" },
+  main: { flex: 1, minWidth: 0, padding: "26px 30px", position: "relative" },
   section: {},
   sectionHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 22 },
   sectionHeaderIcon: { width: 38, height: 38, borderRadius: 10, background: colors.card, display: "flex", alignItems: "center", justifyContent: "center", color: colors.warning },
@@ -3162,6 +3303,21 @@ const S = {
   compareTr: { cursor: "pointer" },
   compareTd: { padding: "10px 10px", color: colors.text, borderBottom: `1px solid ${colors.card}` },
   compareTdName: { padding: "10px 10px", color: colors.text, borderBottom: `1px solid ${colors.card}`, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" },
+
+  /* Content analytics — post-publication analyzer */
+  analyzerCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 14, padding: 20, marginBottom: 22 },
+  analyzerTitle: { fontSize: 15, fontWeight: 800, margin: 0, color: colors.text },
+  analyzerDesc: { fontSize: 12.5, color: colors.textDim, margin: "4px 0 14px" },
+  analyzerInputRow: { display: "flex", gap: 8, flexWrap: "wrap" },
+  analyzerPlatformsRow: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 },
+  analyzerPlatformChip: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: colors.textDim, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 999, padding: "5px 11px" },
+  analyzerResultsList: { display: "flex", flexDirection: "column", gap: 10 },
+  analyzerResultCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "12px 14px" },
+  analyzerResultHead: { display: "flex", alignItems: "center", gap: 8 },
+  analyzerResultUrl: { flex: 1, minWidth: 0, fontSize: 12, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" },
+  analyzerMetricsRow: { display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 10 },
+  analyzerMetric: { display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: colors.text },
+
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   upcomingTitle: { fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   upcomingMeta: { fontSize: 11, color: colors.textFaint, marginTop: 1 },
