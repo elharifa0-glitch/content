@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import ReactDOM from "react-dom/client";
 import { supabase } from "./supabaseClient";
 import PlanPicker from "./PlanPicker";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import BrandReportPDF from "./components/BrandReportPDF";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   Plus, X, Calendar as CalendarIcon, LayoutGrid, Home, Trash2, Pencil,
@@ -1975,13 +1977,18 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
                   />
                 ))}
               </div>
+              <p style={S.analyzerPaginationInfo}>
+                {hasMore
+                  ? `عرض ${visible.length} من ${filteredSorted.length} تحليل`
+                  : "تم عرض جميع التحليلات"}
+              </p>
               {hasMore && (
                 <button
                   type="button"
                   onClick={() => setVisibleCount((c) => c + ANALYZER_PAGE_SIZE)}
-                  style={{ ...S.secondaryBtn, width: "100%", justifyContent: "center", marginTop: 14 }}
+                  style={{ ...S.secondaryBtn, width: "100%", justifyContent: "center" }}
                 >
-                  عرض المزيد ({filteredSorted.length - visibleCount} أكتر)
+                  عرض المزيد
                 </button>
               )}
             </>
@@ -2628,7 +2635,9 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     }
     if (sections.performance) {
       lines.push("", "== الأداء ==");
+      lines.push(`محتوى تم تحليله: ${perfTotals.count}`);
       lines.push(`إجمالي المشاهدات: ${perfTotals.views} | إجمالي اللايكات: ${perfTotals.likes} | إجمالي الكومنتات: ${perfTotals.comments}`);
+      lines.push(`إجمالي المشاركات: ${perfTotals.shares} | إجمالي الحفظ: ${perfTotals.saves}`);
       lines.push(`مشاهدات الشهر ده: ${perfTotals.monthViews} | لايكات الشهر ده: ${perfTotals.monthLikes}`);
     }
     if (sections.top5 && top5Items.length) {
@@ -2678,10 +2687,59 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   }
 
   async function downloadReportPdf() {
-    if (!reportRef.current) return;
     setPdfLoading(true);
+
+    // Rendered off-screen (not display:none — html2canvas needs real layout)
+    // at a fixed width, completely outside the visible viewport, so the
+    // capture never depends on the on-screen preview's scroll position,
+    // the browser window size, or the dashboard's max-height/overflow box.
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.top = "0";
+    container.style.left = "-99999px";
+    container.style.zIndex = "-1";
+    container.style.pointerEvents = "none";
+    document.body.appendChild(container);
+    const root = ReactDOM.createRoot(container);
+
     try {
-      const canvas = await html2canvas(reportRef.current, { scale: 2, backgroundColor: "#ffffff" });
+      const statusCounts = STATUS_DEFS.map((sd) => ({ label: sd.label, count: items.filter((i) => i.status === sd.key).length }));
+
+      root.render(
+        <BrandReportPDF
+          brand={brand}
+          sections={sections}
+          reportDate={fmtDate(todayISO())}
+          total={total}
+          completionRate={completionRate}
+          overdue={overdue}
+          statusCounts={statusCounts}
+          byType={byType}
+          mixTargets={mixTargets}
+          perfTotals={perfTotals}
+          top5={top5}
+          financial={{ paymentTotal: brand.paymentTotal, receivedTotal: reportData.receivedTotal, remainingTotal: reportData.remainingTotal }}
+          pageTracking={{ lastSnapshot: reportData.lastSnapshot, firstSnapshot: reportData.firstSnapshot }}
+        />
+      );
+      // A short timer (not requestAnimationFrame) to let React's commit and
+      // layout settle before capturing: rAF only fires once the browser
+      // actually composites a frame, which some environments (backgrounded
+      // tabs, non-visible panes) can pause indefinitely — a fixed timer has
+      // no such dependency.
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      if (document.fonts?.ready) {
+        await Promise.race([
+          document.fonts.ready,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]).catch(() => {});
+      }
+
+      const target = container.firstElementChild;
+      const canvas = await Promise.race([
+        html2canvas(target, { scale: 2, backgroundColor: "#ffffff", useCORS: true }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("انتهت مهلة تجهيز الـ PDF")), 20000)),
+      ]);
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -2702,6 +2760,8 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     } catch (e) {
       console.error("تعذر إنشاء الـ PDF", e);
     } finally {
+      root.unmount();
+      document.body.removeChild(container);
       setPdfLoading(false);
     }
   }
@@ -2871,7 +2931,9 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             {sections.performance && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>الأداء</h4>
+                <p style={S.reportP}>محتوى تم تحليله: {perfTotals.count}</p>
                 <p style={S.reportP}>إجمالي المشاهدات: {perfTotals.views} | إجمالي اللايكات: {perfTotals.likes} | إجمالي الكومنتات: {perfTotals.comments}</p>
+                <p style={S.reportP}>إجمالي المشاركات: {perfTotals.shares} | إجمالي الحفظ: {perfTotals.saves}</p>
                 <p style={S.reportP}>مشاهدات الشهر ده: {perfTotals.monthViews} | لايكات الشهر ده: {perfTotals.monthLikes}</p>
               </div>
             )}
@@ -3674,31 +3736,6 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
         ) : (
           <p style={S.aiHint}>عايز تجيب الأرقام تلقائي من اللينك؟ احفظ الفكرة الأول، وبعدها هتلاقي زرار "تحليل الأداء" هنا.</p>
         )}
-
-        <div style={{ ...S.rowTwo, marginTop: 4 }} className="rowTwo">
-          <div>
-            <label style={S.label}>المشاهدات</label>
-            <input type="number" min="0" style={S.input} value={views} onChange={(e) => setViews(e.target.value)} placeholder="بعد النشر" />
-          </div>
-          <div>
-            <label style={S.label}>اللايكات</label>
-            <input type="number" min="0" style={S.input} value={likes} onChange={(e) => setLikes(e.target.value)} placeholder="بعد النشر" />
-          </div>
-        </div>
-        <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
-          <div>
-            <label style={S.label}>الكومنتات</label>
-            <input type="number" min="0" style={S.input} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="بعد النشر" />
-          </div>
-          <div>
-            <label style={S.label}>المشاركات (Shares)</label>
-            <input type="number" min="0" style={S.input} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="بعد النشر" />
-          </div>
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <label style={S.label}>الحفظ (Saves)</label>
-          <input type="number" min="0" style={S.input} value={saves} onChange={(e) => setSaves(e.target.value)} placeholder="بعد النشر" />
-        </div>
       </div>
 
       <div style={S.formGroup}>
@@ -3914,6 +3951,7 @@ const S = {
   analyzerFilterChipsRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 },
   analyzerFilterChip: { background: colors.card, border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "5px 13px", cursor: "pointer", fontFamily: "inherit" },
   analyzerFilterChipActive: { background: softBg.accentBlue, border: `1px solid ${colors.accentBlue}`, color: colors.accentBlue },
+  analyzerPaginationInfo: { textAlign: "center", fontSize: 11.5, color: colors.textFaint, margin: "14px 0 10px" },
 
   /* Analyzer — compact grid cards */
   analyzerGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 },
