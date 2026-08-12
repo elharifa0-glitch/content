@@ -12,7 +12,7 @@ import {
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
   ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
   ArrowUpRight, ArrowDownRight, ListChecks, CalendarClock, Menu, LogOut, Crown, Sun, Moon,
-  Instagram, Facebook, Youtube,
+  Instagram, Facebook, Youtube, MoreVertical,
 } from "lucide-react";
 import { colors, radius, spacing, shadows, transitions, softBg, borderTint } from "./theme";
 import { Button, Badge, EmptyState, LogoIcon } from "./components";
@@ -133,6 +133,59 @@ function normalizeUrl(u) {
 function fmtMoney(n) {
   const num = Number(n) || 0;
   return num.toLocaleString("ar-EG");
+}
+
+function fmtAnalysisDate(iso) {
+  if (!iso) return "";
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "";
+  return `${dt.getDate()} ${MONTHS_AR[dt.getMonth()]} ${dt.getFullYear()}`;
+}
+
+function analysisEngagement(a) {
+  return (Number(a.likes) || 0) + (Number(a.comments) || 0) + (Number(a.shares) || 0) + (Number(a.saves) || 0);
+}
+
+// Short, scannable stand-in for the full URL when an analysis has no linked
+// idea title to show instead (used on the compact grid cards only — the
+// details modal still shows the full URL).
+function shortContentLabel(url) {
+  try {
+    const u = new URL(normalizeUrl(url));
+    const segment = u.pathname.replace(/\/$/, "").split("/").filter(Boolean).pop();
+    const host = u.hostname.replace(/^www\./, "");
+    return segment ? `${host} / ${segment}` : host;
+  } catch {
+    return url;
+  }
+}
+
+// Single source of truth for social-analysis aggregation — used by both
+// BrandInsights' totals/report and the compact summary above the analyzer
+// grid, so the two never drift apart.
+function computeAnalysisTotals(analyses) {
+  const monthPrefix = todayISO().slice(0, 7);
+  const acc = { count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0, monthViews: 0, monthLikes: 0, monthComments: 0 };
+  for (const a of analyses) {
+    acc.count += 1;
+    const v = a.views !== null && a.views !== undefined ? Number(a.views) || 0 : 0;
+    const l = a.likes !== null && a.likes !== undefined ? Number(a.likes) || 0 : 0;
+    const c = a.comments !== null && a.comments !== undefined ? Number(a.comments) || 0 : 0;
+    const s = a.shares !== null && a.shares !== undefined ? Number(a.shares) || 0 : 0;
+    const sv = a.saves !== null && a.saves !== undefined ? Number(a.saves) || 0 : 0;
+    acc.views += v;
+    acc.likes += l;
+    acc.comments += c;
+    acc.shares += s;
+    acc.saves += sv;
+    const monthKey = a.analyzedAt ? a.analyzedAt.slice(0, 7) : null;
+    if (monthKey === monthPrefix) {
+      acc.monthViews += v;
+      acc.monthLikes += l;
+      acc.monthComments += c;
+    }
+  }
+  return acc;
 }
 
 export default function ContentStudio({
@@ -386,6 +439,10 @@ export default function ContentStudio({
     updateSocialAnalyses(socialAnalyses.map((a) => (a.id === analysisId ? { ...a, ideaId } : a)));
   }
 
+  function patchAnalysisMetrics(analysisId, metricsPatch) {
+    updateSocialAnalyses(socialAnalyses.map((a) => (a.id === analysisId ? { ...a, ...metricsPatch } : a)));
+  }
+
   function deleteSocialAnalysis(id) {
     updateSocialAnalyses(socialAnalyses.filter((a) => a.id !== id));
     setConfirmDelete(null);
@@ -444,6 +501,12 @@ export default function ContentStudio({
           }
           .studio-app .perfTotalsGrid {
             grid-template-columns: 1fr !important;
+          }
+          .studio-app .analyzerGrid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .studio-app .analyzerSummaryRow {
+            grid-template-columns: repeat(3, 1fr) !important;
           }
 
           /* Sidebar becomes an off-canvas drawer anchored to the right —
@@ -521,6 +584,16 @@ export default function ContentStudio({
           .studio-app .perfTotalsGrid {
             grid-template-columns: 1fr !important;
             gap: 18px !important;
+          }
+
+          .studio-app .analyzerGrid {
+            grid-template-columns: 1fr !important;
+          }
+          .studio-app .analyzerSummaryRow {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .studio-app .analyzerToolbar > * {
+            flex: 1 1 100% !important;
           }
 
           .studio-app .kpiRow,
@@ -772,6 +845,7 @@ export default function ContentStudio({
             onSaveAnalysis={saveSocialAnalysis}
             onSetAnalysisIdea={setAnalysisIdea}
             onDeleteAnalysis={(id, label) => setConfirmDelete({ type: "analysis", id, label })}
+            onEditAnalysisMetrics={patchAnalysisMetrics}
             analyzePrefillIdeaId={analyzePrefill && analyzePrefill.brandId === activeBrand.id ? analyzePrefill.ideaId : null}
             onConsumeAnalyzePrefill={() => setAnalyzePrefill(null)}
           />
@@ -1543,13 +1617,159 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
   );
 }
 
+function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
+  const [views, setViews] = useState(analysis.views ?? "");
+  const [likes, setLikes] = useState(analysis.likes ?? "");
+  const [comments, setComments] = useState(analysis.comments ?? "");
+  const [shares, setShares] = useState(analysis.shares ?? "");
+  const [saves, setSaves] = useState(analysis.saves ?? "");
+
+  function handleSave() {
+    onSave({
+      views: views === "" ? null : Number(views),
+      likes: likes === "" ? null : Number(likes),
+      comments: comments === "" ? null : Number(comments),
+      shares: shares === "" ? null : Number(shares),
+      saves: saves === "" ? null : Number(saves),
+    });
+  }
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div style={S.modalHead}>
+        <span style={S.modalTitle}>تعديل بيانات التحليل</span>
+        <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
+      </div>
+
+      <div style={S.rowTwo} className="rowTwo">
+        <div>
+          <label style={S.label}>المشاهدات</label>
+          <input type="number" min="0" style={S.input} value={views} onChange={(e) => setViews(e.target.value)} />
+        </div>
+        <div>
+          <label style={S.label}>الإعجابات</label>
+          <input type="number" min="0" style={S.input} value={likes} onChange={(e) => setLikes(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
+        <div>
+          <label style={S.label}>التعليقات</label>
+          <input type="number" min="0" style={S.input} value={comments} onChange={(e) => setComments(e.target.value)} />
+        </div>
+        <div>
+          <label style={S.label}>المشاركات</label>
+          <input type="number" min="0" style={S.input} value={shares} onChange={(e) => setShares(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label style={S.label}>الحفظ</label>
+        <input type="number" min="0" style={S.input} value={saves} onChange={(e) => setSaves(e.target.value)} />
+      </div>
+
+      <div style={S.modalFooter} className="modalFooter">
+        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
+        <button onClick={handleSave} style={S.primaryBtn(colors.accentBlue)}><Save size={14} /> حفظ</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, onUnlink, onDelete }) {
+  const platform = ANALYZER_PLATFORMS.find((p) => p.key === analysis.platform) || detectPlatform(analysis.url);
+  const hasMetrics = [analysis.views, analysis.likes, analysis.comments, analysis.shares, analysis.saves].some((v) => v !== null && v !== undefined);
+
+  return (
+    <ModalShell onClose={onClose} wide>
+      <div style={S.modalHead}>
+        <span style={S.modalTitle}>تفاصيل التحليل</span>
+        <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
+      </div>
+
+      <div style={S.formGroup}>
+        <label style={S.label}>المنصة</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: colors.text }}>
+          {platform && <platform.Icon size={15} />} {platform?.label || "غير معروفة"}
+        </div>
+      </div>
+
+      <div style={S.formGroup}>
+        <label style={S.label}>الرابط</label>
+        <a
+          href={normalizeUrl(analysis.url)} target="_blank" rel="noopener noreferrer"
+          style={{ fontSize: 12.5, color: colors.accentBlue, wordBreak: "break-all", direction: "ltr", display: "block", textAlign: "right" }}
+        >
+          {analysis.url}
+        </a>
+      </div>
+
+      <div style={S.formGroup}>
+        <label style={S.label}>تاريخ التحليل</label>
+        <div style={{ fontSize: 13, color: colors.textDim }}>{fmtAnalysisDate(analysis.analyzedAt)}</div>
+      </div>
+
+      <div style={S.formGroup}>
+        <label style={S.label}>الأرقام</label>
+        <div style={S.analyzerMetricsRow}>
+          {analysis.views !== null && analysis.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(analysis.views)}</span>}
+          {analysis.likes !== null && analysis.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(analysis.likes)}</span>}
+          {analysis.comments !== null && analysis.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(analysis.comments)}</span>}
+          {analysis.shares !== null && analysis.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(analysis.shares)}</span>}
+          {analysis.saves !== null && analysis.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(analysis.saves)}</span>}
+          {!hasMetrics && <span style={{ fontSize: 12, color: colors.textFaint }}>مفيش أرقام مسجلة</span>}
+        </div>
+      </div>
+
+      <div style={S.formGroup}>
+        <label style={S.label}>الفكرة المرتبطة</label>
+        {linkedIdea ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+            <span style={S.analyzerLinkedBadge}><Link2 size={11} /> {linkedIdea.title}</span>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button type="button" onClick={onLink} style={S.analyzerLinkBtn}>تغيير الفكرة</button>
+              <button type="button" onClick={onUnlink} style={S.analyzerLinkBtnDanger}>إزالة الربط</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 12.5, color: colors.textFaint, marginBottom: 8 }}>غير مرتبط بفكرة</div>
+            <button type="button" onClick={onLink} style={S.analyzerLinkBtn}>
+              <Link2 size={11} /> ربط بفكرة
+            </button>
+          </>
+        )}
+      </div>
+
+      <div style={S.modalFooter} className="modalFooter">
+        <button onClick={onDelete} style={S.dangerBtn}><Trash2 size={14} /> حذف التحليل</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <a href={normalizeUrl(analysis.url)} target="_blank" rel="noopener noreferrer" style={S.secondaryBtn}>
+            <ExternalLink size={14} /> فتح المحتوى
+          </a>
+          <button onClick={onEdit} style={S.primaryBtn(colors.accentBlue)}><Pencil size={14} /> تعديل البيانات</button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 /* Brand-scoped analyzer: input card + results list + optional idea linking.
    Reused by both the per-brand "تحليل البراند" tab and the global sidebar page. */
-function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, prefillIdeaId, onConsumePrefill }) {
+const ANALYZER_PLATFORM_FILTERS = [{ key: "all", label: "الكل" }, ...ANALYZER_PLATFORMS.map((p) => ({ key: p.key, label: p.label }))];
+const ANALYZER_PAGE_SIZE = 12;
+
+function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, prefillIdeaId, onConsumePrefill }) {
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [linkModalFor, setLinkModalFor] = useState(null);
+  const [editModalFor, setEditModalFor] = useState(null);
+  const [detailsModalFor, setDetailsModalFor] = useState(null);
+  const [openMenuFor, setOpenMenuFor] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [linkFilter, setLinkFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+  const [visibleCount, setVisibleCount] = useState(ANALYZER_PAGE_SIZE);
   const urlInputRef = useRef(null);
 
   const trimmedUrl = url.trim();
@@ -1592,7 +1812,45 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
     }
   }
 
+  const totals = useMemo(() => computeAnalysisTotals(analyses), [analyses]);
+
+  const enriched = useMemo(() => {
+    return analyses.map((a) => ({
+      ...a,
+      _platform: ANALYZER_PLATFORMS.find((p) => p.key === a.platform) || detectPlatform(a.url),
+      _linkedIdea: a.ideaId ? items.find((it) => it.id === a.ideaId) || null : null,
+    }));
+  }, [analyses, items]);
+
+  const filteredSorted = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    let list = enriched;
+    if (platformFilter !== "all") list = list.filter((a) => a.platform === platformFilter);
+    if (linkFilter === "linked") list = list.filter((a) => !!a.ideaId);
+    if (linkFilter === "unlinked") list = list.filter((a) => !a.ideaId);
+    if (q) {
+      list = list.filter((a) =>
+        (a._linkedIdea?.title || "").toLowerCase().includes(q) ||
+        a.url.toLowerCase().includes(q) ||
+        (a._platform?.label || "").toLowerCase().includes(q)
+      );
+    }
+    const sorted = [...list];
+    if (sortBy === "newest") sorted.sort((a, b) => new Date(b.analyzedAt) - new Date(a.analyzedAt));
+    else if (sortBy === "oldest") sorted.sort((a, b) => new Date(a.analyzedAt) - new Date(b.analyzedAt));
+    else if (sortBy === "views") sorted.sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0));
+    else if (sortBy === "engagement") sorted.sort((a, b) => analysisEngagement(b) - analysisEngagement(a));
+    return sorted;
+  }, [enriched, platformFilter, linkFilter, searchQuery, sortBy]);
+
+  useEffect(() => { setVisibleCount(ANALYZER_PAGE_SIZE); }, [platformFilter, linkFilter, searchQuery, sortBy]);
+
+  const visible = filteredSorted.slice(0, visibleCount);
+  const hasMore = filteredSorted.length > visibleCount;
+
   const linkModalAnalysis = linkModalFor ? analyses.find((a) => a.id === linkModalFor) : null;
+  const editModalAnalysis = editModalFor ? analyses.find((a) => a.id === editModalFor) : null;
+  const detailsAnalysis = detailsModalFor ? enriched.find((a) => a.id === detailsModalFor) : null;
 
   return (
     <div>
@@ -1645,60 +1903,90 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       {analyses.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={20} />}
-          title="ابدأ بتحليل أول محتوى"
-          description="الصق رابط Reel أو Post أو Video منشور وشوف أداءه بالأرقام."
+          title="لسه مفيش تحليلات"
+          description="حلل أول Reel أو Post أو Video وشوف أداء المحتوى بالأرقام."
           action={
             <button type="button" onClick={() => urlInputRef.current?.focus()} style={S.secondaryBtn}>
-              <Search size={13} style={{ verticalAlign: -2 }} /> تحليل محتوى
+              <Search size={13} style={{ verticalAlign: -2 }} /> تحليل محتوى جديد
             </button>
           }
         />
       ) : (
-        <div style={S.analyzerResultsList}>
-          {analyses.map((a) => {
-            const platform = ANALYZER_PLATFORMS.find((p) => p.key === a.platform) || detectPlatform(a.url);
-            const linkedIdea = a.ideaId ? items.find((it) => it.id === a.ideaId) : null;
-            return (
-              <div key={a.id} style={S.analyzerResultCard}>
-                <div style={S.analyzerResultHead}>
-                  {platform && <platform.Icon size={15} style={{ flexShrink: 0, color: colors.textDim }} />}
-                  <a href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer" style={S.analyzerResultUrl}>
-                    {a.url}
-                  </a>
-                  <ExternalLink size={12} style={{ flexShrink: 0, color: colors.textFaint }} />
-                  <button
-                    type="button"
-                    onClick={() => onDeleteAnalysis(a.id, a.url)}
-                    style={{ ...S.iconBtnSm, width: 24, height: 24, flexShrink: 0 }}
-                    title="امسح التحليل"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                <div style={S.analyzerMetricsRow}>
-                  {a.views !== null && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
-                  {a.likes !== null && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(a.likes)}</span>}
-                  {a.comments !== null && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(a.comments)}</span>}
-                  {a.shares !== null && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(a.shares)}</span>}
-                  {a.saves !== null && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(a.saves)}</span>}
-                </div>
-                <div style={S.analyzerLinkRow}>
-                  {linkedIdea ? (
-                    <>
-                      <span style={S.analyzerLinkedBadge}><Link2 size={11} /> الفكرة: {linkedIdea.title}</span>
-                      <button type="button" onClick={() => setLinkModalFor(a.id)} style={S.analyzerLinkBtn}>تغيير الفكرة</button>
-                      <button type="button" onClick={() => onSetAnalysisIdea(a.id, null)} style={S.analyzerLinkBtnDanger}>إزالة الربط</button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => setLinkModalFor(a.id)} style={S.analyzerLinkBtn}>
-                      <Link2 size={11} /> ربط بفكرة
-                    </button>
-                  )}
-                </div>
+        <>
+          <div style={S.analyzerSummaryRow} className="analyzerSummaryRow">
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{totals.count}</span><span style={S.analyzerSummaryLabel}>محتوى محلل</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.views)}</span><span style={S.analyzerSummaryLabel}>مشاهدات</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.likes)}</span><span style={S.analyzerSummaryLabel}>إعجابات</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.comments)}</span><span style={S.analyzerSummaryLabel}>تعليقات</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.shares)}</span><span style={S.analyzerSummaryLabel}>مشاركات</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.saves)}</span><span style={S.analyzerSummaryLabel}>حفظ</span></div>
+          </div>
+
+          <div style={S.analyzerToolbar} className="analyzerToolbar">
+            <input
+              style={{ ...S.input, flex: "1 1 200px", minWidth: 0 }}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ابحث في التحليلات..."
+            />
+            <select style={{ ...S.input, width: "auto", flexShrink: 0 }} value={linkFilter} onChange={(e) => setLinkFilter(e.target.value)}>
+              <option value="all">كل الروابط</option>
+              <option value="linked">مرتبط بفكرة</option>
+              <option value="unlinked">غير مرتبط</option>
+            </select>
+            <select style={{ ...S.input, width: "auto", flexShrink: 0 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="newest">الأحدث</option>
+              <option value="oldest">الأقدم</option>
+              <option value="views">الأكثر مشاهدة</option>
+              <option value="engagement">الأكثر تفاعلًا</option>
+            </select>
+          </div>
+
+          <div style={S.analyzerFilterChipsRow}>
+            {ANALYZER_PLATFORM_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setPlatformFilter(f.key)}
+                style={{ ...S.analyzerFilterChip, ...(platformFilter === f.key ? S.analyzerFilterChipActive : {}) }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {filteredSorted.length === 0 ? (
+            <div style={S.emptyBrands}>مفيش تحليلات تطابق البحث أو الفلتر الحالي.</div>
+          ) : (
+            <>
+              <div style={S.analyzerGrid} className="analyzerGrid">
+                {visible.map((a) => (
+                  <AnalysisCard
+                    key={a.id}
+                    a={a}
+                    menuOpen={openMenuFor === a.id}
+                    onToggleMenu={() => setOpenMenuFor(openMenuFor === a.id ? null : a.id)}
+                    onCloseMenu={() => setOpenMenuFor(null)}
+                    onOpenDetails={() => setDetailsModalFor(a.id)}
+                    onEdit={() => setEditModalFor(a.id)}
+                    onLink={() => setLinkModalFor(a.id)}
+                    onUnlink={() => onSetAnalysisIdea(a.id, null)}
+                    onDelete={() => onDeleteAnalysis(a.id, a.url)}
+                  />
+                ))}
               </div>
-            );
-          })}
-        </div>
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((c) => c + ANALYZER_PAGE_SIZE)}
+                  style={{ ...S.secondaryBtn, width: "100%", justifyContent: "center", marginTop: 14 }}
+                >
+                  عرض المزيد ({filteredSorted.length - visibleCount} أكتر)
+                </button>
+              )}
+            </>
+          )}
+        </>
       )}
 
       {linkModalFor && (
@@ -1709,6 +1997,99 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
           onConfirm={(ideaId) => { onSetAnalysisIdea(linkModalFor, ideaId); setLinkModalFor(null); }}
         />
       )}
+
+      {editModalAnalysis && (
+        <EditAnalysisMetricsModal
+          analysis={editModalAnalysis}
+          onClose={() => setEditModalFor(null)}
+          onSave={(patch) => { onEditAnalysisMetrics(editModalFor, patch); setEditModalFor(null); }}
+        />
+      )}
+
+      {detailsAnalysis && (
+        <AnalysisDetailsModal
+          analysis={detailsAnalysis}
+          linkedIdea={detailsAnalysis._linkedIdea}
+          onClose={() => setDetailsModalFor(null)}
+          onEdit={() => { setDetailsModalFor(null); setEditModalFor(detailsAnalysis.id); }}
+          onLink={() => { setDetailsModalFor(null); setLinkModalFor(detailsAnalysis.id); }}
+          onUnlink={() => { onSetAnalysisIdea(detailsAnalysis.id, null); setDetailsModalFor(null); }}
+          onDelete={() => { setDetailsModalFor(null); onDeleteAnalysis(detailsAnalysis.id, detailsAnalysis.url); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, onEdit, onLink, onUnlink, onDelete }) {
+  const platform = a._platform;
+  const title = a._linkedIdea?.title || shortContentLabel(a.url);
+
+  return (
+    <div style={S.analyzerGridCard} className="cs-card-interactive analyzerGridCard" onClick={onOpenDetails}>
+      <div style={S.analyzerCardHead}>
+        <span style={S.analyzerCardPlatform}>
+          {platform && <platform.Icon size={13} />}
+          {platform?.label || "غير معروفة"}
+        </span>
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+            style={S.analyzerKebabBtn}
+            aria-label="خيارات التحليل"
+          >
+            <MoreVertical size={15} />
+          </button>
+          {menuOpen && (
+            <>
+              <div onClick={(e) => { e.stopPropagation(); onCloseMenu(); }} style={S.menuBackdrop} />
+              <div style={S.analyzerKebabMenu} onClick={(e) => e.stopPropagation()}>
+                <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
+                  <Pencil size={13} /> تعديل البيانات
+                </button>
+                <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onLink(); }}>
+                  <Link2 size={13} /> {a.ideaId ? "تغيير الفكرة" : "ربط بفكرة"}
+                </button>
+                {a.ideaId && (
+                  <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onUnlink(); }}>
+                    <X size={13} /> إزالة الربط
+                  </button>
+                )}
+                <a
+                  href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
+                  style={S.kebabMenuItem} onClick={(e) => { e.stopPropagation(); onCloseMenu(); }}
+                >
+                  <ExternalLink size={13} /> فتح المحتوى
+                </a>
+                <button type="button" style={{ ...S.kebabMenuItem, color: colors.danger }} onClick={() => { onCloseMenu(); onDelete(); }}>
+                  <Trash2 size={13} /> حذف التحليل
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={S.analyzerCardTitle} title={title}>{title}</div>
+      <div style={S.analyzerCardDate}>{fmtAnalysisDate(a.analyzedAt)}</div>
+
+      <div style={S.analyzerCardMetrics}>
+        {a.views !== null && a.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
+        {a.likes !== null && a.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(a.likes)}</span>}
+        {a.comments !== null && a.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(a.comments)}</span>}
+        {a.shares !== null && a.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(a.shares)}</span>}
+        {a.saves !== null && a.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(a.saves)}</span>}
+      </div>
+
+      <div style={S.analyzerCardFooter}>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
+          <Pencil size={11} /> تعديل
+        </button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenDetails(); }} style={S.analyzerCardFooterBtn}>
+          التفاصيل
+        </button>
+      </div>
     </div>
   );
 }
@@ -1851,7 +2232,7 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
 function BrandPage({
   brand, items, tab, setTab, onEditBrand, onDeleteBrand,
   onAddItem, onBulkAdd, onEditItem, onDeleteItem, onSetStatus, onPatchItem, onPatchBrand, onUseIdea, calMonth, setCalMonth,
-  analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, analyzePrefillIdeaId, onConsumeAnalyzePrefill,
+  analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill,
 }) {
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -1922,6 +2303,7 @@ function BrandPage({
           onSaveAnalysis={onSaveAnalysis}
           onSetAnalysisIdea={onSetAnalysisIdea}
           onDeleteAnalysis={onDeleteAnalysis}
+          onEditAnalysisMetrics={onEditAnalysisMetrics}
           analyzePrefillIdeaId={analyzePrefillIdeaId}
           onConsumeAnalyzePrefill={onConsumeAnalyzePrefill}
         />
@@ -2120,7 +2502,7 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
 
 /* ---------- Brand insights ---------- */
 
-function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, analyzePrefillIdeaId, onConsumeAnalyzePrefill }) {
+function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill }) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -2151,30 +2533,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   // an analysis counts toward the brand whether or not it's linked to an idea.
   const brandAnalyses = analyses;
 
-  const perfTotals = useMemo(() => {
-    const monthPrefix = todayISO().slice(0, 7);
-    const acc = { count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0, monthViews: 0, monthLikes: 0, monthComments: 0 };
-    for (const a of brandAnalyses) {
-      acc.count += 1;
-      const v = a.views !== null && a.views !== undefined ? Number(a.views) || 0 : 0;
-      const l = a.likes !== null && a.likes !== undefined ? Number(a.likes) || 0 : 0;
-      const c = a.comments !== null && a.comments !== undefined ? Number(a.comments) || 0 : 0;
-      const s = a.shares !== null && a.shares !== undefined ? Number(a.shares) || 0 : 0;
-      const sv = a.saves !== null && a.saves !== undefined ? Number(a.saves) || 0 : 0;
-      acc.views += v;
-      acc.likes += l;
-      acc.comments += c;
-      acc.shares += s;
-      acc.saves += sv;
-      const monthKey = a.analyzedAt ? a.analyzedAt.slice(0, 7) : null;
-      if (monthKey === monthPrefix) {
-        acc.monthViews += v;
-        acc.monthLikes += l;
-        acc.monthComments += c;
-      }
-    }
-    return acc;
-  }, [brandAnalyses]);
+  const perfTotals = useMemo(() => computeAnalysisTotals(brandAnalyses), [brandAnalyses]);
 
   const byType = useMemo(() => {
     const map = {};
@@ -2183,21 +2542,44 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   }, [items]);
   const maxTypeCount = Math.max(1, ...byType.map(([, c]) => c));
 
+  // One idea published on several platforms is still one piece of content —
+  // group by ideaId so "أفضل 5 محتوى" ranks content, not individual
+  // platform analyses. Unlinked analyses (ideaId === null) have no shared
+  // content to group under, so each stays its own entry.
   const top5 = useMemo(() => {
-    return brandAnalyses
-      .filter((a) => a.views !== null && a.views !== undefined)
-      .sort((a, b) => Number(b.views) - Number(a.views))
-      .slice(0, 5)
-      .map((a) => {
+    const groups = new Map();
+    for (const a of brandAnalyses) {
+      const key = a.ideaId || `unlinked:${a.id}`;
+      if (!groups.has(key)) {
         const linkedIdea = a.ideaId ? items.find((it) => it.id === a.ideaId) : null;
-        return {
-          id: a.id,
-          title: linkedIdea?.title || a.url,
-          views: a.views,
-          likes: a.likes,
+        groups.set(key, {
+          id: key,
+          title: linkedIdea?.title || shortContentLabel(a.url),
           successNote: linkedIdea?.successNote || null,
-        };
-      });
+          views: 0, likes: 0, comments: 0, shares: 0, saves: 0,
+          hasViews: false,
+          platforms: [],
+        });
+      }
+      const g = groups.get(key);
+      const v = a.views !== null && a.views !== undefined ? Number(a.views) || 0 : 0;
+      const l = a.likes !== null && a.likes !== undefined ? Number(a.likes) || 0 : 0;
+      const c = a.comments !== null && a.comments !== undefined ? Number(a.comments) || 0 : 0;
+      const s = a.shares !== null && a.shares !== undefined ? Number(a.shares) || 0 : 0;
+      const sv = a.saves !== null && a.saves !== undefined ? Number(a.saves) || 0 : 0;
+      g.views += v;
+      g.likes += l;
+      g.comments += c;
+      g.shares += s;
+      g.saves += sv;
+      if (a.views !== null && a.views !== undefined) g.hasViews = true;
+      const platform = ANALYZER_PLATFORMS.find((p) => p.key === a.platform) || detectPlatform(a.url);
+      g.platforms.push({ key: a.platform, label: platform?.label || "غير معروفة", Icon: platform?.Icon, views: v });
+    }
+    return Array.from(groups.values())
+      .filter((g) => g.hasViews)
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 5);
   }, [brandAnalyses, items]);
 
   const REPORT_SECTIONS = [
@@ -2335,6 +2717,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
           onSaveAnalysis={onSaveAnalysis}
           onSetAnalysisIdea={onSetAnalysisIdea}
           onDeleteAnalysis={onDeleteAnalysis}
+          onEditAnalysisMetrics={onEditAnalysisMetrics}
           prefillIdeaId={analyzePrefillIdeaId}
           onConsumePrefill={onConsumeAnalyzePrefill}
         />
@@ -2413,8 +2796,17 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={S.upcomingTitle}>{it.title}</div>
                   {it.successNote && <div style={S.leaderNote}>"{it.successNote}"</div>}
+                  {it.platforms.length > 1 && (
+                    <div style={S.topContentPlatformRow}>
+                      {it.platforms.map((p, pi) => (
+                        <span key={`${p.key || "?"}-${pi}`} style={S.topContentPlatformChip}>
+                          {p.Icon && <p.Icon size={10} />} {fmtMoney(p.views)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span style={S.miniBadge}><Eye size={11} style={{ verticalAlign: -1 }} /> {it.views}{it.likes !== undefined && it.likes !== null && it.likes !== "" ? ` · ${it.likes}` : ""}</span>
+                <span style={S.miniBadge}><Eye size={11} style={{ verticalAlign: -1 }} /> {fmtMoney(it.views)}{it.likes ? ` · ${fmtMoney(it.likes)}` : ""}</span>
               </div>
             ))}
           </div>
@@ -3268,19 +3660,9 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
         <label style={S.label}>نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)</label>
 
         {linkedAnalysis ? (
-          <div style={{ ...S.analyzerResultCard, marginBottom: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: colors.text }}>
-                <TrendingUp size={13} style={{ verticalAlign: -2 }} /> أداء المحتوى
-              </span>
-              <button type="button" onClick={() => onViewAnalysis(item.brandId)} style={S.analyzerLinkBtn}>عرض التحليل</button>
-            </div>
-            <div style={S.analyzerMetricsRow}>
-              {linkedAnalysis.views !== null && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(linkedAnalysis.views)}</span>}
-              {linkedAnalysis.likes !== null && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(linkedAnalysis.likes)}</span>}
-              {linkedAnalysis.comments !== null && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(linkedAnalysis.comments)}</span>}
-              {linkedAnalysis.shares !== null && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(linkedAnalysis.shares)}</span>}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <span style={S.analyzerLinkedBadge}><TrendingUp size={12} /> يوجد تحليل أداء</span>
+            <button type="button" onClick={() => onViewAnalysis(item.brandId)} style={S.analyzerLinkBtn}>عرض التحليل</button>
           </div>
         ) : item ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -3517,16 +3899,48 @@ const S = {
   analyzerInputRow: { display: "flex", gap: 8, flexWrap: "wrap" },
   analyzerPlatformsRow: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 },
   analyzerPlatformChip: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 600, color: colors.textDim, background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 999, padding: "5px 11px" },
-  analyzerResultsList: { display: "flex", flexDirection: "column", gap: 10 },
-  analyzerResultCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "12px 14px" },
-  analyzerResultHead: { display: "flex", alignItems: "center", gap: 8 },
-  analyzerResultUrl: { flex: 1, minWidth: 0, fontSize: 12, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" },
   analyzerMetricsRow: { display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 10 },
   analyzerMetric: { display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, fontWeight: 700, color: colors.text },
-  analyzerLinkRow: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${colors.border}` },
   analyzerLinkedBadge: { display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, fontWeight: 700, color: colors.accentBlue, background: softBg.info, borderRadius: 999, padding: "4px 10px" },
   analyzerLinkBtn: { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: `1px solid ${colors.borderStrong}`, color: colors.textDim, fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" },
   analyzerLinkBtnDanger: { display: "flex", alignItems: "center", gap: 4, background: "transparent", border: `1px solid ${borderTint.danger}`, color: colors.danger, fontSize: 11, fontWeight: 700, borderRadius: 999, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit" },
+
+  /* Analyzer — compact summary + toolbar */
+  analyzerSummaryRow: { display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 10, marginBottom: 16 },
+  analyzerSummaryItem: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "10px 8px", textAlign: "center" },
+  analyzerSummaryValue: { display: "block", fontSize: 15, fontWeight: 800, color: colors.text },
+  analyzerSummaryLabel: { display: "block", fontSize: 10, color: colors.textFaint, marginTop: 2 },
+  analyzerToolbar: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  analyzerFilterChipsRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 },
+  analyzerFilterChip: { background: colors.card, border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "5px 13px", cursor: "pointer", fontFamily: "inherit" },
+  analyzerFilterChipActive: { background: softBg.accentBlue, border: `1px solid ${colors.accentBlue}`, color: colors.accentBlue },
+
+  /* Analyzer — compact grid cards */
+  analyzerGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 },
+  analyzerGridCard: { position: "relative", background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column" },
+  analyzerCardHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 8 },
+  analyzerCardPlatform: { display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: colors.textDim },
+  analyzerKebabBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", flexShrink: 0 },
+  menuBackdrop: { position: "fixed", inset: 0, zIndex: 39 },
+  analyzerKebabMenu: {
+    position: "absolute", top: 28, left: 0, zIndex: 40, minWidth: 168, background: colors.surface,
+    border: `1px solid ${colors.borderStrong}`, borderRadius: 10, padding: 6, boxShadow: shadows.lg,
+    display: "flex", flexDirection: "column", gap: 1,
+  },
+  kebabMenuItem: {
+    display: "flex", alignItems: "center", gap: 8, background: "transparent", border: "none", color: colors.text,
+    fontSize: 12.5, fontWeight: 600, padding: "8px 9px", borderRadius: 7, cursor: "pointer", fontFamily: "inherit",
+    textAlign: "right", textDecoration: "none", width: "100%",
+  },
+  analyzerCardTitle: { fontSize: 13, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  analyzerCardDate: { fontSize: 10.5, color: colors.textFaint, marginTop: 2 },
+  analyzerCardMetrics: { display: "flex", flexWrap: "wrap", gap: "5px 12px", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${colors.border}` },
+  analyzerCardFooter: { display: "flex", gap: 8, marginTop: 12 },
+  analyzerCardFooterBtn: {
+    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: colors.surface,
+    border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11.5, fontWeight: 700, borderRadius: 8,
+    padding: "7px 8px", cursor: "pointer", fontFamily: "inherit",
+  },
 
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   upcomingTitle: { fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -3601,6 +4015,8 @@ const S = {
   leaderRow: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 12px" },
   leaderRank: { width: 20, height: 20, borderRadius: 6, background: colors.surface, color: colors.warning, fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   leaderNote: { fontSize: 10.5, color: colors.textFaint, marginTop: 2, fontStyle: "italic" },
+  topContentPlatformRow: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 5 },
+  topContentPlatformChip: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 600, color: colors.textFaint, background: colors.surface, borderRadius: 999, padding: "2px 7px" },
 
   refCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: 14 },
   refTemplateLabel: { fontSize: 11.5, fontWeight: 700, color: colors.textDim, marginBottom: 6 },
