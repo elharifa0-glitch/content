@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["apple-touch-icon.png"],
       manifest: {
-        name: "استوديو الشغل",
-        short_name: "استوديو الشغل",
+        name: "ContentST",
+        short_name: "ContentST",
         description: "نظام إدارة براندات ومحتوى وتقويم نشر",
         lang: "ar",
         dir: "rtl",

@@ -112,7 +112,7 @@ export default function SharedBrandView({ token }) {
           ))}
         </div>
 
-        <p style={styles.footer}>اللينك ده للقراءة بس — مقدمّلك من استوديو الشغل.</p>
+        <p style={styles.footer}>اللينك ده للقراءة بس — مقدمّلك من ContentST.</p>
       </div>
     </div>
   );

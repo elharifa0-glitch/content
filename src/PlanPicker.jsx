@@ -8,7 +8,7 @@ export const PLANS = [
   { key: "unlimited", name: "Unlimited", brands: "براندات غير محدودة", price: "699 جنيه/شهر", annual: "6,990 جنيه/سنة" },
 ];
 
-const INCLUDED_FEATURES = [
+export const INCLUDED_FEATURES = [
   "لوحة أفكار وتقويم نشر لكل براند",
   "تتبع مدفوعات ومصاريف وربح صافي حقيقي",
   "تحليل وتقارير كاملة لكل براند",
@@ -32,7 +32,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
 
   const plan = PLANS.find((p) => p.key === selectedPlan) || PLANS.find((p) => p.recommended) || PLANS[0];
   const whatsappMsg = encodeURIComponent(
-    `أهلاً، عايز أشترك في باقة ${plan.name} في استوديو الشغل. ده إثبات الدفع:`
+    `أهلاً، عايز أشترك في باقة ${plan.name} في ContentST. ده إثبات الدفع:`
   );
 
   async function copyNumber() {

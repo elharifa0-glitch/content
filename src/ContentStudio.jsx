@@ -15,7 +15,7 @@ import {
   Instagram, Facebook, Youtube,
 } from "lucide-react";
 import { colors, radius, spacing, shadows, transitions, softBg, borderTint } from "./theme";
-import { Button, Badge, EmptyState } from "./components";
+import { Button, Badge, EmptyState, LogoIcon } from "./components";
 import { useTheme } from "./ThemeContext";
 
 /* ---------- Platform icons ---------- */
@@ -191,7 +191,7 @@ export default function ContentStudio({
       const key = `reminder-notified-${it.id}-${today}`;
       if (localStorage.getItem(key)) continue;
       try {
-        new Notification("تذكير من استوديو الشغل", {
+        new Notification("تذكير من ContentST", {
           body: `"${it.title}" — الميعاد بعد ${it.reminderDays} يوم`,
           tag: key,
         });
@@ -850,7 +850,7 @@ export default function ContentStudio({
           <div style={S.modalFooter}>
             <button onClick={() => setLimitModalOpen(false)} style={S.secondaryBtn}>رجوع</button>
             <a
-              href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في استوديو الشغل.")}`}
+              href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في ContentST.")}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{ ...S.primaryBtn(colors.warning), textDecoration: "none" }}
@@ -877,9 +877,9 @@ function Sidebar({
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={S.brandMark}>
-          <div style={S.brandMarkDot} />
+          <LogoIcon size={32} />
           <div>
-            <div style={S.brandMarkTitle}>استوديو الشغل</div>
+            <div style={S.brandMarkTitle}>ContentST</div>
             <div style={S.brandMarkSub}>
               <span style={{ ...S.syncDot, background: saving ? colors.warning : colors.good }} />
               {saving ? "بيحفظ..." : "متزامن"}
@@ -2146,24 +2146,35 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   }
   const mixTargetSum = Object.values(mixTargets).reduce((s, v) => s + Number(v || 0), 0);
 
+  // Single source of truth for performance: the brand's own socialAnalyses records
+  // (already filtered to this brand by the caller). idea linkage never affects this —
+  // an analysis counts toward the brand whether or not it's linked to an idea.
+  const brandAnalyses = analyses;
+
   const perfTotals = useMemo(() => {
     const monthPrefix = todayISO().slice(0, 7);
-    const acc = { views: 0, likes: 0, comments: 0, monthViews: 0, monthLikes: 0, monthComments: 0 };
-    for (const it of items) {
-      const v = Number(it.views) || 0;
-      const l = Number(it.likes) || 0;
-      const c = Number(it.comments) || 0;
+    const acc = { count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0, monthViews: 0, monthLikes: 0, monthComments: 0 };
+    for (const a of brandAnalyses) {
+      acc.count += 1;
+      const v = a.views !== null && a.views !== undefined ? Number(a.views) || 0 : 0;
+      const l = a.likes !== null && a.likes !== undefined ? Number(a.likes) || 0 : 0;
+      const c = a.comments !== null && a.comments !== undefined ? Number(a.comments) || 0 : 0;
+      const s = a.shares !== null && a.shares !== undefined ? Number(a.shares) || 0 : 0;
+      const sv = a.saves !== null && a.saves !== undefined ? Number(a.saves) || 0 : 0;
       acc.views += v;
       acc.likes += l;
       acc.comments += c;
-      if (it.date && it.date.slice(0, 7) === monthPrefix) {
+      acc.shares += s;
+      acc.saves += sv;
+      const monthKey = a.analyzedAt ? a.analyzedAt.slice(0, 7) : null;
+      if (monthKey === monthPrefix) {
         acc.monthViews += v;
         acc.monthLikes += l;
         acc.monthComments += c;
       }
     }
     return acc;
-  }, [items]);
+  }, [brandAnalyses]);
 
   const byType = useMemo(() => {
     const map = {};
@@ -2172,11 +2183,22 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   }, [items]);
   const maxTypeCount = Math.max(1, ...byType.map(([, c]) => c));
 
-  const top5 = useMemo(
-    () => items.filter((i) => i.views !== undefined && i.views !== null && i.views !== "")
-      .sort((a, b) => Number(b.views) - Number(a.views)).slice(0, 5),
-    [items]
-  );
+  const top5 = useMemo(() => {
+    return brandAnalyses
+      .filter((a) => a.views !== null && a.views !== undefined)
+      .sort((a, b) => Number(b.views) - Number(a.views))
+      .slice(0, 5)
+      .map((a) => {
+        const linkedIdea = a.ideaId ? items.find((it) => it.id === a.ideaId) : null;
+        return {
+          id: a.id,
+          title: linkedIdea?.title || a.url,
+          views: a.views,
+          likes: a.likes,
+          successNote: linkedIdea?.successNote || null,
+        };
+      });
+  }, [brandAnalyses, items]);
 
   const REPORT_SECTIONS = [
     { key: "overview", label: "نظرة عامة" },
@@ -2197,12 +2219,8 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     const remainingTotal = (Number(brand.paymentTotal) || 0) - receivedTotal;
     const lastSnapshot = (brand.pageSnapshots || [])[0];
     const firstSnapshot = (brand.pageSnapshots || [])[(brand.pageSnapshots || []).length - 1];
-    const top5Items = items
-      .filter((i) => i.views !== undefined && i.views !== null && i.views !== "")
-      .sort((a, b) => Number(b.views) - Number(a.views))
-      .slice(0, 5);
-    return { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items };
-  }, [brand, items]);
+    return { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items: top5 };
+  }, [brand, top5]);
 
   function buildReportText() {
     const { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items } = reportData;
@@ -2343,14 +2361,17 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
         <div style={S.perfTotalsCol}>
           <span style={S.perfTotalsLabel}>إجمالي كل الوقت</span>
           <div style={S.statRow} className="statRow">
+            <StatCard label="محتوى تم تحليله" value={perfTotals.count} />
             <StatCard label="مشاهدات" value={fmtMoney(perfTotals.views)} color={colors.info} />
             <StatCard label="لايكات" value={fmtMoney(perfTotals.likes)} color={colors.good} />
             <StatCard label="كومنتات" value={fmtMoney(perfTotals.comments)} color={colors.warning} />
+            <StatCard label="مشاركات" value={fmtMoney(perfTotals.shares)} />
+            <StatCard label="حفظ" value={fmtMoney(perfTotals.saves)} />
           </div>
         </div>
       </div>
-      {perfTotals.views === 0 && perfTotals.likes === 0 && perfTotals.comments === 0 && (
-        <p style={S.aiHint}>الأرقام دي بتتجمع من "نتيجة النشر" اللي بتسجلها في كل فكرة — سجّل المشاهدات واللايكات بعد النشر وهتلاقي الإجمالي هنا.</p>
+      {perfTotals.count === 0 && (
+        <p style={S.aiHint}>الأرقام دي بتتجمع من تحليلات المحتوى اللي بتعملها للبراند ده — حلّل أول رابط من "تحليل محتوى جديد" فوق وهتلاقي الإجمالي هنا.</p>
       )}
 
       <div style={S.dashGrid} className="dashGrid">
@@ -2385,7 +2406,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
 
           <h3 style={{ ...S.h3, marginTop: 22 }}><Award size={13} style={{ verticalAlign: -2 }} /> أفضل 5 محتوى (مشاهدات/تفاعل)</h3>
           <div style={S.leaderboard}>
-            {top5.length === 0 && <div style={S.emptyBrands}>سجّل رقم المشاهدات/التفاعل في أي فكرة عشان يظهر ترتيبها هنا.</div>}
+            {top5.length === 0 && <div style={S.emptyBrands}>حلّل محتوى منشور من فوق عشان يظهر ترتيبه هنا.</div>}
             {top5.map((it, i) => (
               <div key={it.id} style={S.leaderRow}>
                 <span style={S.leaderRank}>{i + 1}</span>
@@ -3381,7 +3402,6 @@ const S = {
   loadingWrap: { display: "flex", flex: 1, alignItems: "center", justifyContent: "center", minHeight: 300, color: colors.textDim, fontSize: 14 },
   sidebar: { width: 260, background: colors.surface, borderLeft: `1px solid ${colors.border}`, padding: "18px 14px", flexShrink: 0, position: "sticky", top: 0, maxHeight: "100dvh", overflowY: "auto" },
   brandMark: { display: "flex", alignItems: "center", gap: 10 },
-  brandMarkDot: { width: 32, height: 32, borderRadius: radius.sm, background: colors.accentGradient, boxShadow: shadows.accentGlow },
   brandMarkTitle: { fontSize: 15, fontWeight: 800, color: colors.text },
   brandMarkSub: { display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: colors.textFaint, marginTop: 2 },
   syncDot: { width: 5, height: 5, borderRadius: "50%", flexShrink: 0 },

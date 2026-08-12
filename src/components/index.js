@@ -1,3 +1,4 @@
+export { Logo, LogoIcon } from "./Logo";
 export { default as Button } from "./Button";
 export { default as Card } from "./Card";
 export { default as Badge } from "./Badge";

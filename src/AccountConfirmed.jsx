@@ -15,7 +15,7 @@ export default function AccountConfirmed({ onContinue }) {
         </div>
         <h1 style={styles.title}>تم تفعيل حسابك بنجاح!</h1>
         <p style={styles.subtitle}>
-          الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم استوديو الشغل — معاك تجربة مجانية 14 يوم.
+          الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 14 يوم.
         </p>
         <button onClick={onContinue} style={styles.continueBtn}>يلا نبدأ</button>
       </div>

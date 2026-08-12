@@ -1,5 +1,6 @@
 import React from "react";
 import PlanPicker from "./PlanPicker";
+import { Logo } from "./components";
 
 export default function Paywall({ trialEndsAt, onSignOut, onRecheck }) {
   return (
@@ -9,13 +10,13 @@ export default function Paywall({ trialEndsAt, onSignOut, onRecheck }) {
         * { box-sizing: border-box; font-family: 'Tajawal', sans-serif; }
       `}</style>
       <div style={styles.card}>
-        <div style={styles.logoDot} />
+        <Logo height={24} variant="light" style={{ marginBottom: 14 }} />
         <h1 style={styles.title}>خلصت فترة التجربة</h1>
         <p style={styles.subtitle}>
           {trialEndsAt
             ? `فترة التجربة المجانية انتهت بتاريخ ${new Date(trialEndsAt).toLocaleDateString("ar-EG")}.`
             : "فترة التجربة المجانية انتهت."}
-          {" "}اختار باقة عشان تكمّل تستخدم استوديو الشغل.
+          {" "}اختار باقة عشان تكمّل تستخدم ContentST.
         </p>
 
         <PlanPicker onRecheck={onRecheck} />
@@ -32,7 +33,6 @@ export default function Paywall({ trialEndsAt, onSignOut, onRecheck }) {
 const styles = {
   wrap: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#11171B", padding: 20 },
   card: { width: "100%", maxWidth: 480, background: "#161E23", border: "1px solid #2C383F", borderRadius: 16, padding: 28 },
-  logoDot: { width: 40, height: 40, borderRadius: 12, background: "linear-gradient(135deg,#E7A33E,#C97B5F)", marginBottom: 8 },
   title: { color: "#F2EEE4", fontSize: 20, fontWeight: 800, margin: 0 },
   subtitle: { color: "#8FA0A8", fontSize: 13, lineHeight: 1.8, margin: "6px 0 18px" },
   footerRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 },

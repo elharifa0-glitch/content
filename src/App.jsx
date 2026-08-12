@@ -6,9 +6,13 @@ import ResetPassword from "./ResetPassword";
 import Paywall from "./Paywall";
 import AccountConfirmed from "./AccountConfirmed";
 import SharedBrandView from "./SharedBrandView";
+import LandingPage from "./components/landing/LandingPage";
 
 export default function App() {
-  const shareMatch = window.location.pathname.match(/^\/share\/([a-zA-Z0-9]+)/);
+  const pathname = window.location.pathname;
+  const shareMatch = pathname.match(/^\/share\/([a-zA-Z0-9]+)/);
+  const isSignupPath = pathname === "/signup";
+  const isLandingPath = pathname === "/" || pathname === "/landing";
 
   const [session, setSession] = useState(undefined);
   const [isRecovery, setIsRecovery] = useState(false);
@@ -138,7 +142,11 @@ export default function App() {
     );
   }
 
-  if (!session) return <Auth />;
+  if (!session) {
+    if (isLandingPath) return <LandingPage />;
+    if (isSignupPath) return <Auth initialMode="signup" />;
+    return <Auth initialMode="login" />;
+  }
 
   if (subStatus === undefined) {
     return (

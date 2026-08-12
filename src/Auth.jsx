@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
+import { Logo } from "./components";
 
-export default function Auth() {
-  const [mode, setMode] = useState("login"); // login | signup | forgot
+export default function Auth({ initialMode = "login" }) {
+  const [mode, setMode] = useState(initialMode); // login | signup | forgot
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,9 +67,9 @@ export default function Auth() {
       `}</style>
 
       <form onSubmit={handleSubmit} style={styles.card}>
-        <div style={styles.logoDot} />
+        <Logo height={26} variant="light" style={{ marginBottom: 14 }} />
 
-        <h1 style={styles.title}>استوديو الشغل</h1>
+        <h1 style={styles.title}>ContentST</h1>
 
         <p style={styles.subtitle}>
           {mode === "login"
@@ -173,13 +174,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 4,
-  },
-  logoDot: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    background: "linear-gradient(135deg,#E7A33E,#C97B5F)",
-    marginBottom: 8,
   },
   title: {
     color: "#F2EEE4",
