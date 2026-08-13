@@ -305,6 +305,12 @@ export default function ContentStudio({
   // persist() closes over this ref (not the state) so dismissing onboarding
   // doesn't require threading a new arg through every updateX/persist call site.
   const onboardingDismissedRef = useRef(false);
+  // نوع الاستخدام ومصدر التعارف — نفس منطق onboardingDismissed بالظبط:
+  // null = لسه ما اتسألش، أي string تاني (بما فيها "skipped") = خلص السؤال ده.
+  const [userType, setUserType] = useState(null);
+  const userTypeRef = useRef(null);
+  const [marketingSource, setMarketingSource] = useState(null);
+  const marketingSourceRef = useRef(null);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
@@ -386,6 +392,10 @@ export default function ContentStudio({
           setSocialAnalyses(parsed.socialAnalyses || []);
           onboardingDismissedRef.current = !!parsed.onboardingDismissed;
           setOnboardingDismissed(!!parsed.onboardingDismissed);
+          userTypeRef.current = parsed.userType || null;
+          setUserType(parsed.userType || null);
+          marketingSourceRef.current = parsed.marketingSource || null;
+          setMarketingSource(parsed.marketingSource || null);
           if (repaired) {
             try {
               await supabase.from("user_data").upsert({
@@ -460,6 +470,8 @@ export default function ContentStudio({
         data: {
           brands: nextBrands, items: nextItems, tasks: nextTasks, socialAnalyses: nextSocialAnalyses,
           onboardingDismissed: onboardingDismissedRef.current,
+          userType: userTypeRef.current,
+          marketingSource: marketingSourceRef.current,
         },
         updated_at: new Date().toISOString(),
       });
@@ -482,6 +494,19 @@ export default function ContentStudio({
   function dismissOnboarding() {
     onboardingDismissedRef.current = true;
     setOnboardingDismissed(true);
+    persist(brands, items, tasks, socialAnalyses);
+  }
+
+  // value بيكون إما مفتاح الاختيار أو "skipped" — الاتنين بيعتبروا السؤال
+  // "خلص" وميترجعش يظهر تاني (زي ما onDismissOnboarding بالظبط بيشتغل).
+  function chooseUserType(value) {
+    userTypeRef.current = value;
+    setUserType(value);
+    persist(brands, items, tasks, socialAnalyses);
+  }
+  function chooseMarketingSource(value) {
+    marketingSourceRef.current = value;
+    setMarketingSource(value);
     persist(brands, items, tasks, socialAnalyses);
   }
 
@@ -942,6 +967,10 @@ export default function ContentStudio({
             onOpenAnalyzer={() => openBrandInsights(brands[0]?.id)}
             onboardingDismissed={onboardingDismissed}
             onDismissOnboarding={dismissOnboarding}
+            userType={userType}
+            marketingSource={marketingSource}
+            onChooseUserType={chooseUserType}
+            onChooseMarketingSource={chooseMarketingSource}
             tasks={tasks}
             onAddTask={addTask}
             onToggleTask={toggleTask}
@@ -1272,10 +1301,43 @@ function TopHeader({ session, plan, isTrialing, items, onOpenSearch, onOpenSideb
 
 /* ---------- Dashboard ---------- */
 
-// خطوات البداية: مصدر الحقيقة هو بيانات المستخدم الفعلية (براندات/أفكار/
-// تحليلات) مش أي علم منفصل — لو عنده براند بالفعل، الخطوة الأولى بتتعدى
-// تلقائي، وهكذا. الدليل بيختفي تمامًا لو خلص الخطوات التلاتة أو لو تخطاه.
+// خطوات البداية: مصدر الحقيقة هو بيانات المستخدم الفعلية (نوع الاستخدام/
+// مصدر التعارف/براندات/أفكار/تحليلات) مش أي علم منفصل — لو عنده براند
+// بالفعل، خطوة إضافة البراند بتتعدى تلقائي، وهكذا. الدليل بيختفي تمامًا
+// لو خلص كل الخطوات أو لو تخطاه بزرار "تخطي" العام.
+const USER_TYPE_OPTIONS = [
+  { key: "creator", label: "صانع محتوى" },
+  { key: "smm", label: "Social Media Manager" },
+  { key: "agency", label: "وكالة / Agency" },
+  { key: "brand_owner", label: "صاحب Brand / Business" },
+  { key: "marketing_team", label: "فريق تسويق" },
+  { key: "other", label: "أخرى" },
+];
+const MARKETING_SOURCE_OPTIONS = [
+  { key: "facebook", label: "Facebook" },
+  { key: "instagram", label: "Instagram" },
+  { key: "tiktok", label: "TikTok" },
+  { key: "google", label: "Google" },
+  { key: "referral", label: "صديق / ترشيح" },
+  { key: "ad", label: "إعلان" },
+  { key: "other", label: "أخرى" },
+];
+
 const ONBOARDING_STEPS = [
+  {
+    key: "userType",
+    label: "نوع الاستخدام",
+    title: "خلينا نعرفك أكتر",
+    description: "إنت بتستخدم ContentST في إيه؟",
+    options: USER_TYPE_OPTIONS,
+  },
+  {
+    key: "marketingSource",
+    label: "مصدر التعارف",
+    title: "إزاي عرفت ContentST؟",
+    description: "سؤال اختياري بيساعدنا نفهم مستخدمينا أكتر.",
+    options: MARKETING_SOURCE_OPTIONS,
+  },
   {
     key: "brand",
     label: "أضف البراند",
@@ -1299,23 +1361,39 @@ const ONBOARDING_STEPS = [
   },
 ];
 
-function getOnboardingStepIndex(brands, items, socialAnalyses) {
-  if (brands.length === 0) return 0;
-  if (items.length === 0) return 1;
-  if (socialAnalyses.length === 0) return 2;
-  return -1;
+function getOnboardingStepIndex(brands, items, socialAnalyses, userType, marketingSource) {
+  const hasBrand = brands.length > 0;
+  const hasIdea = items.length > 0;
+  const hasAnalysis = socialAnalyses.length > 0;
+  // مستخدم خلّص الإعداد فعلاً (براند + فكرة + تحليل) ميترجعش يتسأل نوع
+  // الاستخدام بأثر رجعي — الشرط ده تحديدًا بيحمي المستخدمين الحاليين اللي
+  // كانوا موجودين قبل الميزة دي من غير ما يتقاطعوا بسؤال جديد من غير داعي.
+  if (hasBrand && hasIdea && hasAnalysis) return -1;
+  if (!userType) return 0;
+  if (!marketingSource) return 1;
+  if (!hasBrand) return 2;
+  if (!hasIdea) return 3;
+  return 4;
 }
 
-function OnboardingGuide({ brands, items, socialAnalyses, dismissed, onAddBrand, onAddItem, onOpenAnalyzer, onDismiss }) {
-  const stepIndex = getOnboardingStepIndex(brands, items, socialAnalyses);
+function OnboardingGuide({
+  brands, items, socialAnalyses, dismissed, userType, marketingSource,
+  onAddBrand, onAddItem, onOpenAnalyzer, onDismiss, onChooseUserType, onChooseMarketingSource,
+}) {
+  const stepIndex = getOnboardingStepIndex(brands, items, socialAnalyses, userType, marketingSource);
+  const [selectedOption, setSelectedOption] = useState(null);
+  useEffect(() => { setSelectedOption(null); }, [stepIndex]);
+
   if (dismissed || stepIndex === -1) return null;
 
   const step = ONBOARDING_STEPS[stepIndex];
-  const description = stepIndex === 1 && brands[0]?.name
+  const isChoiceStep = stepIndex === 0 || stepIndex === 1;
+  const description = stepIndex === 3 && brands[0]?.name
     ? `ابدأ ببناء خطة المحتوى الخاصة بـ ${brands[0].name}.`
     : step.description;
-  const onCta = stepIndex === 0 ? onAddBrand : stepIndex === 1 ? onAddItem : onOpenAnalyzer;
-  const CtaIcon = stepIndex === 2 ? Search : Plus;
+  const onCta = stepIndex === 2 ? onAddBrand : stepIndex === 3 ? onAddItem : onOpenAnalyzer;
+  const CtaIcon = stepIndex === 4 ? Search : Plus;
+  const onChoose = stepIndex === 0 ? onChooseUserType : onChooseMarketingSource;
 
   return (
     <div style={S.onboardingCard}>
@@ -1334,15 +1412,45 @@ function OnboardingGuide({ brands, items, socialAnalyses, dismissed, onAddBrand,
         <button type="button" onClick={onDismiss} style={S.onboardingSkipBtn}>تخطي</button>
       </div>
 
-      <div style={S.onboardingBody}>
-        <div style={{ minWidth: 0 }}>
+      {isChoiceStep ? (
+        <div>
           <h3 style={S.onboardingTitle}>{stepIndex === 0 ? "👋 أهلاً بك في ContentST" : step.title}</h3>
-          <p style={S.onboardingDesc}>{description}</p>
+          <p style={S.onboardingDesc}>{stepIndex === 0 ? step.description : description}</p>
+          <div style={S.onboardingOptionsGrid}>
+            {step.options.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setSelectedOption(opt.key)}
+                style={{ ...S.onboardingOptionBtn, ...(selectedOption === opt.key ? S.onboardingOptionBtnActive : {}) }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div style={S.onboardingChoiceFooter}>
+            <button type="button" onClick={() => onChoose("skipped")} style={S.secondaryBtn}>تخطي</button>
+            <button
+              type="button"
+              disabled={!selectedOption}
+              onClick={() => onChoose(selectedOption)}
+              style={{ ...S.primaryBtn(colors.accentGradient), opacity: selectedOption ? 1 : 0.5, cursor: selectedOption ? "pointer" : "not-allowed" }}
+            >
+              متابعة
+            </button>
+          </div>
         </div>
-        <button type="button" onClick={onCta} style={S.primaryBtn(colors.accentGradient)}>
-          <CtaIcon size={15} /> {step.cta}
-        </button>
-      </div>
+      ) : (
+        <div style={S.onboardingBody}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={S.onboardingTitle}>{step.title}</h3>
+            <p style={S.onboardingDesc}>{description}</p>
+          </div>
+          <button type="button" onClick={onCta} style={S.primaryBtn(colors.accentGradient)}>
+            <CtaIcon size={15} /> {step.cta}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1350,6 +1458,7 @@ function OnboardingGuide({ brands, items, socialAnalyses, dismissed, onAddBrand,
 function Dashboard({
   brands, items, socialAnalyses, brandCounts, weekPriorities, overdueCount, onOpenBrand, onAddBrand,
   onAddItem, onOpenAnalyzer, onboardingDismissed, onDismissOnboarding,
+  userType, marketingSource, onChooseUserType, onChooseMarketingSource,
   tasks, onAddTask, onToggleTask, onDeleteTask,
 }) {
   const totalOpen = items.filter((i) => i.status !== "done").length;
@@ -1446,10 +1555,14 @@ function Dashboard({
         items={items}
         socialAnalyses={socialAnalyses}
         dismissed={onboardingDismissed}
+        userType={userType}
+        marketingSource={marketingSource}
         onAddBrand={onAddBrand}
         onAddItem={onAddItem}
         onOpenAnalyzer={onOpenAnalyzer}
         onDismiss={onDismissOnboarding}
+        onChooseUserType={onChooseUserType}
+        onChooseMarketingSource={onChooseMarketingSource}
       />
 
       {/* KPI summary — compact, at-a-glance */}
@@ -4241,6 +4354,15 @@ const S = {
   onboardingBody: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
   onboardingTitle: { fontSize: 15.5, fontWeight: 800, color: colors.text, margin: 0 },
   onboardingDesc: { fontSize: 12.5, color: colors.textDim, margin: "5px 0 0", lineHeight: 1.7, maxWidth: 440 },
+  onboardingOptionsGrid: { display: "flex", flexWrap: "wrap", gap: 8, margin: "14px 0" },
+  onboardingOptionBtn: {
+    appearance: "none", WebkitAppearance: "none",
+    background: colors.surface, border: `1px solid ${colors.border}`, color: colors.text,
+    fontSize: 12.5, fontWeight: 700, borderRadius: 10, padding: "10px 16px",
+    cursor: "pointer", fontFamily: "inherit",
+  },
+  onboardingOptionBtnActive: { background: softBg.accentBlue, border: `1px solid ${colors.accentBlue}`, color: colors.accentBlue },
+  onboardingChoiceFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" },
   financeRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 },
   financeCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "14px 16px" },
   financeLabel: { fontSize: 11, color: colors.textDim },

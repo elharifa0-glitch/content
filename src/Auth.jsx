@@ -2,20 +2,43 @@ import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
 import { Logo } from "./components";
 
+// حروف إنجليزي صغيرة/أرقام/_ بس، من 3 لـ 30 حرف — بيتطبّع lowercase قبل
+// الفحص عشان "Ahmed" و"ahmed" يتحسبوا نفس اسم المستخدم.
+function normalizeUsername(raw) {
+  return (raw || "").trim().toLowerCase();
+}
+function isValidUsername(u) {
+  return /^[a-z0-9_]{3,30}$/.test(u);
+}
+
 export default function Auth({ initialMode = "login" }) {
   const [mode, setMode] = useState(initialMode); // login | signup | forgot
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setLoading(true);
     setError("");
     setMessage("");
 
+    const normalizedUsername = normalizeUsername(username);
+    if (mode === "signup") {
+      if (!isValidUsername(normalizedUsername)) {
+        setError("اسم المستخدم لازم يكون من 3 لـ 30 حرف، وحروف إنجليزي صغيرة أو أرقام أو _ بس (من غير مسافات).");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("كلمة المرور وتأكيدها مش متطابقين.");
+        return;
+      }
+    }
+
+    setLoading(true);
     try {
       if (mode === "forgot") {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
@@ -35,9 +58,13 @@ export default function Auth({ initialMode = "login" }) {
         });
         if (err) throw err;
       } else {
+        // اسم المستخدم بيتخزن في user_metadata بتاع Supabase Auth نفسه —
+        // ده "account metadata" الموجود بالفعل، مفيش داعي لجدول أو صف جديد
+        // عشانه، وهو متاح فورًا كجزء من الـ session من غير أي طلب إضافي.
         const { error: err } = await supabase.auth.signUp({
           email,
           password,
+          options: { data: { username: normalizedUsername } },
         });
         if (err) throw err;
 
@@ -57,6 +84,7 @@ export default function Auth({ initialMode = "login" }) {
     setError("");
     setMessage("");
     setPassword("");
+    setConfirmPassword("");
   }
 
   return (
@@ -78,6 +106,22 @@ export default function Auth({ initialMode = "login" }) {
             ? "اعمل حساب جديد"
             : "استرجع حسابك"}
         </p>
+
+        {mode === "signup" && (
+          <>
+            <label style={styles.label}>اسم المستخدم</label>
+            <input
+              style={styles.input}
+              type="text"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="اسم مستخدم فريد (حروف إنجليزي وأرقام و_)"
+              autoComplete="username"
+              dir="ltr"
+            />
+          </>
+        )}
 
         <label style={styles.label}>الإيميل</label>
         <input
@@ -102,6 +146,22 @@ export default function Auth({ initialMode = "login" }) {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="على الأقل 6 حروف/أرقام"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
+            />
+          </>
+        )}
+
+        {mode === "signup" && (
+          <>
+            <label style={styles.label}>تأكيد الباسورد</label>
+            <input
+              style={styles.input}
+              type="password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="اكتب الباسورد تاني"
+              autoComplete="new-password"
             />
           </>
         )}
