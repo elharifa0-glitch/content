@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Home, CalendarIcon, Search, BarChart3, Wallet, TrendingUp,
+  Home, CalendarIcon, Search, BarChart3, Wallet, TrendingUp, Menu,
   Eye, ThumbsUp, MessageCircle, Share2, Instagram, Facebook, Youtube,
 } from "lucide-react";
 import { LogoIcon } from "../Logo";
@@ -19,9 +19,31 @@ const NAV_ITEMS = [
   { icon: Wallet, label: "الاشتراك والباقة" },
 ];
 
+// Below 640px, these mockups switch from the desktop sidebar+grid
+// composition to a simplified mobile product preview (compact header,
+// stacked content) instead of shrinking the same layout until it's
+// unreadable. Scoped to this file only — the real app's Sidebar/Kanban
+// (ContentStudio.jsx) are untouched.
+const MOCKUP_RESPONSIVE_CSS = `
+  .cs-mockup-hamburger { display: none; }
+  @media (max-width: 640px) {
+    .cs-mockup-row { flex-direction: column; }
+    .cs-mockup-sidebar {
+      width: 100% !important; flex-direction: row !important; align-items: center;
+      justify-content: space-between; padding: 10px 12px !important; gap: 0 !important;
+      border-inline-end: none !important; border-bottom: 1px solid ${landing.darkBorder};
+    }
+    .cs-mockup-sidebar-nav, .cs-mockup-sidebar-brands { display: none !important; }
+    .cs-mockup-hamburger { display: flex !important; }
+    .cs-mockup-main { padding: 12px 14px !important; }
+    .cs-mockup-kanban-row { grid-template-columns: 1fr !important; }
+  }
+`;
+
 function Frame({ children }) {
   return (
     <div style={styles.frame}>
+      <style>{MOCKUP_RESPONSIVE_CSS}</style>
       <div style={styles.frameBar}>
         <span style={{ ...styles.dot, background: "#FF5F57" }} />
         <span style={{ ...styles.dot, background: "#FEBC2E" }} />
@@ -34,12 +56,12 @@ function Frame({ children }) {
 
 function MiniSidebar({ activeIndex = 0 }) {
   return (
-    <div style={styles.sidebar}>
+    <div style={styles.sidebar} className="cs-mockup-sidebar">
       <div style={styles.sidebarBrand}>
         <LogoIcon size={22} />
         <span style={styles.sidebarBrandText}>ContentST</span>
       </div>
-      <div style={styles.sidebarNav}>
+      <div style={styles.sidebarNav} className="cs-mockup-sidebar-nav">
         {NAV_ITEMS.map((it, i) => (
           <div key={it.label} style={{ ...styles.navItem, ...(i === activeIndex ? styles.navItemActive : {}) }}>
             <it.icon size={13} />
@@ -47,10 +69,11 @@ function MiniSidebar({ activeIndex = 0 }) {
           </div>
         ))}
       </div>
-      <div style={styles.sidebarBrands}>
+      <div style={styles.sidebarBrands} className="cs-mockup-sidebar-brands">
         <div style={styles.brandChip}><span style={{ ...styles.brandDot, background: landing.orange }} />Nova Studio</div>
         <div style={styles.brandChip}><span style={{ ...styles.brandDot, background: "#5FA8D3" }} />Orbit Media</div>
       </div>
+      <span className="cs-mockup-hamburger" style={styles.hamburger}><Menu size={15} /></span>
     </div>
   );
 }
@@ -65,11 +88,11 @@ const KANBAN_COLUMNS = [
 export function KanbanMockup() {
   return (
     <Frame>
-      <div style={styles.dashRow}>
+      <div style={styles.dashRow} className="cs-mockup-row">
         <MiniSidebar activeIndex={0} />
-        <div style={styles.mainArea}>
+        <div style={styles.mainArea} className="cs-mockup-main">
           <div style={styles.mainHead}>لوحة أفكار — Nova Studio</div>
-          <div style={styles.kanbanRow}>
+          <div style={styles.kanbanRow} className="cs-mockup-kanban-row">
             {KANBAN_COLUMNS.map((col) => (
               <div key={col.key} style={styles.kanbanCol}>
                 <div style={styles.kanbanColHead}>
@@ -91,9 +114,9 @@ export function KanbanMockup() {
 export function AnalyzerMockup() {
   return (
     <Frame>
-      <div style={styles.dashRow}>
+      <div style={styles.dashRow} className="cs-mockup-row">
         <MiniSidebar activeIndex={-1} />
-        <div style={styles.mainArea}>
+        <div style={styles.mainArea} className="cs-mockup-main">
           <div style={styles.mainHead}>تحليل البراند — Nova Studio</div>
           <div style={styles.analyzerCard}>
             <div style={styles.analyzerTitle}>تحليل محتوى جديد</div>
@@ -126,9 +149,9 @@ export function AnalyzerMockup() {
 export function InsightsMockup() {
   return (
     <Frame>
-      <div style={styles.dashRow}>
+      <div style={styles.dashRow} className="cs-mockup-row">
         <MiniSidebar activeIndex={-1} />
-        <div style={styles.mainArea}>
+        <div style={styles.mainArea} className="cs-mockup-main">
           <div style={styles.mainHead}>تحليل البراند — Nova Studio</div>
           <div style={styles.statRow}>
             <div style={styles.statCard}><div style={styles.statValue}>24</div><div style={styles.statLabel}>محتوى تم تحليله</div></div>
@@ -173,6 +196,11 @@ const styles = {
   },
   sidebarBrand: { display: "flex", alignItems: "center", gap: 7, padding: "0 4px" },
   sidebarBrandText: { fontSize: 11.5, fontWeight: 800, color: landing.darkText },
+  hamburger: {
+    alignItems: "center", justifyContent: "center", width: 26, height: 26,
+    borderRadius: 6, background: landing.darkCard, border: `1px solid ${landing.darkBorder}`,
+    color: landing.darkTextDim, flexShrink: 0,
+  },
   sidebarNav: { display: "flex", flexDirection: "column", gap: 2 },
   navItem: { display: "flex", alignItems: "center", gap: 7, padding: "6px 7px", borderRadius: 6, fontSize: 9.5, color: landing.darkTextDim },
   navItemActive: { background: "rgba(255,159,45,0.14)", color: landing.darkText, fontWeight: 700 },

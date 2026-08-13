@@ -58,7 +58,7 @@ export default function BrandReportPDF({
   return (
     <div dir="rtl" style={s.page}>
       <div style={s.header}>
-        <Logo height={30} variant="dark" />
+        <Logo height={46} variant="dark" />
         <div style={s.headerMeta}>
           <div style={s.reportKicker}>تقرير أداء البراند</div>
           <div style={s.brandName}>{brand.name}</div>
@@ -194,13 +194,13 @@ const s = {
     fontFamily: "'Tajawal', sans-serif", padding: "36px 44px 28px", boxSizing: "border-box",
   },
   header: {
-    display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-    paddingBottom: 20, marginBottom: 18, borderBottom: "2px solid #FF6A3D",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    paddingBottom: 26, marginBottom: 24, borderBottom: "2px solid #FF6A3D",
   },
   headerMeta: { textAlign: "left" },
-  reportKicker: { fontSize: 11, fontWeight: 700, color: "#B5790A", letterSpacing: "0.03em" },
-  brandName: { fontSize: 22, fontWeight: 800, color: "#151A24", marginTop: 4 },
-  reportDate: { fontSize: 11.5, color: "#5B6472", marginTop: 2 },
+  reportKicker: { fontSize: 16, fontWeight: 800, color: "#B5790A" },
+  brandName: { fontSize: 32, fontWeight: 800, color: "#151A24", marginTop: 8 },
+  reportDate: { fontSize: 14, color: "#5B6472", marginTop: 6 },
 
   section: { marginBottom: 22, breakInside: "avoid" },
   sectionTitle: {

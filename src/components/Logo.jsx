@@ -53,6 +53,8 @@ export function Logo({ height = 28, variant = "dark", style, className }) {
         fontFamily="Arial, 'Helvetica Neue', Helvetica, sans-serif"
         fontSize="50" fontWeight="800" letterSpacing="0.5"
         dominantBaseline="central" fill={textColor}
+        direction="ltr"
+        style={{ direction: "ltr", fontFamily: "Arial, 'Helvetica Neue', Helvetica, sans-serif" }}
       >
         CONTENT
       </text>

@@ -8,7 +8,7 @@ import BrandReportPDF from "./components/BrandReportPDF";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import {
   Plus, X, Calendar as CalendarIcon, LayoutGrid, Home, Trash2, Pencil,
-  ChevronRight, ChevronLeft, Check, Clock, Sparkles, CheckCircle2, Circle,
+  ChevronRight, ChevronLeft, ChevronUp, ChevronDown, Check, Clock, Sparkles, CheckCircle2, Circle,
   Loader2, Save, Link2, ExternalLink, BarChart3,
   AlertTriangle, Eye, Wallet, Hash, Copy, Repeat, BookOpen, Award, Banknote,
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
@@ -58,6 +58,54 @@ function isLikelyUrl(str) {
   }
 }
 
+// بعض المنصات بتحط الـ id بتاع المحتوى في الـ query string مش في الـ path
+// (يوتيوب watch?v=، وفيسبوك watch/?v=) — القيم دي لازم تتحفظ، أي باراميتر
+// تاني (زي igsh بتاع انستجرام أو is_from_webapp بتاع تيك توك) بيتشال لأنه
+// تتبّع مش هوية محتوى فعلية.
+const URL_IDENTITY_QUERY_PARAMS = {
+  "youtube.com": ["v"],
+  "facebook.com": ["v"],
+};
+
+// بيرجع نفس الرابط بشكل ثابت (بروتوكول/www/الحالة الحرفية للدومين/الشرطة
+// الآخيرة/باراميترات التتبع) عشان نقدر نقارن بين رابطين لنفس المحتوى حتى
+// لو جايين بصيغ مختلفة شوية. مقصود إنها بسيطة ومحافظة — بتسيب الـ path زي
+// ما هو (فيه الـ id بتاع المحتوى وده case-sensitive على أكتر من منصة).
+function normalizeAnalysisUrl(rawUrl) {
+  if (!rawUrl) return "";
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let u;
+  try {
+    u = new URL(withProto);
+  } catch {
+    return trimmed.toLowerCase();
+  }
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  const pathname = u.pathname.replace(/\/+$/, "") || "/";
+  const keepKeys = URL_IDENTITY_QUERY_PARAMS[host] || [];
+  const keptQuery = keepKeys
+    .filter((k) => u.searchParams.has(k))
+    .map((k) => `${k}=${u.searchParams.get(k)}`);
+  return `${host}${pathname}${keptQuery.length ? `?${keptQuery.join("&")}` : ""}`;
+}
+
+// دبلكيت = نفس البراند + نفس المنصة + نفس هوية الرابط بعد التطبيع. بيدور
+// في مجموعة التحليلات الكاملة بتاعة البراند (مش المعروضة بس بعد أي فلتر/
+// Load More) عشان الفحص يشتغل صح حتى لو التحليل القديم متخبي.
+function findDuplicateAnalysis(analyses, brandId, url) {
+  const normalized = normalizeAnalysisUrl(url);
+  if (!normalized) return null;
+  const platform = detectPlatform(url)?.key || null;
+  return analyses.find((a) => {
+    if (a.brandId !== brandId) return false;
+    const aPlatform = a.platform || detectPlatform(a.url)?.key || null;
+    if (aPlatform !== platform) return false;
+    return normalizeAnalysisUrl(a.url) === normalized;
+  }) || null;
+}
+
 const PALETTE = [
   "#E7A33E", "#4FB286", "#5FA8D3", "#D9707A",
   "#9B7FD4", "#63C2C9", "#C97B5F", "#8FA0A8",
@@ -77,6 +125,49 @@ const TYPE_OPTIONS = ["بوست", "ريلز", "ستوري", "فيديو", "كا�
 const PLAN_LIMITS = { starter: 2, pro: 5, unlimited: Infinity };
 const PLAN_LABELS = { starter: "Starter", pro: "Pro", unlimited: "Unlimited" };
 const PLAN_COLORS = { starter: colors.info, pro: colors.warning, unlimited: colors.good };
+
+/* ---------- Navigation <-> URL ----------
+ * Manual pathname routing (no router lib), mirroring the app's existing
+ * "view" state machine: top-level views (dashboard/calendar/search/
+ * compare/account) and brand:{id} + a brand-page tab. buildRoutePath and
+ * parseRoutePath are exact inverses for every path they produce, so a
+ * sync effect can compare against window.location.pathname and know
+ * whether a write is actually needed (see ContentStudio's URL effects). */
+const BRAND_TAB_KEYS = ["board", "calendar", "insights", "payments", "reference"];
+
+function buildRoutePath(view, brandTab) {
+  if (view === "calendar") return "/calendar";
+  if (view === "search") return "/search";
+  if (view === "compare") return "/compare";
+  if (view === "account") return "/account";
+  if (view.startsWith("brand:")) {
+    const id = view.slice(6);
+    return brandTab && brandTab !== "board"
+      ? `/brand/${encodeURIComponent(id)}/${brandTab}`
+      : `/brand/${encodeURIComponent(id)}`;
+  }
+  return "/dashboard";
+}
+
+function parseRoutePath(pathname) {
+  if (pathname === "/dashboard") return { view: "dashboard", brandTab: "board" };
+  if (pathname === "/calendar") return { view: "calendar", brandTab: "board" };
+  if (pathname === "/search") return { view: "search", brandTab: "board" };
+  if (pathname === "/compare") return { view: "compare", brandTab: "board" };
+  if (pathname === "/account") return { view: "account", brandTab: "board" };
+  const m = pathname.match(/^\/brand\/([^/]+)(?:\/([^/]+))?\/?$/);
+  if (m) {
+    const id = decodeURIComponent(m[1]);
+    const tab = BRAND_TAB_KEYS.includes(m[2]) ? m[2] : "board";
+    return { view: `brand:${id}`, brandTab: tab };
+  }
+  // Anything else signed-in users can land on (bare "/", "/login", "/signup",
+  // unknown paths) resolves to the dashboard — the URL-sync effect then
+  // corrects the address bar to the canonical "/dashboard" (see
+  // ContentStudio's route-sync effect: replaceState on this first
+  // reconciliation, so a stale "/signup" never becomes a back-button trap).
+  return { view: "dashboard", brandTab: "board" };
+}
 function planColor(p) {
   const n = (p || "").toString().trim().toLowerCase();
   return PLAN_COLORS[n] || colors.textFaint;
@@ -200,8 +291,8 @@ export default function ContentStudio({
   const [items, setItems] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [socialAnalyses, setSocialAnalyses] = useState([]);
-  const [view, setView] = useState("dashboard");
-  const [brandTab, setBrandTab] = useState("board");
+  const [view, setView] = useState(() => parseRoutePath(window.location.pathname).view);
+  const [brandTab, setBrandTab] = useState(() => parseRoutePath(window.location.pathname).brandTab);
   const [brandModal, setBrandModal] = useState(null);
   const [itemModal, setItemModal] = useState(null);
   const [analyzePrefill, setAnalyzePrefill] = useState(null); // { brandId, ideaId } | null
@@ -210,6 +301,10 @@ export default function ContentStudio({
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  // persist() closes over this ref (not the state) so dismissing onboarding
+  // doesn't require threading a new arg through every updateX/persist call site.
+  const onboardingDismissedRef = useRef(false);
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
@@ -289,6 +384,8 @@ export default function ContentStudio({
           setItems(fixedItems);
           setTasks(parsed.tasks || []);
           setSocialAnalyses(parsed.socialAnalyses || []);
+          onboardingDismissedRef.current = !!parsed.onboardingDismissed;
+          setOnboardingDismissed(!!parsed.onboardingDismissed);
           if (repaired) {
             try {
               await supabase.from("user_data").upsert({
@@ -309,12 +406,61 @@ export default function ContentStudio({
     })();
   }, [userId]);
 
+  // مسار الرابط هو مصدر الحقيقة للتنقل (براند/صفحة/تاب) عشان يستحمل الـ
+  // refresh والـ back/forward. أول مرة الـ effect ده يشتغل بعد ما البراندات
+  // تخلص تحميل (والمرة دي بس) بيصحح الرابط بـ replaceState — يعني لو
+  // المستخدم كان على /login أو /signup أو /brand/{براند-اتمسح}/... وقت ما
+  // الـ session بقت جاهزة، بنستبدل الرابط بدل ما نضيف entry جديد في الـ
+  // history (فمفيش رجوع بالغلط لصفحة تسجيل الدخول القديمة). أي تغيير بعد
+  // كده (تنقل حقيقي من المستخدم، تبديل براند، تبديل تاب) بيستخدم pushState
+  // عادي. الاتنين بيتحسبوا بمقارنة فعلية للمسار الحالي عشان محدش يضيف
+  // history entries من غير داعي (زي لما التغيير يكون جاي أصلاً من popstate
+  // تحت، وده بيرجّع الرابط لنفسه فمفيش كتابة خالص).
+  const didSyncRouteOnceRef = useRef(false);
+  useEffect(() => {
+    if (loading) return;
+    let v = view;
+    let t = brandTab;
+    if (v.startsWith("brand:") && !brands.some((b) => b.id === v.slice(6))) {
+      v = "dashboard";
+      t = "board";
+      if (v !== view) setView(v);
+      if (t !== brandTab) setBrandTab(t);
+    }
+    const target = buildRoutePath(v, t);
+    if (window.location.pathname !== target) {
+      if (!didSyncRouteOnceRef.current) window.history.replaceState(null, "", target);
+      else window.history.pushState(null, "", target);
+    }
+    didSyncRouteOnceRef.current = true;
+  }, [view, brandTab, loading, brands]);
+
+  // زرار الرجوع/التقديم في المتصفح: نقرأ المسار الجديد ونحدث الـ state
+  // بدل ما نعمل reload كامل للتطبيق.
+  useEffect(() => {
+    function onPopState() {
+      const r = parseRoutePath(window.location.pathname);
+      if (r.view.startsWith("brand:") && !brands.some((b) => b.id === r.view.slice(6))) {
+        setView("dashboard");
+        setBrandTab("board");
+        return;
+      }
+      setView(r.view);
+      setBrandTab(r.brandTab);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [brands]);
+
   const persist = useCallback(async (nextBrands, nextItems, nextTasks, nextSocialAnalyses) => {
     setSaving(true);
     try {
       const { error } = await supabase.from("user_data").upsert({
         user_id: userId,
-        data: { brands: nextBrands, items: nextItems, tasks: nextTasks, socialAnalyses: nextSocialAnalyses },
+        data: {
+          brands: nextBrands, items: nextItems, tasks: nextTasks, socialAnalyses: nextSocialAnalyses,
+          onboardingDismissed: onboardingDismissedRef.current,
+        },
         updated_at: new Date().toISOString(),
       });
       if (error) throw error;
@@ -329,6 +475,15 @@ export default function ContentStudio({
   const updateItems = (next) => { setItems(next); persist(brands, next, tasks, socialAnalyses); };
   const updateTasks = (next) => { setTasks(next); persist(brands, items, next, socialAnalyses); };
   const updateSocialAnalyses = (next) => { setSocialAnalyses(next); persist(brands, items, tasks, next); };
+
+  // مجرد UI state محلي متزامن مع نفس صف user_data الموجود — مفيش جدول جديد.
+  // العرض نفسه مبني على بيانات المستخدم الحقيقية (براندات/أفكار/تحليلات)،
+  // فالـ flag ده بس بيتذكر إن المستخدم "تخطى" الدليل وهو لسه على أول خطوة.
+  function dismissOnboarding() {
+    onboardingDismissedRef.current = true;
+    setOnboardingDismissed(true);
+    persist(brands, items, tasks, socialAnalyses);
+  }
 
   const activeBrandId = view.startsWith("brand:") ? view.slice(6) : null;
   const activeBrand = brands.find((b) => b.id === activeBrandId) || null;
@@ -777,11 +932,16 @@ export default function ContentStudio({
           <Dashboard
             brands={brands}
             items={items}
+            socialAnalyses={socialAnalyses}
             brandCounts={brandCounts}
             weekPriorities={weekPriorities}
             overdueCount={overdueCount}
             onOpenBrand={(id) => setView(`brand:${id}`)}
             onAddBrand={handleAddBrandClick}
+            onAddItem={() => setItemModal({})}
+            onOpenAnalyzer={() => openBrandInsights(brands[0]?.id)}
+            onboardingDismissed={onboardingDismissed}
+            onDismissOnboarding={dismissOnboarding}
             tasks={tasks}
             onAddTask={addTask}
             onToggleTask={toggleTask}
@@ -1112,7 +1272,86 @@ function TopHeader({ session, plan, isTrialing, items, onOpenSearch, onOpenSideb
 
 /* ---------- Dashboard ---------- */
 
-function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, onOpenBrand, onAddBrand, tasks, onAddTask, onToggleTask, onDeleteTask }) {
+// خطوات البداية: مصدر الحقيقة هو بيانات المستخدم الفعلية (براندات/أفكار/
+// تحليلات) مش أي علم منفصل — لو عنده براند بالفعل، الخطوة الأولى بتتعدى
+// تلقائي، وهكذا. الدليل بيختفي تمامًا لو خلص الخطوات التلاتة أو لو تخطاه.
+const ONBOARDING_STEPS = [
+  {
+    key: "brand",
+    label: "أضف البراند",
+    title: "ابدأ بأول براند ليك",
+    description: "أضف البراند اللي بتدير محتواه وابدأ تنظيم أفكارك ومتابعة أدائها.",
+    cta: "إضافة براند",
+  },
+  {
+    key: "idea",
+    label: "أضف فكرة",
+    title: "أضف أول فكرة محتوى",
+    description: "ابدأ ببناء خطة المحتوى الخاصة ببراندك.",
+    cta: "إضافة فكرة",
+  },
+  {
+    key: "analysis",
+    label: "حلّل المحتوى",
+    title: "حلّل أول محتوى ليك",
+    description: "أضف رابط Reel أو Post أو فيديو لمعرفة أرقام الأداء الخاصة بالمحتوى.",
+    cta: "تحليل المحتوى",
+  },
+];
+
+function getOnboardingStepIndex(brands, items, socialAnalyses) {
+  if (brands.length === 0) return 0;
+  if (items.length === 0) return 1;
+  if (socialAnalyses.length === 0) return 2;
+  return -1;
+}
+
+function OnboardingGuide({ brands, items, socialAnalyses, dismissed, onAddBrand, onAddItem, onOpenAnalyzer, onDismiss }) {
+  const stepIndex = getOnboardingStepIndex(brands, items, socialAnalyses);
+  if (dismissed || stepIndex === -1) return null;
+
+  const step = ONBOARDING_STEPS[stepIndex];
+  const description = stepIndex === 1 && brands[0]?.name
+    ? `ابدأ ببناء خطة المحتوى الخاصة بـ ${brands[0].name}.`
+    : step.description;
+  const onCta = stepIndex === 0 ? onAddBrand : stepIndex === 1 ? onAddItem : onOpenAnalyzer;
+  const CtaIcon = stepIndex === 2 ? Search : Plus;
+
+  return (
+    <div style={S.onboardingCard}>
+      <div style={S.onboardingStepsRow}>
+        <div style={S.onboardingSteps}>
+          {ONBOARDING_STEPS.map((s, i) => (
+            <React.Fragment key={s.key}>
+              <span style={{ ...S.onboardingStepChip, ...(i < stepIndex ? S.onboardingStepChipDone : {}), ...(i === stepIndex ? S.onboardingStepChipActive : {}) }}>
+                {i < stepIndex ? <Check size={11} /> : <span>{i + 1}</span>}
+                {s.label}
+              </span>
+              {i < ONBOARDING_STEPS.length - 1 && <ChevronLeft size={13} color={colors.textFaint} style={{ flexShrink: 0 }} />}
+            </React.Fragment>
+          ))}
+        </div>
+        <button type="button" onClick={onDismiss} style={S.onboardingSkipBtn}>تخطي</button>
+      </div>
+
+      <div style={S.onboardingBody}>
+        <div style={{ minWidth: 0 }}>
+          <h3 style={S.onboardingTitle}>{stepIndex === 0 ? "👋 أهلاً بك في ContentST" : step.title}</h3>
+          <p style={S.onboardingDesc}>{description}</p>
+        </div>
+        <button type="button" onClick={onCta} style={S.primaryBtn(colors.accentGradient)}>
+          <CtaIcon size={15} /> {step.cta}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({
+  brands, items, socialAnalyses, brandCounts, weekPriorities, overdueCount, onOpenBrand, onAddBrand,
+  onAddItem, onOpenAnalyzer, onboardingDismissed, onDismissOnboarding,
+  tasks, onAddTask, onToggleTask, onDeleteTask,
+}) {
   const totalOpen = items.filter((i) => i.status !== "done").length;
   const [newTask, setNewTask] = useState("");
   const today = todayISO();
@@ -1201,6 +1440,17 @@ function Dashboard({ brands, items, brandCounts, weekPriorities, overdueCount, o
           <p style={S.dashGreetingSub}>دي نظرة سريعة على شغلك النهارده.</p>
         </div>
       </div>
+
+      <OnboardingGuide
+        brands={brands}
+        items={items}
+        socialAnalyses={socialAnalyses}
+        dismissed={onboardingDismissed}
+        onAddBrand={onAddBrand}
+        onAddItem={onAddItem}
+        onOpenAnalyzer={onOpenAnalyzer}
+        onDismiss={onDismissOnboarding}
+      />
 
       {/* KPI summary — compact, at-a-glance */}
       <div style={S.kpiRow} className="kpiRow">
@@ -1754,10 +2004,44 @@ function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, o
   );
 }
 
+function DuplicateAnalysisModal({ analysis, loading, onCancel, onConfirm }) {
+  const platform = ANALYZER_PLATFORMS.find((p) => p.key === analysis.platform) || detectPlatform(analysis.url);
+  const hasMetrics = [analysis.views, analysis.likes, analysis.comments, analysis.shares, analysis.saves].some((v) => v !== null && v !== undefined);
+
+  return (
+    <ModalShell onClose={loading ? () => {} : onCancel}>
+      <div style={S.modalTitle}>الفيديو ده متحلل قبل كده</div>
+      <p style={S.confirmText}>
+        {platform && <platform.Icon size={13} style={{ verticalAlign: -2 }} />} آخر تحليل: {fmtAnalysisDate(analysis.analyzedAt)}
+      </p>
+      <div style={S.analyzerMetricsRow}>
+        {analysis.views !== null && analysis.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(analysis.views)}</span>}
+        {analysis.likes !== null && analysis.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(analysis.likes)}</span>}
+        {analysis.comments !== null && analysis.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(analysis.comments)}</span>}
+        {analysis.shares !== null && analysis.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(analysis.shares)}</span>}
+        {analysis.saves !== null && analysis.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(analysis.saves)}</span>}
+        {!hasMetrics && <span style={{ fontSize: 12, color: colors.textFaint }}>مفيش أرقام مسجلة</span>}
+      </div>
+      <p style={{ ...S.confirmText, marginTop: 14 }}>هل تريد تحديث التحليل القديم؟</p>
+      <div style={S.modalFooter} className="modalFooter">
+        <button onClick={onCancel} disabled={loading} style={{ ...S.secondaryBtn, opacity: loading ? 0.6 : 1 }}>إلغاء</button>
+        <button
+          onClick={onConfirm}
+          disabled={loading}
+          style={{ ...S.primaryBtn(colors.accentBlue), opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer" }}
+        >
+          {loading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={14} />}
+          {loading ? "جاري تحديث التحليل..." : "تحديث التحليل"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 /* Brand-scoped analyzer: input card + results list + optional idea linking.
    Reused by both the per-brand "تحليل البراند" tab and the global sidebar page. */
 const ANALYZER_PLATFORM_FILTERS = [{ key: "all", label: "الكل" }, ...ANALYZER_PLATFORMS.map((p) => ({ key: p.key, label: p.label }))];
-const ANALYZER_PAGE_SIZE = 12;
+const ANALYZER_PAGE_SIZE = 6;
 
 function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, prefillIdeaId, onConsumePrefill }) {
   const [url, setUrl] = useState("");
@@ -1772,6 +2056,8 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   const [linkFilter, setLinkFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
   const [visibleCount, setVisibleCount] = useState(ANALYZER_PAGE_SIZE);
+  const [listCollapsed, setListCollapsed] = useState(false);
+  const [duplicateOf, setDuplicateOf] = useState(null); // existing analysis record | null
   const urlInputRef = useRef(null);
 
   const trimmedUrl = url.trim();
@@ -1779,39 +2065,73 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   const canAnalyze = urlValid && !analyzing;
   const prefillIdea = prefillIdeaId ? items.find((it) => it.id === prefillIdeaId) : null;
 
-  async function analyze() {
-    if (!canAnalyze) return;
+  // نتيجة الـ API بترجع null/undefined لأي رقم متعرفش يجيبه — من غير الشرط
+  // ده كنا هنمسح رقم صحيح موجود بالفعل في التحليل القديم بمجرد ما نعمل
+  // تحديث (زي لو التعليقات مبقاش متاح مؤقتًا من المصدر، مش إن قيمتها بقت صفر).
+  function metricsPatchFromApi(data) {
+    const patch = {};
+    for (const key of ["views", "likes", "comments", "shares", "saves"]) {
+      if (data[key] !== undefined && data[key] !== null) patch[key] = data[key];
+    }
+    return patch;
+  }
+
+  // بيشغّل نفس /api/analyze-video الموجود سواء الحالة "إنشاء تحليل جديد" أو
+  // "تحديث تحليل موجود" — الفرق الوحيد بينهم إيه اللي بيحصل بعد نجاح الطلب.
+  async function runAnalysis(urlToAnalyze, existingAnalysis) {
     setAnalyzing(true);
     setErrorMsg("");
     try {
       const res = await fetch("/api/analyze-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmedUrl }),
+        body: JSON.stringify({ url: urlToAnalyze }),
       });
       const data = await res.json();
       if (!data.ok) {
         setErrorMsg(data.message || "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.");
+        return;
+      }
+      if (existingAnalysis) {
+        // تحديث مكان التحليل الموجود — نفس الـ id/brandId/ideaId، بس الأرقام
+        // والمنصة وتاريخ التحليل بتتحدّث. متسبناش سجل جديد.
+        onEditAnalysisMetrics(existingAnalysis.id, {
+          ...metricsPatchFromApi(data),
+          platform: detectPlatform(urlToAnalyze)?.key || existingAnalysis.platform,
+          analyzedAt: new Date().toISOString(),
+        });
+        setDuplicateOf(null);
       } else {
         onSaveAnalysis({
           brandId: brand.id,
           ideaId: prefillIdeaId || null,
-          platform: detectPlatform(trimmedUrl)?.key || null,
-          url: trimmedUrl,
+          platform: detectPlatform(urlToAnalyze)?.key || null,
+          url: urlToAnalyze,
           views: data.views ?? null,
           likes: data.likes ?? null,
           comments: data.comments ?? null,
           shares: data.shares ?? null,
           saves: data.saves ?? null,
         });
-        setUrl("");
-        if (prefillIdeaId) onConsumePrefill?.();
       }
+      setUrl("");
+      if (prefillIdeaId && !existingAnalysis) onConsumePrefill?.();
     } catch (e) {
       setErrorMsg("حصلت مشكلة في الاتصال، جرب تاني.");
     } finally {
       setAnalyzing(false);
     }
+  }
+
+  function analyze() {
+    if (!canAnalyze) return;
+    const existing = findDuplicateAnalysis(analyses, brand.id, trimmedUrl);
+    if (existing) {
+      setErrorMsg("");
+      setDuplicateOf(existing);
+      return;
+    }
+    runAnalysis(trimmedUrl, null);
   }
 
   const totals = useMemo(() => computeAnalysisTotals(analyses), [analyses]);
@@ -1905,11 +2225,11 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       {analyses.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={20} />}
-          title="لسه مفيش تحليلات"
-          description="حلل أول Reel أو Post أو Video وشوف أداء المحتوى بالأرقام."
+          title="حلّل أول محتوى ليك"
+          description="أضف رابط Reel أو Post أو فيديو لمعرفة أرقام الأداء الخاصة بالمحتوى."
           action={
             <button type="button" onClick={() => urlInputRef.current?.focus()} style={S.secondaryBtn}>
-              <Search size={13} style={{ verticalAlign: -2 }} /> تحليل محتوى جديد
+              <Search size={13} style={{ verticalAlign: -2 }} /> تحليل المحتوى
             </button>
           }
         />
@@ -1957,7 +2277,15 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
             ))}
           </div>
 
-          {filteredSorted.length === 0 ? (
+          <div style={S.analyzerListHeader}>
+            <button type="button" onClick={() => setListCollapsed((c) => !c)} style={S.secondaryBtn}>
+              {listCollapsed
+                ? <>عرض التحليلات <ChevronDown size={13} style={{ verticalAlign: -2 }} /></>
+                : <>طي التحليلات <ChevronUp size={13} style={{ verticalAlign: -2 }} /></>}
+            </button>
+          </div>
+
+          {!listCollapsed && (filteredSorted.length === 0 ? (
             <div style={S.emptyBrands}>مفيش تحليلات تطابق البحث أو الفلتر الحالي.</div>
           ) : (
             <>
@@ -1992,7 +2320,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
                 </button>
               )}
             </>
-          )}
+          ))}
         </>
       )}
 
@@ -2022,6 +2350,15 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
           onLink={() => { setDetailsModalFor(null); setLinkModalFor(detailsAnalysis.id); }}
           onUnlink={() => { onSetAnalysisIdea(detailsAnalysis.id, null); setDetailsModalFor(null); }}
           onDelete={() => { setDetailsModalFor(null); onDeleteAnalysis(detailsAnalysis.id, detailsAnalysis.url); }}
+        />
+      )}
+
+      {duplicateOf && (
+        <DuplicateAnalysisModal
+          analysis={duplicateOf}
+          loading={analyzing}
+          onCancel={() => setDuplicateOf(null)}
+          onConfirm={() => runAnalysis(trimmedUrl, duplicateOf)}
         />
       )}
     </div>
@@ -2290,7 +2627,22 @@ function BrandPage({
         )}
       </div>
 
-      {tab === "board" && <Board items={items} onEdit={onEditItem} onDelete={onDeleteItem} onSetStatus={onSetStatus} onPatchItem={onPatchItem} />}
+      {tab === "board" && (
+        items.length === 0 ? (
+          <EmptyState
+            icon={<Sparkles size={20} />}
+            title="أضف أول فكرة محتوى"
+            description={`ابدأ ببناء خطة المحتوى الخاصة بـ ${brand.name}.`}
+            action={
+              <button type="button" onClick={onAddItem} style={S.primaryBtn(brand.color)}>
+                <Plus size={14} /> إضافة فكرة
+              </button>
+            }
+          />
+        ) : (
+          <Board items={items} onEdit={onEditItem} onDelete={onDeleteItem} onSetStatus={onSetStatus} onPatchItem={onPatchItem} />
+        )
+      )}
       {tab === "calendar" && (
         <MonthCalendar
           items={items}
@@ -3869,6 +4221,26 @@ const S = {
   kpiLabel: { fontSize: 10.5, color: colors.textDim, marginTop: 1 },
   dashSection: { marginBottom: 26 },
   dashSectionTitle: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, margin: "0 0 12px", color: colors.textDim },
+
+  onboardingCard: {
+    background: colors.accentGradientSoft, border: `1px solid ${colors.border}`,
+    borderRadius: 16, padding: "16px 18px", marginBottom: 24,
+  },
+  onboardingStepsRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 },
+  onboardingSteps: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  onboardingStepChip: {
+    display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: colors.textFaint,
+    background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 999, padding: "4px 10px",
+  },
+  onboardingStepChipDone: { color: colors.good, borderColor: colors.good },
+  onboardingStepChipActive: { color: colors.text, borderColor: colors.borderStrong, fontWeight: 800 },
+  onboardingSkipBtn: {
+    background: "transparent", border: "none", color: colors.textFaint, fontSize: 11.5,
+    cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", flexShrink: 0,
+  },
+  onboardingBody: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" },
+  onboardingTitle: { fontSize: 15.5, fontWeight: 800, color: colors.text, margin: 0 },
+  onboardingDesc: { fontSize: 12.5, color: colors.textDim, margin: "5px 0 0", lineHeight: 1.7, maxWidth: 440 },
   financeRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 },
   financeCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "14px 16px" },
   financeLabel: { fontSize: 11, color: colors.textDim },
@@ -3949,6 +4321,7 @@ const S = {
   analyzerSummaryLabel: { display: "block", fontSize: 10, color: colors.textFaint, marginTop: 2 },
   analyzerToolbar: { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 },
   analyzerFilterChipsRow: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 },
+  analyzerListHeader: { display: "flex", justifyContent: "flex-end", marginBottom: 12 },
   analyzerFilterChip: { background: colors.card, border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11.5, fontWeight: 700, borderRadius: 999, padding: "5px 13px", cursor: "pointer", fontFamily: "inherit" },
   analyzerFilterChipActive: { background: softBg.accentBlue, border: `1px solid ${colors.accentBlue}`, color: colors.accentBlue },
   analyzerPaginationInfo: { textAlign: "center", fontSize: 11.5, color: colors.textFaint, margin: "14px 0 10px" },
