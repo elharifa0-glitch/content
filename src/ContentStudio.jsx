@@ -4483,7 +4483,7 @@ const S = {
   },
 
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
-  upcomingTitle: { fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  upcomingTitle: { fontSize: 12.5, fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   upcomingMeta: { fontSize: 11, color: colors.textFaint, marginTop: 1 },
   miniBadge: { fontSize: 10.5, fontWeight: 700, padding: "3px 8px", borderRadius: 6, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3 },
 

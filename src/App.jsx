@@ -26,6 +26,12 @@ export default function App() {
   const [hasSubRow, setHasSubRow] = useState(true);
 
   useEffect(() => {
+    // onAuthStateChange بيبعت أول event بتاعه (INITIAL_SESSION) بالجلسة
+    // الحقيقية المتخزنة أول ما الـ client يخلص تهيئته — ده المصدر الوحيد
+    // اللي بنعتمد عليه لتحديد حالة الدخول. استدعاء getSession() منفصل هنا
+    // كان بيسبب race: لو رجعت null قبل ما onAuthStateChange يوصل (زي وقت
+    // تجديد التوكن)، الشاشة كانت بتعرض تسجيل الدخول غلط لحظة الـ refresh،
+    // حتى لو الجلسة الحقيقية سليمة وهتوصل بعد شوية.
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         if (event === "PASSWORD_RECOVERY") {
@@ -34,10 +40,6 @@ export default function App() {
         setSession(newSession);
       }
     );
-
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
 
     const hash = window.location.hash;
     if (
