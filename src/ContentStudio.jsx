@@ -188,6 +188,13 @@ function uid() {
   return (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
 }
 
+// المصدر الوحيد لحل لون البراند من brandId في كل الأداة (سايدبار، تقويم عام،
+// كارت دشبورد، نتايج البحث...) — بيقرا مباشرة من مصفوفة brands الحالية (نفس
+// الـ state)، مفيش أي نسخة تانية أو كاش بيتخزن لوحده ممكن يبقى قديم.
+function getBrandColor(brands, brandId) {
+  return brands.find((b) => b.id === brandId)?.color || colors.textDim;
+}
+
 function isoFromDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -1647,7 +1654,7 @@ function Dashboard({
                 const sd = STATUS_DEFS.find((s) => s.key === it.status);
                 return (
                   <div key={it.id} style={S.compactRow}>
-                    <span style={{ ...S.dot, background: b?.color || "#666" }} />
+                    <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.upcomingTitle}>{it.title}</div>
                       <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
@@ -1761,7 +1768,7 @@ function Dashboard({
                 const near = dLeft !== null && dLeft <= 2;
                 return (
                   <div key={it.id} style={S.compactRow}>
-                    <span style={{ ...S.dot, background: b?.color || "#666" }} />
+                    <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.upcomingTitle}>{it.title}</div>
                       <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
@@ -1849,7 +1856,7 @@ function SearchView({ items, brands, onOpenItem }) {
           const sd = STATUS_DEFS.find((s) => s.key === it.status);
           return (
             <button key={it.id} onClick={() => onOpenItem(it)} style={S.searchResultRow}>
-              <span style={{ ...S.dot, background: b?.color || "#666" }} />
+              <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
               <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
                 <div style={S.upcomingTitle}>{it.title}</div>
                 <div style={S.upcomingMeta}>{b?.name} · {it.type}{it.date ? ` · ${fmtDate(it.date)}` : ""}</div>
@@ -3941,7 +3948,7 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
     return map;
   }, [items]);
 
-  const brandColor = (id) => brands.find((b) => b.id === id)?.color || colors.textDim;
+  const brandColor = (id) => getBrandColor(brands, id);
   const today = todayISO();
 
   return (
