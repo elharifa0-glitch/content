@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt",
+      // التسجيل بقى بيتم يدويًا جوه React عن طريق useRegisterSW (src/UpdatePrompt.jsx)
+      // عشان نقدر نعرض بانر "تحديث متاح" ونتحكم في وقت الـ reload، فمفيش داعي
+      // للـ <script> التلقائي اللي كان بيسجل الـ Service Worker من غير ما نتحكم فيه.
+      injectRegister: false,
       includeAssets: ["apple-touch-icon.png"],
       manifest: {
         name: "ContentST",
