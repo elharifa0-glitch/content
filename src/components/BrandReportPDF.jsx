@@ -26,8 +26,10 @@ function TiktokIcon({ size = 14, color = "#1A1A1A" }) {
 
 const PLATFORM_ICON = { instagram: Instagram, tiktok: TiktokIcon, facebook: Facebook, youtube: Youtube };
 
+// en-US: مش ترجمة — مجرد ضمان أرقام إنجليزية وفواصل آلاف "," ثابتة في
+// الـ PDF بغض النظر عن لوكال المتصفح، زي نفس منطق fmtMoney في ContentStudio.
 function fmt(n) {
-  return (Number(n) || 0).toLocaleString("ar-EG");
+  return (Number(n) || 0).toLocaleString("en-US");
 }
 
 function Section({ title, children }) {

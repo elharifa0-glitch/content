@@ -14,7 +14,7 @@ export default function Paywall({ trialEndsAt, onSignOut, onRecheck }) {
         <h1 style={styles.title}>خلصت فترة التجربة</h1>
         <p style={styles.subtitle}>
           {trialEndsAt
-            ? `فترة التجربة المجانية انتهت بتاريخ ${new Date(trialEndsAt).toLocaleDateString("ar-EG")}.`
+            ? `فترة التجربة المجانية انتهت بتاريخ ${new Date(trialEndsAt).toLocaleDateString("ar-EG-u-nu-latn")}.`
             : "فترة التجربة المجانية انتهت."}
           {" "}اختار باقة عشان تكمّل تستخدم ContentST.
         </p>

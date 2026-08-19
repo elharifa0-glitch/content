@@ -264,9 +264,13 @@ function normalizeUrl(u) {
   return `https://${trimmed}`;
 }
 
+// المصدر الوحيد لتنسيق الأرقام (فلوس، متابعين، إحصائيات...) في كل التطبيق —
+// "en-US" مقصودة هنا مش عشان نترجم حاجة، لكن عشان نضمن أرقام إنجليزية (Western
+// digits) وفواصل آلاف "," ثابتة مهما كانت لغة/لوكال المتصفح أو نظام التشغيل.
+// النص المحيط بيفضل عربي زي ما هو — بس شكل الرقم نفسه بيتوحّد.
 function fmtMoney(n) {
   const num = Number(n) || 0;
-  return num.toLocaleString("ar-EG");
+  return num.toLocaleString("en-US");
 }
 
 function fmtAnalysisDate(iso) {
@@ -2350,6 +2354,13 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   const [refreshingIds, setRefreshingIds] = useState(() => new Set());
   const [refreshCooldownIds, setRefreshCooldownIds] = useState(() => new Set());
   const [refreshStatus, setRefreshStatus] = useState({}); // { [analysisId]: { type: "success"|"error", message? } }
+  // نفس فكرة الـ refresh state اللي فوق، بس على مستوى الفكرة ككل — زرار
+  // "تحديث البيانات" الواحد في كارت الفكرة بيحدّث كل تحليلات المنصات
+  // المرتبطة بيها في عملية واحدة.
+  const [collapsedIdeaIds, setCollapsedIdeaIds] = useState(() => new Set());
+  const [ideaRefreshingIds, setIdeaRefreshingIds] = useState(() => new Set());
+  const [ideaRefreshCooldownIds, setIdeaRefreshCooldownIds] = useState(() => new Set());
+  const [ideaRefreshStatus, setIdeaRefreshStatus] = useState({}); // { [ideaId]: { type: "success"|"partial"|"error", message? } }
   const urlInputRef = useRef(null);
 
   const trimmedUrl = url.trim();
@@ -2462,6 +2473,78 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
     }
   }
 
+  function toggleIdeaCollapse(ideaId) {
+    setCollapsedIdeaIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(ideaId)) next.delete(ideaId);
+      else next.add(ideaId);
+      return next;
+    });
+  }
+
+  // زرار "تحديث البيانات" في كارت الفكرة — بيحدّث كل التحليلات المرتبطة
+  // بالفكرة دي مرة واحدة، بغض النظر عن فلتر المنصة الحالي على الصفحة (الفلتر
+  // بيتحكم في العرض بس، مش في نطاق التحديث). بيدور على التحليلات من نفس
+  // مصدر الحقيقة (analyses الكاملة الجاية من البراند) مش من القايمة المفلترة،
+  // وبيحدّث كل واحدة فيها بنفس refreshAnalysisMetrics المعتمدة، بالتوازي.
+  async function refreshIdeaAnalyses(ideaId) {
+    if (ideaRefreshingIds.has(ideaId) || ideaRefreshCooldownIds.has(ideaId)) return;
+    const memberAnalyses = analyses.filter((a) => a.ideaId === ideaId);
+    if (memberAnalyses.length === 0) return;
+
+    setIdeaRefreshingIds((prev) => new Set(prev).add(ideaId));
+    setIdeaRefreshStatus((prev) => {
+      const next = { ...prev };
+      delete next[ideaId];
+      return next;
+    });
+
+    const results = await Promise.all(
+      memberAnalyses.map(async (a) => ({ analysis: a, ...(await refreshAnalysisMetrics(a, onEditAnalysisMetrics)) }))
+    );
+    const total = results.length;
+    const successCount = results.filter((r) => r.ok).length;
+    const failedLabels = results
+      .filter((r) => !r.ok)
+      .map((r) => (ANALYZER_PLATFORMS.find((p) => p.key === r.analysis.platform) || detectPlatform(r.analysis.url))?.label || "منصة غير معروفة");
+
+    setIdeaRefreshingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(ideaId);
+      return next;
+    });
+
+    let status;
+    if (successCount === total) status = { type: "success" };
+    else if (successCount === 0) status = { type: "error", message: "فشل تحديث البيانات، حاول مرة أخرى." };
+    else status = { type: "partial", message: `تم تحديث ${successCount} من ${total} منصات${failedLabels.length ? ` (فشل: ${failedLabels.join("، ")})` : ""}` };
+    setIdeaRefreshStatus((prev) => ({ ...prev, [ideaId]: status }));
+
+    if (successCount === total) {
+      setIdeaRefreshCooldownIds((prev) => new Set(prev).add(ideaId));
+      setTimeout(() => {
+        setIdeaRefreshCooldownIds((prev) => {
+          const next = new Set(prev);
+          next.delete(ideaId);
+          return next;
+        });
+        setIdeaRefreshStatus((prev) => {
+          const next = { ...prev };
+          delete next[ideaId];
+          return next;
+        });
+      }, REFRESH_SUCCESS_COOLDOWN_MS);
+    } else {
+      setTimeout(() => {
+        setIdeaRefreshStatus((prev) => {
+          const next = { ...prev };
+          delete next[ideaId];
+          return next;
+        });
+      }, REFRESH_ERROR_MESSAGE_MS);
+    }
+  }
+
   const totals = useMemo(() => computeAnalysisTotals(analyses), [analyses]);
 
   const enriched = useMemo(() => {
@@ -2495,8 +2578,43 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
 
   useEffect(() => { setVisibleCount(ANALYZER_PAGE_SIZE); }, [platformFilter, linkFilter, searchQuery, sortBy]);
 
-  const visible = filteredSorted.slice(0, visibleCount);
-  const hasMore = filteredSorted.length > visibleCount;
+  // العرض بقى مبني حول الفكرة مش حول كل تحليل لوحده: كل التحليلات المرتبطة
+  // بنفس الفكرة (اللي عدّت الفلتر/البحث) بتتجمع في مجموعة واحدة، وبتفضل في
+  // ترتيبها زي ما هي في filteredSorted (يعني نفس ترتيب الفرز الحالي).
+  // التحليلات الغير مرتبطة بفكرة بتفضل قايمة منفصلة تحت — زي ما كانت بالظبط،
+  // من غير ما تتحول لكارت فكرة وهمي.
+  const { ideaGroups, unlinkedList } = useMemo(() => {
+    const groups = [];
+    const byIdea = new Map();
+    const unlinked = [];
+    for (const a of filteredSorted) {
+      if (a.ideaId) {
+        let g = byIdea.get(a.ideaId);
+        if (!g) {
+          g = { ideaId: a.ideaId, idea: a._linkedIdea, analyses: [] };
+          byIdea.set(a.ideaId, g);
+          groups.push(g);
+        }
+        g.analyses.push(a);
+      } else {
+        unlinked.push(a);
+      }
+    }
+    return { ideaGroups: groups, unlinkedList: unlinked };
+  }, [filteredSorted]);
+
+  // Load More بيترقّم على "كروت" (كارت فكرة أو كارت تحليل غير مرتبط) مش على
+  // كل تحليل لوحده — عشان فكرة بتلات منصات متتقسمش على صفحتين، وبرضه كل
+  // فكرة تتعرض مرة واحدة بالظبط زي ما هو مطلوب.
+  const combinedList = useMemo(() => [
+    ...ideaGroups.map((g) => ({ type: "idea", key: `idea:${g.ideaId}`, group: g })),
+    ...unlinkedList.map((a) => ({ type: "unlinked", key: `analysis:${a.id}`, analysis: a })),
+  ], [ideaGroups, unlinkedList]);
+
+  const visible = combinedList.slice(0, visibleCount);
+  const hasMore = combinedList.length > visibleCount;
+  const visibleIdeaEntries = visible.filter((e) => e.type === "idea");
+  const visibleUnlinkedEntries = visible.filter((e) => e.type === "unlinked");
 
   const linkModalAnalysis = linkModalFor ? analyses.find((a) => a.id === linkModalFor) : null;
   const editModalAnalysis = editModalFor ? analyses.find((a) => a.id === editModalFor) : null;
@@ -2613,34 +2731,69 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
             </button>
           </div>
 
-          {!listCollapsed && (filteredSorted.length === 0 ? (
+          {!listCollapsed && (combinedList.length === 0 ? (
             <div style={S.emptyBrands}>مفيش تحليلات تطابق البحث أو الفلتر الحالي.</div>
           ) : (
             <>
-              <div style={S.analyzerGrid} className="analyzerGrid">
-                {visible.map((a) => (
-                  <AnalysisCard
-                    key={a.id}
-                    a={a}
-                    menuOpen={openMenuFor === a.id}
-                    onToggleMenu={() => setOpenMenuFor(openMenuFor === a.id ? null : a.id)}
-                    onCloseMenu={() => setOpenMenuFor(null)}
-                    onOpenDetails={() => setDetailsModalFor(a.id)}
-                    onEdit={() => setEditModalFor(a.id)}
-                    onLink={() => setLinkModalFor(a.id)}
-                    onUnlink={() => onSetAnalysisIdea(a.id, null)}
-                    onDelete={() => onDeleteAnalysis(a.id, a.url)}
-                    onRefresh={() => refreshAnalysis(a)}
-                    refreshing={refreshingIds.has(a.id)}
-                    refreshDisabled={refreshingIds.has(a.id) || refreshCooldownIds.has(a.id)}
-                    refreshStatus={refreshStatus[a.id]}
-                  />
-                ))}
-              </div>
+              {visibleIdeaEntries.length > 0 && (
+                <div style={S.analyzerIdeaList}>
+                  {visibleIdeaEntries.map(({ group }) => (
+                    <IdeaAnalysisCard
+                      key={group.ideaId}
+                      idea={group.idea}
+                      ideaId={group.ideaId}
+                      analyses={group.analyses}
+                      collapsed={collapsedIdeaIds.has(group.ideaId)}
+                      onToggleCollapse={() => toggleIdeaCollapse(group.ideaId)}
+                      onRefresh={() => refreshIdeaAnalyses(group.ideaId)}
+                      refreshing={ideaRefreshingIds.has(group.ideaId)}
+                      refreshDisabled={ideaRefreshingIds.has(group.ideaId) || ideaRefreshCooldownIds.has(group.ideaId)}
+                      refreshStatus={ideaRefreshStatus[group.ideaId]}
+                      openMenuFor={openMenuFor}
+                      onToggleMenu={(id) => setOpenMenuFor(openMenuFor === id ? null : id)}
+                      onCloseMenu={() => setOpenMenuFor(null)}
+                      onOpenDetails={(id) => setDetailsModalFor(id)}
+                      onEdit={(id) => setEditModalFor(id)}
+                      onLink={(id) => setLinkModalFor(id)}
+                      onUnlink={(id) => onSetAnalysisIdea(id, null)}
+                      onDelete={(id, url) => onDeleteAnalysis(id, url)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {visibleUnlinkedEntries.length > 0 && (
+                <>
+                  <h4 style={S.analyzerUnlinkedHeading}>
+                    تحليلات غير مرتبطة بفكرة <span style={{ color: colors.textFaint, fontWeight: 600 }}>({unlinkedList.length})</span>
+                  </h4>
+                  <div style={S.analyzerGrid} className="analyzerGrid">
+                    {visibleUnlinkedEntries.map(({ analysis: a }) => (
+                      <AnalysisCard
+                        key={a.id}
+                        a={a}
+                        menuOpen={openMenuFor === a.id}
+                        onToggleMenu={() => setOpenMenuFor(openMenuFor === a.id ? null : a.id)}
+                        onCloseMenu={() => setOpenMenuFor(null)}
+                        onOpenDetails={() => setDetailsModalFor(a.id)}
+                        onEdit={() => setEditModalFor(a.id)}
+                        onLink={() => setLinkModalFor(a.id)}
+                        onUnlink={() => onSetAnalysisIdea(a.id, null)}
+                        onDelete={() => onDeleteAnalysis(a.id, a.url)}
+                        onRefresh={() => refreshAnalysis(a)}
+                        refreshing={refreshingIds.has(a.id)}
+                        refreshDisabled={refreshingIds.has(a.id) || refreshCooldownIds.has(a.id)}
+                        refreshStatus={refreshStatus[a.id]}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
               <p style={S.analyzerPaginationInfo}>
                 {hasMore
-                  ? `عرض ${visible.length} من ${filteredSorted.length} تحليل`
-                  : "تم عرض جميع التحليلات"}
+                  ? `عرض ${visible.length} من ${combinedList.length} نتيجة`
+                  : "تم عرض جميع النتائج"}
               </p>
               {hasMore && (
                 <button
@@ -2697,6 +2850,164 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
           onConfirm={() => runAnalysis(trimmedUrl, duplicateOf)}
         />
       )}
+    </div>
+  );
+}
+
+// كارت الفكرة: الوحدة الأساسية في صفحة تحليل المحتوى دلوقتي — فكرة واحدة =
+// كارت واحد، وجواه كل تحليلات المنصات (Instagram/Facebook/TikTok/YouTube..)
+// المرتبطة بالفكرة دي كأقسام. زرار "تحديث البيانات" هنا واحد بس على مستوى
+// الفكرة، وبيحدّث كل التحليلات المرتبطة بيها مرة واحدة (refreshIdeaAnalyses
+// في SocialAnalyzer) — مفيش زرار تحديث تاني رئيسي جوا كل قسم منصة.
+function IdeaAnalysisCard({
+  idea, ideaId, analyses, collapsed, onToggleCollapse,
+  onRefresh, refreshing, refreshDisabled, refreshStatus,
+  openMenuFor, onToggleMenu, onCloseMenu,
+  onOpenDetails, onEdit, onLink, onUnlink, onDelete,
+}) {
+  const title = idea?.title || "فكرة محذوفة";
+
+  return (
+    <div style={S.analyzerIdeaCard}>
+      <div style={S.analyzerIdeaHead}>
+        <div style={S.analyzerIdeaTitleCol}>
+          <div style={S.analyzerIdeaTitle} title={title}>{title}</div>
+          {idea?.date && <div style={S.analyzerIdeaMeta}>{fmtDate(idea.date)}</div>}
+        </div>
+        <div style={S.analyzerIdeaHeadActions}>
+          <button
+            type="button"
+            disabled={refreshDisabled}
+            onClick={onRefresh}
+            style={{ ...S.analyzerIdeaRefreshBtn, opacity: refreshDisabled ? 0.6 : 1, cursor: refreshDisabled ? "not-allowed" : "pointer" }}
+          >
+            {refreshing ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={13} />}
+            {refreshing ? "جاري تحديث البيانات..." : "تحديث البيانات"}
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            style={S.iconBtnSm}
+            aria-label={collapsed ? "توسيع الفكرة" : "طي الفكرة"}
+          >
+            {collapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+          </button>
+        </div>
+      </div>
+
+      {(refreshing || refreshStatus) && (
+        <div
+          style={{
+            fontSize: 11.5, fontWeight: 700, marginTop: 8,
+            display: "flex", alignItems: "center", gap: 4,
+            color: refreshing ? colors.textFaint
+              : refreshStatus?.type === "success" ? colors.good
+              : refreshStatus?.type === "partial" ? colors.warning
+              : colors.danger,
+          }}
+        >
+          {refreshing && <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} />}
+          {!refreshing && refreshStatus?.type === "success" && <CheckCircle2 size={12} />}
+          {!refreshing && refreshStatus?.type !== "success" && <AlertTriangle size={12} />}
+          <span>{refreshing ? "جاري تحديث البيانات..." : refreshStatus?.type === "success" ? "تم تحديث البيانات" : refreshStatus?.message}</span>
+        </div>
+      )}
+
+      {!collapsed && (
+        <div style={S.analyzerIdeaBody}>
+          <div style={S.analyzerGrid} className="analyzerGrid">
+            {analyses.map((a) => (
+              <IdeaPlatformSection
+                key={a.id}
+                a={a}
+                menuOpen={openMenuFor === a.id}
+                onToggleMenu={() => onToggleMenu(a.id)}
+                onCloseMenu={onCloseMenu}
+                onOpenDetails={() => onOpenDetails(a.id)}
+                onEdit={() => onEdit(a.id)}
+                onLink={() => onLink(a.id)}
+                onUnlink={() => onUnlink(a.id)}
+                onDelete={() => onDelete(a.id, a.url)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// قسم منصة واحدة جوا كارت الفكرة — نفس مقاييس وأزرار AnalysisCard (تعديل/
+// التفاصيل/ربط/حذف)، بس من غير زرار "تحديث البيانات" الخاص بيها (ده بقى
+// مسؤولية كارت الفكرة الأب) ومن غير عنوان تكرار لاسم الفكرة (معروض مرة واحدة
+// فوق في رأس الكارت).
+function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, onEdit, onLink, onUnlink, onDelete }) {
+  const platform = a._platform;
+
+  return (
+    <div style={S.analyzerIdeaSection} className="cs-card-interactive" onClick={onOpenDetails}>
+      <div style={S.analyzerIdeaSectionHead}>
+        <span style={S.analyzerCardPlatform}>
+          {platform && <platform.Icon size={13} />}
+          {platform?.label || "غير معروفة"}
+        </span>
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+            style={S.analyzerKebabBtn}
+            aria-label="خيارات التحليل"
+          >
+            <MoreVertical size={15} />
+          </button>
+          {menuOpen && (
+            <>
+              <div onClick={(e) => { e.stopPropagation(); onCloseMenu(); }} style={S.menuBackdrop} />
+              <div style={S.analyzerKebabMenu} onClick={(e) => e.stopPropagation()}>
+                <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
+                  <Pencil size={13} /> تعديل البيانات
+                </button>
+                <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onLink(); }}>
+                  <Link2 size={13} /> {a.ideaId ? "تغيير الفكرة" : "ربط بفكرة"}
+                </button>
+                {a.ideaId && (
+                  <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onUnlink(); }}>
+                    <X size={13} /> إزالة الربط
+                  </button>
+                )}
+                <a
+                  href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
+                  style={S.kebabMenuItem} onClick={(e) => { e.stopPropagation(); onCloseMenu(); }}
+                >
+                  <ExternalLink size={13} /> فتح المحتوى
+                </a>
+                <button type="button" style={{ ...S.kebabMenuItem, color: colors.danger }} onClick={() => { onCloseMenu(); onDelete(); }}>
+                  <Trash2 size={13} /> حذف التحليل
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div style={S.analyzerCardDate}>آخر تحديث: {fmtAnalysisDate(a.analyzedAt)}</div>
+
+      <div style={S.analyzerCardMetrics}>
+        {a.views !== null && a.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
+        {a.likes !== null && a.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(a.likes)}</span>}
+        {a.comments !== null && a.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(a.comments)}</span>}
+        {a.shares !== null && a.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(a.shares)}</span>}
+        {a.saves !== null && a.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(a.saves)}</span>}
+      </div>
+
+      <div style={S.analyzerCardFooter}>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
+          <Pencil size={11} /> تعديل
+        </button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenDetails(); }} style={S.analyzerCardFooterBtn}>
+          التفاصيل
+        </button>
+      </div>
     </div>
   );
 }
@@ -2810,11 +3121,13 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
 
   const statusColor = isTrialing ? colors.warning : plan ? colors.good : colors.danger;
 
+  // "-u-nu-latn": نفس تنسيق تاريخ ar-EG (ترتيب يوم/شهر/سنة) بس بأرقام
+  // إنجليزية مضمونة — مش en-US عشان متغيرش ترتيب التاريخ نفسه.
   let dateLine = null;
   if (isTrialing && trialEndsAt) {
-    dateLine = `التجربة المجانية بتنتهي بتاريخ ${new Date(trialEndsAt).toLocaleDateString("ar-EG")}`;
+    dateLine = `التجربة المجانية بتنتهي بتاريخ ${new Date(trialEndsAt).toLocaleDateString("ar-EG-u-nu-latn")}`;
   } else if (plan && currentPeriodEnd) {
-    dateLine = `الاشتراك شغال لحد ${new Date(currentPeriodEnd).toLocaleDateString("ar-EG")}`;
+    dateLine = `الاشتراك شغال لحد ${new Date(currentPeriodEnd).toLocaleDateString("ar-EG-u-nu-latn")}`;
   } else if (plan && !currentPeriodEnd) {
     dateLine = "الاشتراك شغال من غير تاريخ انتهاء محدد";
   }
@@ -4764,6 +5077,26 @@ const S = {
     border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11.5, fontWeight: 700, borderRadius: 8,
     padding: "7px 8px", cursor: "pointer", fontFamily: "inherit",
   },
+
+  /* Analyzer — Idea-grouped cards (one Idea = one card, platforms grouped inside) */
+  analyzerIdeaList: { display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 },
+  analyzerIdeaCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 14, padding: "14px 16px" },
+  analyzerIdeaHead: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
+  analyzerIdeaTitleCol: { minWidth: 0, flex: "1 1 160px" },
+  analyzerIdeaTitle: { fontSize: 14.5, fontWeight: 800, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  analyzerIdeaMeta: { fontSize: 11, color: colors.textFaint, marginTop: 2 },
+  analyzerIdeaHeadActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
+  analyzerIdeaRefreshBtn: {
+    display: "flex", alignItems: "center", gap: 6, background: colors.surface, border: `1px solid ${colors.border}`,
+    color: colors.text, fontSize: 12, fontWeight: 700, borderRadius: 8, padding: "7px 12px", fontFamily: "inherit", whiteSpace: "nowrap",
+  },
+  analyzerIdeaBody: { marginTop: 14, paddingTop: 14, borderTop: `1px solid ${colors.border}` },
+  analyzerIdeaSection: {
+    position: "relative", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12,
+    padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column",
+  },
+  analyzerIdeaSectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 8 },
+  analyzerUnlinkedHeading: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: colors.textDim, margin: "22px 0 12px" },
 
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   upcomingTitle: { fontSize: 12.5, fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
