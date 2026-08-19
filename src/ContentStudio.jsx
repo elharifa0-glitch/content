@@ -14,7 +14,7 @@ import {
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
   ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
   ArrowUpRight, ArrowDownRight, ListChecks, CalendarClock, Menu, LogOut, Crown, Sun, Moon,
-  Instagram, Facebook, Youtube, MoreVertical,
+  Instagram, Facebook, Youtube, MoreVertical, RefreshCw,
 } from "lucide-react";
 import { colors, radius, spacing, shadows, transitions, softBg, borderTint } from "./theme";
 import { Button, Badge, EmptyState, LogoIcon } from "./components";
@@ -36,6 +36,32 @@ const ANALYZER_PLATFORMS = [
   { key: "facebook", label: "Facebook", Icon: Facebook },
   { key: "youtube", label: "YouTube", Icon: Youtube },
 ];
+
+// منصات تتبع الصفحة: كل براند ممكن يتابع أكتر من منصة، كل واحدة بسجل نمو
+// مستقل. القايمة دي مبنية عشان إضافة منصة جديدة بعدين تبقى سطر واحد هنا.
+const PAGE_TRACKING_PLATFORMS = [
+  { key: "instagram", label: "Instagram", Icon: Instagram },
+  { key: "facebook", label: "Facebook", Icon: Facebook },
+  { key: "tiktok", label: "TikTok", Icon: TiktokIcon },
+];
+
+function emptyPageTracking() {
+  const out = {};
+  for (const p of PAGE_TRACKING_PLATFORMS) out[p.key] = { link: "", snapshots: [] };
+  return out;
+}
+
+// نمو منصة واحدة خلال شهر التقرير بس: أول قياس وآخر قياس مسجلين فعلًا في
+// الشهر ده (مش أي وقت). لو مفيش قياسين على الأقل، مفيش نمو يتحسب — بنعرض
+// القياس الوحيد من غير رقم زيادة بدل ما نخترع مقارنة مش حقيقية.
+function computePlatformMonthlyGrowth(snapshots, monthKey) {
+  const inMonth = (snapshots || []).filter((s) => s.date && s.date.slice(0, 7) === monthKey);
+  if (inMonth.length === 0) return null;
+  const latest = inMonth[0];
+  const first = inMonth[inMonth.length - 1];
+  const diff = latest.followers != null && first.followers != null ? latest.followers - first.followers : null;
+  return { latest, first, diff, hasGrowth: inMonth.length >= 2 && diff != null };
+}
 
 function detectPlatform(url) {
   const u = (url || "").toLowerCase();
@@ -206,6 +232,14 @@ function fmtDate(d) {
   return `${dt.getDate()} ${MONTHS_AR[dt.getMonth()]}`;
 }
 
+// "2026-08" -> "أغسطس 2026" — لعرض شهر التقرير المختار بدل تاريخ اليوم.
+function fmtMonthKey(monthKey) {
+  if (!monthKey) return "";
+  const [y, m] = monthKey.split("-").map(Number);
+  if (!y || !m) return monthKey;
+  return `${MONTHS_AR[m - 1]} ${y}`;
+}
+
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const today = new Date(todayISO() + "T00:00:00");
@@ -286,6 +320,103 @@ function computeAnalysisTotals(analyses) {
     }
   }
   return acc;
+}
+
+// بيشغّل نفس /api/analyze-video سواء الحالة "تحليل جديد" من SocialAnalyzer أو
+// "تحديث بيانات تحليل موجود" (يدوي بس — مفيش أي جدولة تلقائية) — مصدر واحد
+// للطلب عشان الحالتين يفضلوا متزامنين.
+async function fetchAnalysisMetrics(urlToAnalyze) {
+  const res = await fetch("/api/analyze-video", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: urlToAnalyze }),
+  });
+  return res.json();
+}
+
+// نتيجة الـ API بترجع null/undefined لأي رقم متعرفش يجيبه — من غير الشرط ده
+// كنا هنمسح رقم صحيح موجود بالفعل في التحليل القديم بمجرد ما نعمل تحديث (زي
+// لو التعليقات مبقاش متاح مؤقتًا من المصدر، مش إن قيمتها بقت صفر).
+function metricsPatchFromApi(data) {
+  const patch = {};
+  for (const key of ["views", "likes", "comments", "shares", "saves"]) {
+    if (data[key] !== undefined && data[key] !== null) patch[key] = data[key];
+  }
+  return patch;
+}
+
+// الآلية الوحيدة المعتمدة لتحديث أرقام تحليل موجود — بيستخدمها زرار "تحديث
+// البيانات" في الكارت/التفاصيل، وكمان تدفق "الرابط ده متحلل قبل كده" لما
+// المستخدم يلزق نفس الرابط تاني ويأكد التحديث. بتعدّل السجل بالـ id بتاعه
+// (مفيش سجل جديد خالص)، وبترجع نتيجة واضحة (ok/رسالة خطأ) بدل ما تتحكم في
+// أي UI state بنفسها — كل استدعاء بيدير الـ loading/error الخاص بيه.
+async function refreshAnalysisMetrics(analysis, onEditAnalysisMetrics) {
+  try {
+    const data = await fetchAnalysisMetrics(analysis.url);
+    if (!data.ok) {
+      return { ok: false, message: data.message || "فشل تحديث البيانات، حاول مرة أخرى." };
+    }
+    onEditAnalysisMetrics(analysis.id, {
+      ...metricsPatchFromApi(data),
+      platform: detectPlatform(analysis.url)?.key || analysis.platform,
+      analyzedAt: new Date().toISOString(),
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: "فشل تحديث البيانات، حاول مرة أخرى." };
+  }
+}
+
+// One idea published on several platforms is still one piece of content —
+// group by ideaId so "أفضل 5 محتوى" ranks content, not individual platform
+// analyses. Unlinked analyses (ideaId === null) have no shared content to
+// group under, so each stays its own entry. Shared by the always-visible
+// (all-time) leaderboard and the report's month-scoped Top 5.
+function groupAnalysesByIdea(analysesList, items) {
+  const groups = new Map();
+  for (const a of analysesList) {
+    const key = a.ideaId || `unlinked:${a.id}`;
+    if (!groups.has(key)) {
+      const linkedIdea = a.ideaId ? items.find((it) => it.id === a.ideaId) : null;
+      groups.set(key, {
+        id: key,
+        title: linkedIdea?.title || shortContentLabel(a.url),
+        successNote: linkedIdea?.successNote || null,
+        views: 0, likes: 0, comments: 0, shares: 0, saves: 0,
+        hasViews: false,
+        platforms: [],
+      });
+    }
+    const g = groups.get(key);
+    const v = a.views !== null && a.views !== undefined ? Number(a.views) || 0 : 0;
+    const l = a.likes !== null && a.likes !== undefined ? Number(a.likes) || 0 : 0;
+    const c = a.comments !== null && a.comments !== undefined ? Number(a.comments) || 0 : 0;
+    const s = a.shares !== null && a.shares !== undefined ? Number(a.shares) || 0 : 0;
+    const sv = a.saves !== null && a.saves !== undefined ? Number(a.saves) || 0 : 0;
+    g.views += v;
+    g.likes += l;
+    g.comments += c;
+    g.shares += s;
+    g.saves += sv;
+    if (a.views !== null && a.views !== undefined) g.hasViews = true;
+    const platform = ANALYZER_PLATFORMS.find((p) => p.key === a.platform) || detectPlatform(a.url);
+    g.platforms.push({ key: a.platform, label: platform?.label || "غير معروفة", Icon: platform?.Icon, views: v });
+  }
+  return Array.from(groups.values())
+    .filter((g) => g.hasViews)
+    .sort((a, b) => b.views - a.views)
+    .slice(0, 5);
+}
+
+// أي منصة ينتمي التحليل شهريًا ليها: لو مربوط بفكرة ليها تاريخ، نستخدم شهر
+// الفكرة (هو التمثيل الحقيقي لمتى المحتوى ده مخطط يتنشر). التحليلات مش
+// مربوطة بفكرة معندهاش تاريخ تاني غير وقت التحليل نفسه (analyzedAt).
+function getAnalysisMonthKey(a, itemsById) {
+  if (a.ideaId) {
+    const idea = itemsById.get(a.ideaId);
+    if (idea?.date) return idea.date.slice(0, 7);
+  }
+  return a.analyzedAt ? a.analyzedAt.slice(0, 7) : null;
 }
 
 export default function ContentStudio({
@@ -393,7 +524,18 @@ export default function ContentStudio({
             }
             return out;
           });
-          setBrands(parsed.brands || []);
+          // براندات قديمة كانت بتتابع صفحة واحدة بس (pageLink + pageSnapshots
+          // مسطحة). نبني pageTracking متعدد المنصات منها من غير ما نمسح
+          // الحقول القديمة — أي كود تاني لسه بيقراها يفضل شغال، والبيانات
+          // القديمة (القياسات المسجلة) بتترحل لانستجرام كأقرب افتراض معقول.
+          const fixedBrands = (parsed.brands || []).map((b) => {
+            if (b.pageTracking) return b;
+            repaired = true;
+            const base = emptyPageTracking();
+            base.instagram = { link: b.pageLink || "", snapshots: b.pageSnapshots || [] };
+            return { ...b, pageTracking: base };
+          });
+          setBrands(fixedBrands);
           setItems(fixedItems);
           setTasks(parsed.tasks || []);
           setSocialAnalyses(parsed.socialAnalyses || []);
@@ -407,7 +549,7 @@ export default function ContentStudio({
             try {
               await supabase.from("user_data").upsert({
                 user_id: userId,
-                data: { brands: parsed.brands || [], items: fixedItems, tasks: parsed.tasks || [], socialAnalyses: parsed.socialAnalyses || [] },
+                data: { brands: fixedBrands, items: fixedItems, tasks: parsed.tasks || [], socialAnalyses: parsed.socialAnalyses || [] },
                 updated_at: new Date().toISOString(),
               });
             } catch (e2) {
@@ -550,7 +692,7 @@ export default function ContentStudio({
       const nb = {
         id: uid(), name: data.name, emoji: data.emoji, color: data.color, handle: data.handle || "",
         hashtags: "", captionTemplates: {}, evergreenIdeas: [], paymentTotal: 0, payments: [],
-        referenceSources: [], pageLink: "", pageSnapshots: [],
+        referenceSources: [], pageLink: "", pageSnapshots: [], pageTracking: emptyPageTracking(),
       };
       updateBrands([...brands, nb]);
       setView(`brand:${nb.id}`);
@@ -1882,7 +2024,7 @@ function CompareView({ brands, items, onOpenBrand }) {
       const overdue = brandItems.filter((i) => i.date && i.date < t && i.status !== "done").length;
       const received = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
       const remaining = (Number(b.paymentTotal) || 0) - received;
-      const followers = (b.pageSnapshots || [])[0]?.followers ?? null;
+      const followers = (b.pageTracking?.instagram?.snapshots || b.pageSnapshots || [])[0]?.followers ?? null;
       const views = brandItems.reduce((s, i) => s + (Number(i.views) || 0), 0);
       return {
         brand: b, total, completionRate: total ? Math.round((done / total) * 100) : 0,
@@ -2046,7 +2188,7 @@ function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
   );
 }
 
-function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, onUnlink, onDelete }) {
+function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, onUnlink, onDelete, onRefresh, refreshing, refreshDisabled, refreshStatus }) {
   const platform = ANALYZER_PLATFORMS.find((p) => p.key === analysis.platform) || detectPlatform(analysis.url);
   const hasMetrics = [analysis.views, analysis.likes, analysis.comments, analysis.shares, analysis.saves].some((v) => v !== null && v !== undefined);
 
@@ -2075,7 +2217,7 @@ function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, o
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>تاريخ التحليل</label>
+        <label style={S.label}>آخر تحديث للبيانات</label>
         <div style={{ fontSize: 13, color: colors.textDim }}>{fmtAnalysisDate(analysis.analyzedAt)}</div>
       </div>
 
@@ -2111,13 +2253,36 @@ function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, o
         )}
       </div>
 
+      {(refreshing || refreshStatus) && (
+        <div
+          style={{
+            fontSize: 12, fontWeight: 700, marginTop: -6, marginBottom: 12,
+            display: "flex", alignItems: "center", gap: 5,
+            color: refreshing ? colors.textFaint : refreshStatus?.type === "success" ? colors.good : colors.danger,
+          }}
+        >
+          {refreshing && <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} />}
+          {!refreshing && refreshStatus?.type === "success" && <CheckCircle2 size={12} />}
+          {!refreshing && refreshStatus?.type === "error" && <AlertTriangle size={12} />}
+          <span>{refreshing ? "جاري تحديث البيانات..." : refreshStatus?.type === "success" ? "تم تحديث البيانات" : refreshStatus?.message}</span>
+        </div>
+      )}
+
       <div style={S.modalFooter} className="modalFooter">
         <button onClick={onDelete} style={S.dangerBtn}><Trash2 size={14} /> حذف التحليل</button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <a href={normalizeUrl(analysis.url)} target="_blank" rel="noopener noreferrer" style={S.secondaryBtn}>
             <ExternalLink size={14} /> فتح المحتوى
           </a>
-          <button onClick={onEdit} style={S.primaryBtn(colors.accentBlue)}><Pencil size={14} /> تعديل البيانات</button>
+          <button onClick={onEdit} style={S.secondaryBtn}><Pencil size={14} /> تعديل البيانات</button>
+          <button
+            onClick={onRefresh}
+            disabled={refreshDisabled}
+            style={{ ...S.primaryBtn(colors.accentBlue), opacity: refreshDisabled ? 0.7 : 1, cursor: refreshDisabled ? "not-allowed" : "pointer" }}
+          >
+            {refreshing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={14} />}
+            {refreshing ? "جاري التحديث..." : "تحديث البيانات"}
+          </button>
         </div>
       </div>
     </ModalShell>
@@ -2178,6 +2343,13 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   const [visibleCount, setVisibleCount] = useState(ANALYZER_PAGE_SIZE);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [duplicateOf, setDuplicateOf] = useState(null); // existing analysis record | null
+  // زرار "تحديث البيانات" لكل تحليل: refreshingIds بيمنع طلب تاني لنفس
+  // التحليل وهو لسه شغال، refreshCooldownIds بتفضل الزرار متعطل لثواني
+  // بعد نجاح التحديث (تبريد بسيط ضد الضغط بالغلط أكتر من مرة)، و
+  // refreshStatus بيحمل رسالة النجاح/الفشل المؤقتة اللي بتتعرض جنب الزرار.
+  const [refreshingIds, setRefreshingIds] = useState(() => new Set());
+  const [refreshCooldownIds, setRefreshCooldownIds] = useState(() => new Set());
+  const [refreshStatus, setRefreshStatus] = useState({}); // { [analysisId]: { type: "success"|"error", message? } }
   const urlInputRef = useRef(null);
 
   const trimmedUrl = url.trim();
@@ -2185,43 +2357,27 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   const canAnalyze = urlValid && !analyzing;
   const prefillIdea = prefillIdeaId ? items.find((it) => it.id === prefillIdeaId) : null;
 
-  // نتيجة الـ API بترجع null/undefined لأي رقم متعرفش يجيبه — من غير الشرط
-  // ده كنا هنمسح رقم صحيح موجود بالفعل في التحليل القديم بمجرد ما نعمل
-  // تحديث (زي لو التعليقات مبقاش متاح مؤقتًا من المصدر، مش إن قيمتها بقت صفر).
-  function metricsPatchFromApi(data) {
-    const patch = {};
-    for (const key of ["views", "likes", "comments", "shares", "saves"]) {
-      if (data[key] !== undefined && data[key] !== null) patch[key] = data[key];
-    }
-    return patch;
-  }
-
   // بيشغّل نفس /api/analyze-video الموجود سواء الحالة "إنشاء تحليل جديد" أو
-  // "تحديث تحليل موجود" — الفرق الوحيد بينهم إيه اللي بيحصل بعد نجاح الطلب.
+  // "تحديث تحليل موجود من نفس الرابط" — والحالة التانية بتستخدم نفس
+  // refreshAnalysisMetrics اللي بيستخدمها زرار "تحديث البيانات" على الكارت،
+  // فمفيش غير آلية تحديث واحدة معتمدة في التطبيق كله.
   async function runAnalysis(urlToAnalyze, existingAnalysis) {
     setAnalyzing(true);
     setErrorMsg("");
     try {
-      const res = await fetch("/api/analyze-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: urlToAnalyze }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setErrorMsg(data.message || "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.");
-        return;
-      }
       if (existingAnalysis) {
-        // تحديث مكان التحليل الموجود — نفس الـ id/brandId/ideaId، بس الأرقام
-        // والمنصة وتاريخ التحليل بتتحدّث. متسبناش سجل جديد.
-        onEditAnalysisMetrics(existingAnalysis.id, {
-          ...metricsPatchFromApi(data),
-          platform: detectPlatform(urlToAnalyze)?.key || existingAnalysis.platform,
-          analyzedAt: new Date().toISOString(),
-        });
+        const result = await refreshAnalysisMetrics({ ...existingAnalysis, url: urlToAnalyze }, onEditAnalysisMetrics);
+        if (!result.ok) {
+          setErrorMsg(result.message);
+          return;
+        }
         setDuplicateOf(null);
       } else {
+        const data = await fetchAnalysisMetrics(urlToAnalyze);
+        if (!data.ok) {
+          setErrorMsg(data.message || "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.");
+          return;
+        }
         onSaveAnalysis({
           brandId: brand.id,
           ideaId: prefillIdeaId || null,
@@ -2252,6 +2408,58 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       return;
     }
     runAnalysis(trimmedUrl, null);
+  }
+
+  // زرار "تحديث البيانات" — تحديث يدوي بالكامل، بيطلبه المستخدم بنفسه لتحليل
+  // واحد بعينه بالـ id بتاعه. بيستخدم نفس refreshAnalysisMetrics اللي بيستخدمها
+  // تدفق "الرابط ده متحلل قبل كده"، فمفيش غير آلية تحديث واحدة في التطبيق.
+  const REFRESH_SUCCESS_COOLDOWN_MS = 2500;
+  const REFRESH_ERROR_MESSAGE_MS = 4000;
+
+  async function refreshAnalysis(analysis) {
+    if (refreshingIds.has(analysis.id) || refreshCooldownIds.has(analysis.id)) return; // منع طلبات متوازية لنفس التحليل
+    setRefreshingIds((prev) => new Set(prev).add(analysis.id));
+    setRefreshStatus((prev) => {
+      const next = { ...prev };
+      delete next[analysis.id];
+      return next;
+    });
+
+    const result = await refreshAnalysisMetrics(analysis, onEditAnalysisMetrics);
+
+    setRefreshingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(analysis.id);
+      return next;
+    });
+    setRefreshStatus((prev) => ({
+      ...prev,
+      [analysis.id]: result.ok ? { type: "success" } : { type: "error", message: result.message },
+    }));
+
+    if (result.ok) {
+      setRefreshCooldownIds((prev) => new Set(prev).add(analysis.id));
+      setTimeout(() => {
+        setRefreshCooldownIds((prev) => {
+          const next = new Set(prev);
+          next.delete(analysis.id);
+          return next;
+        });
+        setRefreshStatus((prev) => {
+          const next = { ...prev };
+          delete next[analysis.id];
+          return next;
+        });
+      }, REFRESH_SUCCESS_COOLDOWN_MS);
+    } else {
+      setTimeout(() => {
+        setRefreshStatus((prev) => {
+          const next = { ...prev };
+          delete next[analysis.id];
+          return next;
+        });
+      }, REFRESH_ERROR_MESSAGE_MS);
+    }
   }
 
   const totals = useMemo(() => computeAnalysisTotals(analyses), [analyses]);
@@ -2422,6 +2630,10 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
                     onLink={() => setLinkModalFor(a.id)}
                     onUnlink={() => onSetAnalysisIdea(a.id, null)}
                     onDelete={() => onDeleteAnalysis(a.id, a.url)}
+                    onRefresh={() => refreshAnalysis(a)}
+                    refreshing={refreshingIds.has(a.id)}
+                    refreshDisabled={refreshingIds.has(a.id) || refreshCooldownIds.has(a.id)}
+                    refreshStatus={refreshStatus[a.id]}
                   />
                 ))}
               </div>
@@ -2470,6 +2682,10 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
           onLink={() => { setDetailsModalFor(null); setLinkModalFor(detailsAnalysis.id); }}
           onUnlink={() => { onSetAnalysisIdea(detailsAnalysis.id, null); setDetailsModalFor(null); }}
           onDelete={() => { setDetailsModalFor(null); onDeleteAnalysis(detailsAnalysis.id, detailsAnalysis.url); }}
+          onRefresh={() => refreshAnalysis(detailsAnalysis)}
+          refreshing={refreshingIds.has(detailsAnalysis.id)}
+          refreshDisabled={refreshingIds.has(detailsAnalysis.id) || refreshCooldownIds.has(detailsAnalysis.id)}
+          refreshStatus={refreshStatus[detailsAnalysis.id]}
         />
       )}
 
@@ -2485,7 +2701,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   );
 }
 
-function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, onEdit, onLink, onUnlink, onDelete }) {
+function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, onEdit, onLink, onUnlink, onDelete, onRefresh, refreshing, refreshDisabled, refreshStatus }) {
   const platform = a._platform;
   const title = a._linkedIdea?.title || shortContentLabel(a.url);
 
@@ -2509,6 +2725,15 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
             <>
               <div onClick={(e) => { e.stopPropagation(); onCloseMenu(); }} style={S.menuBackdrop} />
               <div style={S.analyzerKebabMenu} onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={refreshDisabled}
+                  style={{ ...S.kebabMenuItem, opacity: refreshDisabled ? 0.6 : 1, cursor: refreshDisabled ? "not-allowed" : "pointer" }}
+                  onClick={() => { onCloseMenu(); onRefresh(); }}
+                >
+                  <RefreshCw size={13} style={refreshing ? { animation: "spin 1s linear infinite" } : undefined} />
+                  {refreshing ? "جاري التحديث..." : "تحديث البيانات"}
+                </button>
                 <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
                   <Pencil size={13} /> تعديل البيانات
                 </button>
@@ -2537,6 +2762,20 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
 
       <div style={S.analyzerCardTitle} title={title}>{title}</div>
       <div style={S.analyzerCardDate}>{fmtAnalysisDate(a.analyzedAt)}</div>
+      {(refreshing || refreshStatus) && (
+        <div
+          style={{
+            fontSize: 11, fontWeight: 700, marginTop: -2, marginBottom: 6,
+            display: "flex", alignItems: "center", gap: 4,
+            color: refreshing ? colors.textFaint : refreshStatus?.type === "success" ? colors.good : colors.danger,
+          }}
+        >
+          {refreshing && <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />}
+          {!refreshing && refreshStatus?.type === "success" && <CheckCircle2 size={11} />}
+          {!refreshing && refreshStatus?.type === "error" && <AlertTriangle size={11} />}
+          <span>{refreshing ? "جاري تحديث البيانات..." : refreshStatus?.type === "success" ? "تم تحديث البيانات" : refreshStatus?.message}</span>
+        </div>
+      )}
 
       <div style={S.analyzerCardMetrics}>
         {a.views !== null && a.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
@@ -3021,45 +3260,41 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   }, [items]);
   const maxTypeCount = Math.max(1, ...byType.map(([, c]) => c));
 
-  // One idea published on several platforms is still one piece of content —
-  // group by ideaId so "أفضل 5 محتوى" ranks content, not individual
-  // platform analyses. Unlinked analyses (ideaId === null) have no shared
-  // content to group under, so each stays its own entry.
-  const top5 = useMemo(() => {
-    const groups = new Map();
-    for (const a of brandAnalyses) {
-      const key = a.ideaId || `unlinked:${a.id}`;
-      if (!groups.has(key)) {
-        const linkedIdea = a.ideaId ? items.find((it) => it.id === a.ideaId) : null;
-        groups.set(key, {
-          id: key,
-          title: linkedIdea?.title || shortContentLabel(a.url),
-          successNote: linkedIdea?.successNote || null,
-          views: 0, likes: 0, comments: 0, shares: 0, saves: 0,
-          hasViews: false,
-          platforms: [],
-        });
-      }
-      const g = groups.get(key);
-      const v = a.views !== null && a.views !== undefined ? Number(a.views) || 0 : 0;
-      const l = a.likes !== null && a.likes !== undefined ? Number(a.likes) || 0 : 0;
-      const c = a.comments !== null && a.comments !== undefined ? Number(a.comments) || 0 : 0;
-      const s = a.shares !== null && a.shares !== undefined ? Number(a.shares) || 0 : 0;
-      const sv = a.saves !== null && a.saves !== undefined ? Number(a.saves) || 0 : 0;
-      g.views += v;
-      g.likes += l;
-      g.comments += c;
-      g.shares += s;
-      g.saves += sv;
-      if (a.views !== null && a.views !== undefined) g.hasViews = true;
-      const platform = ANALYZER_PLATFORMS.find((p) => p.key === a.platform) || detectPlatform(a.url);
-      g.platforms.push({ key: a.platform, label: platform?.label || "غير معروفة", Icon: platform?.Icon, views: v });
-    }
-    return Array.from(groups.values())
-      .filter((g) => g.hasViews)
-      .sort((a, b) => b.views - a.views)
-      .slice(0, 5);
-  }, [brandAnalyses, items]);
+  // لوحة "أفضل 5 محتوى" الدايمة (كل الوقت) — منطق التجميع نفسه بقى مشترك في
+  // groupAnalysesByIdea عشان تقرير الشهر (تحت) يستخدمه برضه من غير تكرار.
+  const top5 = useMemo(() => groupAnalysesByIdea(brandAnalyses, items), [brandAnalyses, items]);
+
+  // ====== نطاق التقرير الشهري ======
+  // التقرير القابل للتصدير (المعاينة/الـ PDF/النص) بيتفلتر بشهر محدد يختاره
+  // المستخدم — منفصل تمامًا عن أرقام لوحة Insights الدايمة فوق (كل الوقت).
+  const [reportMonth, setReportMonth] = useState(() => todayISO().slice(0, 7));
+
+  const itemsById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
+
+  const monthlyItems = useMemo(
+    () => items.filter((it) => it.date && it.date.slice(0, 7) === reportMonth),
+    [items, reportMonth]
+  );
+  const reportTotal = monthlyItems.length;
+  const reportDone = monthlyItems.filter((i) => i.status === "done").length;
+  const reportCompletionRate = reportTotal ? Math.round((reportDone / reportTotal) * 100) : 0;
+  const reportOverdue = monthlyItems.filter((i) => i.date < todayISO() && i.status !== "done").length;
+  const reportStatusCounts = useMemo(
+    () => STATUS_DEFS.map((sd) => ({ label: sd.label, count: monthlyItems.filter((i) => i.status === sd.key).length })),
+    [monthlyItems]
+  );
+  const reportByType = useMemo(() => {
+    const map = {};
+    for (const it of monthlyItems) map[it.type] = (map[it.type] || 0) + 1;
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [monthlyItems]);
+
+  const reportAnalyses = useMemo(
+    () => brandAnalyses.filter((a) => getAnalysisMonthKey(a, itemsById) === reportMonth),
+    [brandAnalyses, reportMonth, itemsById]
+  );
+  const reportPerfTotals = useMemo(() => computeAnalysisTotals(reportAnalyses), [reportAnalyses]);
+  const reportTop5 = useMemo(() => groupAnalysesByIdea(reportAnalyses, items), [reportAnalyses, items]);
 
   const REPORT_SECTIONS = [
     { key: "overview", label: "نظرة عامة" },
@@ -3068,7 +3303,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     { key: "performance", label: "الأداء (مشاهدات ولايكات)" },
     { key: "top5", label: "أفضل 5 محتوى" },
     { key: "financial", label: "الوضع المالي (الإجمالي والمستلم فقط)" },
-    { key: "pageTracking", label: "تتبع نمو الصفحة" },
+    { key: "pageTracking", label: "تتبع ونمو الصفحات" },
   ];
 
   function toggleSection(key) {
@@ -3078,39 +3313,41 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   const reportData = useMemo(() => {
     const receivedTotal = (brand.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
     const remainingTotal = (Number(brand.paymentTotal) || 0) - receivedTotal;
-    const lastSnapshot = (brand.pageSnapshots || [])[0];
-    const firstSnapshot = (brand.pageSnapshots || [])[(brand.pageSnapshots || []).length - 1];
-    return { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items: top5 };
-  }, [brand, top5]);
+    const pageTracking = brand.pageTracking || emptyPageTracking();
+    const pageGrowth = PAGE_TRACKING_PLATFORMS
+      .map((p) => ({ key: p.key, label: p.label, Icon: p.Icon, ...computePlatformMonthlyGrowth(pageTracking[p.key]?.snapshots, reportMonth) }))
+      .filter((g) => g.latest);
+    const growthValues = pageGrowth.filter((g) => g.diff != null).map((g) => g.diff);
+    const totalGrowth = growthValues.length ? growthValues.reduce((s, v) => s + v, 0) : null;
+    return { receivedTotal, remainingTotal, pageGrowth, totalGrowth, top5Items: reportTop5 };
+  }, [brand, reportTop5, reportMonth]);
 
   function buildReportText() {
-    const { receivedTotal, remainingTotal, lastSnapshot, firstSnapshot, top5Items } = reportData;
+    const { receivedTotal, remainingTotal, pageGrowth, totalGrowth, top5Items } = reportData;
     const lines = [];
     lines.push(`تقرير براند: ${brand.name}`);
-    lines.push(`بتاريخ: ${fmtDate(todayISO())}`);
+    lines.push(`بتاريخ: ${fmtMonthKey(reportMonth)}`);
 
     if (sections.overview) {
       lines.push("", "== نظرة عامة ==");
       if (brand.agreementNotes) lines.push(`الاتفاق مع البراند: ${brand.agreementNotes}`);
-      lines.push(`إجمالي الأفكار: ${total} | نسبة الإنجاز: ${completionRate}% | متأخرة عن معادها: ${overdue}`);
+      lines.push(`إجمالي الأفكار: ${reportTotal} | نسبة الإنجاز: ${reportCompletionRate}% | متأخرة عن معادها: ${reportOverdue}`);
     }
     if (sections.status) {
       lines.push("", "== حالة الأفكار ==");
-      STATUS_DEFS.forEach((sd) => lines.push(`${sd.label}: ${items.filter((i) => i.status === sd.key).length}`));
+      reportStatusCounts.forEach((sc) => lines.push(`${sc.label}: ${sc.count}`));
     }
     if (sections.byType) {
       lines.push("", "== حسب نوع المحتوى ==");
-      byType.forEach(([t, c]) => {
+      reportByType.forEach(([t, c]) => {
         const target = mixTargets[t];
         lines.push(`${t}: ${c}${target !== undefined ? ` (مستهدف ${target}%)` : ""}`);
       });
     }
     if (sections.performance) {
       lines.push("", "== الأداء ==");
-      lines.push(`محتوى تم تحليله: ${perfTotals.count}`);
-      lines.push(`إجمالي المشاهدات: ${perfTotals.views} | إجمالي اللايكات: ${perfTotals.likes} | إجمالي الكومنتات: ${perfTotals.comments}`);
-      lines.push(`إجمالي المشاركات: ${perfTotals.shares} | إجمالي الحفظ: ${perfTotals.saves}`);
-      lines.push(`مشاهدات الشهر ده: ${perfTotals.monthViews} | لايكات الشهر ده: ${perfTotals.monthLikes}`);
+      lines.push(`إجمالي المشاهدات: ${reportPerfTotals.views} | إجمالي اللايكات: ${reportPerfTotals.likes} | إجمالي الكومنتات: ${reportPerfTotals.comments}`);
+      lines.push(`إجمالي المشاركات: ${reportPerfTotals.shares} | إجمالي الحفظ: ${reportPerfTotals.saves}`);
     }
     if (sections.top5 && top5Items.length) {
       lines.push("", "أفضل 5 محتوى:");
@@ -3125,14 +3362,20 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
       }
     }
     if (sections.pageTracking) {
-      lines.push("", "== تتبع الصفحة ==");
-      if (lastSnapshot) {
-        lines.push(`آخر قياس: ${lastSnapshot.followers ?? "؟"} متابع، ${lastSnapshot.posts ?? "؟"} بوست بتاريخ ${lastSnapshot.date}`);
-        if (firstSnapshot && firstSnapshot.id !== lastSnapshot.id) {
-          lines.push(`أول قياس مسجل: ${firstSnapshot.followers ?? "؟"} متابع بتاريخ ${firstSnapshot.date}`);
-        }
+      lines.push("", "== تتبع ونمو الصفحات ==");
+      if (pageGrowth.length === 0) {
+        lines.push("مفيش قياسات مسجلة للشهر ده لأي منصة.");
       } else {
-        lines.push("مفيش قياسات مسجلة لصفحة البراند لسه.");
+        pageGrowth.forEach((g) => {
+          if (g.hasGrowth) {
+            lines.push(`${g.label}: زيادة المتابعين ${g.diff >= 0 ? "+" : ""}${g.diff} متابع (من ${g.first.followers ?? "؟"} بتاريخ ${g.first.date} لحد ${g.latest.followers ?? "؟"} بتاريخ ${g.latest.date})`);
+          } else {
+            lines.push(`${g.label}: قياس واحد مسجل — ${g.latest.followers ?? "؟"} متابع بتاريخ ${g.latest.date}`);
+          }
+        });
+        if (pageGrowth.filter((g) => g.diff != null).length >= 2) {
+          lines.push(`إجمالي زيادة المتابعين: ${totalGrowth >= 0 ? "+" : ""}${totalGrowth}`);
+        }
       }
     }
     return lines.join("\n");
@@ -3151,7 +3394,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `تقرير-${brand.name}-${todayISO()}.txt`;
+    a.download = `تقرير-${brand.name}-${reportMonth}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -3175,23 +3418,21 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     const root = ReactDOM.createRoot(container);
 
     try {
-      const statusCounts = STATUS_DEFS.map((sd) => ({ label: sd.label, count: items.filter((i) => i.status === sd.key).length }));
-
       root.render(
         <BrandReportPDF
           brand={brand}
           sections={sections}
-          reportDate={fmtDate(todayISO())}
-          total={total}
-          completionRate={completionRate}
-          overdue={overdue}
-          statusCounts={statusCounts}
-          byType={byType}
+          reportDate={fmtMonthKey(reportMonth)}
+          total={reportTotal}
+          completionRate={reportCompletionRate}
+          overdue={reportOverdue}
+          statusCounts={reportStatusCounts}
+          byType={reportByType}
           mixTargets={mixTargets}
-          perfTotals={perfTotals}
-          top5={top5}
+          perfTotals={reportPerfTotals}
+          top5={reportTop5}
           financial={{ paymentTotal: brand.paymentTotal, receivedTotal: reportData.receivedTotal, remainingTotal: reportData.remainingTotal }}
-          pageTracking={{ lastSnapshot: reportData.lastSnapshot, firstSnapshot: reportData.firstSnapshot }}
+          pageTracking={{ pageGrowth: reportData.pageGrowth, totalGrowth: reportData.totalGrowth }}
         />
       );
       // A short timer (not requestAnimationFrame) to let React's commit and
@@ -3228,7 +3469,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
         pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
         heightLeft -= pdfHeight;
       }
-      pdf.save(`تقرير-${brand.name}-${todayISO()}.pdf`);
+      pdf.save(`تقرير-${brand.name}-${reportMonth}.pdf`);
     } catch (e) {
       console.error("تعذر إنشاء الـ PDF", e);
     } finally {
@@ -3363,6 +3604,17 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             <button onClick={() => setReportOpen(false)} style={S.iconBtnSm}><X size={16} /></button>
           </div>
 
+          <div style={S.formGroup}>
+            <label style={S.label}>شهر التقرير</label>
+            <input
+              type="month"
+              style={S.input}
+              value={reportMonth}
+              max={todayISO().slice(0, 7)}
+              onChange={(e) => e.target.value && setReportMonth(e.target.value)}
+            />
+          </div>
+
           <p style={S.aiHint}>اختار إيه اللي يتحط في التقرير (المصاريف والربح الصافي بتاعك مش بيتحطوش خالص حتى لو اخترت "الوضع المالي" — دي بيانات داخلية بس):</p>
           <div style={S.sectionCheckGrid}>
             {REPORT_SECTIONS.map((s) => (
@@ -3375,27 +3627,29 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
 
           <div ref={reportRef} style={S.reportPreview}>
             <h2 style={S.reportPreviewTitle}>تقرير {brand.name}</h2>
-            <p style={S.reportPreviewDate}>بتاريخ {fmtDate(todayISO())}</p>
+            <p style={S.reportPreviewDate}>بتاريخ {fmtMonthKey(reportMonth)}</p>
 
             {sections.overview && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>نظرة عامة</h4>
                 {brand.agreementNotes && <p style={S.reportP}>الاتفاق مع البراند: {brand.agreementNotes}</p>}
-                <p style={S.reportP}>إجمالي الأفكار: {total} | نسبة الإنجاز: {completionRate}% | متأخرة عن معادها: {overdue}</p>
+                <p style={S.reportP}>إجمالي الأفكار: {reportTotal} | نسبة الإنجاز: {reportCompletionRate}% | متأخرة عن معادها: {reportOverdue}</p>
               </div>
             )}
             {sections.status && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>حالة الأفكار</h4>
-                {STATUS_DEFS.map((sd) => (
-                  <p key={sd.key} style={S.reportP}>{sd.label}: {items.filter((i) => i.status === sd.key).length}</p>
+                {reportStatusCounts.map((sc) => (
+                  <p key={sc.label} style={S.reportP}>{sc.label}: {sc.count}</p>
                 ))}
               </div>
             )}
             {sections.byType && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>حسب نوع المحتوى</h4>
-                {byType.map(([t, c]) => (
+                {reportByType.length === 0 ? (
+                  <p style={S.reportP}>لسه مفيش أفكار مسجلة للشهر ده.</p>
+                ) : reportByType.map(([t, c]) => (
                   <p key={t} style={S.reportP}>{t}: {c}{mixTargets[t] !== undefined ? ` (مستهدف ${mixTargets[t]}%)` : ""}</p>
                 ))}
               </div>
@@ -3403,10 +3657,8 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             {sections.performance && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>الأداء</h4>
-                <p style={S.reportP}>محتوى تم تحليله: {perfTotals.count}</p>
-                <p style={S.reportP}>إجمالي المشاهدات: {perfTotals.views} | إجمالي اللايكات: {perfTotals.likes} | إجمالي الكومنتات: {perfTotals.comments}</p>
-                <p style={S.reportP}>إجمالي المشاركات: {perfTotals.shares} | إجمالي الحفظ: {perfTotals.saves}</p>
-                <p style={S.reportP}>مشاهدات الشهر ده: {perfTotals.monthViews} | لايكات الشهر ده: {perfTotals.monthLikes}</p>
+                <p style={S.reportP}>إجمالي المشاهدات: {reportPerfTotals.views} | إجمالي اللايكات: {reportPerfTotals.likes} | إجمالي الكومنتات: {reportPerfTotals.comments}</p>
+                <p style={S.reportP}>إجمالي المشاركات: {reportPerfTotals.shares} | إجمالي الحفظ: {reportPerfTotals.saves}</p>
               </div>
             )}
             {sections.top5 && reportData.top5Items.length > 0 && (
@@ -3429,16 +3681,23 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             )}
             {sections.pageTracking && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>تتبع نمو الصفحة</h4>
-                {reportData.lastSnapshot ? (
+                <h4 style={S.reportSectionTitle}>تتبع ونمو الصفحات</h4>
+                {reportData.pageGrowth.length === 0 ? (
+                  <p style={S.reportP}>مفيش قياسات مسجلة للشهر ده لأي منصة.</p>
+                ) : (
                   <>
-                    <p style={S.reportP}>آخر قياس: {reportData.lastSnapshot.followers ?? "؟"} متابع، {reportData.lastSnapshot.posts ?? "؟"} بوست بتاريخ {reportData.lastSnapshot.date}</p>
-                    {reportData.firstSnapshot && reportData.firstSnapshot.id !== reportData.lastSnapshot.id && (
-                      <p style={S.reportP}>أول قياس مسجل: {reportData.firstSnapshot.followers ?? "؟"} متابع بتاريخ {reportData.firstSnapshot.date}</p>
+                    {reportData.pageGrowth.map((g) => (
+                      <p key={g.key} style={S.reportP}>
+                        {g.Icon && <g.Icon size={13} style={{ verticalAlign: -2 }} />} {g.label}:{" "}
+                        {g.hasGrowth
+                          ? <>زيادة المتابعين <strong>{g.diff >= 0 ? "+" : ""}{g.diff}</strong> متابع (من {fmtDate(g.first.date)} لحد {fmtDate(g.latest.date)})</>
+                          : <>{g.latest.followers ?? "؟"} متابع بتاريخ {fmtDate(g.latest.date)}</>}
+                      </p>
+                    ))}
+                    {reportData.pageGrowth.filter((g) => g.diff != null).length >= 2 && (
+                      <p style={S.reportP}>إجمالي زيادة المتابعين: <strong>{reportData.totalGrowth >= 0 ? "+" : ""}{reportData.totalGrowth}</strong></p>
                     )}
                   </>
-                ) : (
-                  <p style={S.reportP}>مفيش قياسات مسجلة لصفحة البراند لسه.</p>
                 )}
               </div>
             )}
@@ -3462,15 +3721,41 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
 }
 
 function PageTrackingCard({ brand, onPatchBrand }) {
-  const [pageLink, setPageLink] = useState(brand.pageLink || "");
+  const pageTracking = brand.pageTracking || emptyPageTracking();
+
+  function patchPlatform(key, patch) {
+    const current = pageTracking[key] || { link: "", snapshots: [] };
+    onPatchBrand(brand.id, { pageTracking: { ...pageTracking, [key]: { ...current, ...patch } } });
+  }
+
+  return (
+    <div>
+      <h3 style={S.h3}><Users size={14} style={{ verticalAlign: -2 }} /> تتبع صفحات البراند</h3>
+      <p style={S.aiHint}>سجّل أول قياس أول ما تمسك كل منصة، وكرر التسجيل كل فترة عشان تبني سجل نمو حقيقي — كل منصة بسجلها ونموها لوحدها.</p>
+      {PAGE_TRACKING_PLATFORMS.map((p) => (
+        <PlatformTrackingBlock
+          key={p.key}
+          brand={brand}
+          platform={p}
+          state={pageTracking[p.key] || { link: "", snapshots: [] }}
+          onPatch={(patch) => patchPlatform(p.key, patch)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
+  const [link, setLink] = useState(state.link || "");
   const [followersInput, setFollowersInput] = useState("");
   const [postsInput, setPostsInput] = useState("");
 
-  useEffect(() => { setPageLink(brand.pageLink || ""); }, [brand.id]);
+  useEffect(() => { setLink(state.link || ""); }, [brand.id, platform.key]);
 
-  const snapshots = brand.pageSnapshots || [];
+  const snapshots = state.snapshots || [];
+  const Icon = platform.Icon;
 
-  function savePageLink() { onPatchBrand(brand.id, { pageLink }); }
+  function saveLink() { onPatch({ link }); }
 
   function saveSnapshot() {
     const entry = {
@@ -3479,13 +3764,13 @@ function PageTrackingCard({ brand, onPatchBrand }) {
       followers: followersInput === "" ? null : Number(followersInput),
       posts: postsInput === "" ? null : Number(postsInput),
     };
-    onPatchBrand(brand.id, { pageSnapshots: [entry, ...snapshots] });
+    onPatch({ snapshots: [entry, ...snapshots] });
     setFollowersInput("");
     setPostsInput("");
   }
 
   function removeSnapshot(id) {
-    onPatchBrand(brand.id, { pageSnapshots: snapshots.filter((s) => s.id !== id) });
+    onPatch({ snapshots: snapshots.filter((s) => s.id !== id) });
   }
 
   const growthSummary = useMemo(() => {
@@ -3499,11 +3784,10 @@ function PageTrackingCard({ brand, onPatchBrand }) {
   }, [snapshots]);
 
   return (
-    <div>
-      <h3 style={S.h3}><Users size={14} style={{ verticalAlign: -2 }} /> تتبع صفحة البراند</h3>
+    <div style={{ marginBottom: 22 }}>
+      <h4 style={{ ...S.h3, fontSize: 13, marginBottom: 8 }}><Icon size={14} style={{ verticalAlign: -2 }} /> {platform.label}</h4>
       <div style={S.refCard}>
-        <input style={S.input} value={pageLink} onChange={(e) => setPageLink(e.target.value)} onBlur={savePageLink} placeholder="لينك صفحة البراند (انستجرام، تيك توك...)" />
-        <p style={S.aiHint}>سجّل أول قياس أول ما تمسك البراند، وكرر التسجيل كل فترة عشان تبني سجل نمو حقيقي.</p>
+        <input style={S.input} value={link} onChange={(e) => setLink(e.target.value)} onBlur={saveLink} placeholder={`لينك صفحة ${platform.label}`} />
 
         <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
           <div style={S.formGroup}>
@@ -3520,16 +3804,15 @@ function PageTrackingCard({ brand, onPatchBrand }) {
 
       {snapshots.length > 0 && (
         <>
-          <h3 style={{ ...S.h3, marginTop: 18 }}>سجل القياسات</h3>
           {growthSummary && (
-            <div style={{ ...S.refCard, marginBottom: 10 }}>
+            <div style={{ ...S.refCard, marginTop: 10, marginBottom: 10 }}>
               <p style={{ ...S.aiAnalysisText, margin: 0 }}>
                 <TrendingUp size={13} style={{ verticalAlign: -2 }} /> من {fmtDate(growthSummary.from.date)} لحد {fmtDate(growthSummary.to.date)} ({growthSummary.days} يوم):
                 {" "}{growthSummary.diff >= 0 ? "زوّدت" : "قلّت"} {fmtMoney(Math.abs(growthSummary.diff))} متابع.
               </p>
             </div>
           )}
-          <div style={{ ...S.upcomingList, maxHeight: 280, overflowY: "auto" }} className="scrollbar">
+          <div style={{ ...S.upcomingList, maxHeight: 220, overflowY: "auto" }} className="scrollbar">
             {snapshots.map((s, i) => {
               const prev = snapshots[i + 1];
               const fDiff = prev && s.followers != null && prev.followers != null ? s.followers - prev.followers : null;

@@ -107,14 +107,12 @@ export default function BrandReportPDF({
       {sections.performance && (
         <Section title="الأداء">
           <div style={s.statRow}>
-            <StatBox label="محتوى تم تحليله" value={perfTotals.count} />
             <StatBox label="إجمالي المشاهدات" value={fmt(perfTotals.views)} />
             <StatBox label="إجمالي اللايكات" value={fmt(perfTotals.likes)} />
             <StatBox label="إجمالي الكومنتات" value={fmt(perfTotals.comments)} />
             <StatBox label="إجمالي المشاركات" value={fmt(perfTotals.shares)} />
             <StatBox label="إجمالي الحفظ" value={fmt(perfTotals.saves)} />
           </div>
-          <p style={s.pMuted}>مشاهدات الشهر ده: {fmt(perfTotals.monthViews)} | لايكات الشهر ده: {fmt(perfTotals.monthLikes)} | كومنتات الشهر ده: {fmt(perfTotals.monthComments)}</p>
         </Section>
       )}
 
@@ -169,16 +167,26 @@ export default function BrandReportPDF({
       )}
 
       {sections.pageTracking && (
-        <Section title="تتبع نمو الصفحة">
-          {pageTracking.lastSnapshot ? (
+        <Section title="تتبع ونمو الصفحات">
+          {pageTracking.pageGrowth.length === 0 ? (
+            <p style={s.pMuted}>مفيش قياسات مسجلة للشهر ده لأي منصة.</p>
+          ) : (
             <>
-              <p style={s.p}>آخر قياس: {pageTracking.lastSnapshot.followers ?? "؟"} متابع، {pageTracking.lastSnapshot.posts ?? "؟"} بوست بتاريخ {pageTracking.lastSnapshot.date}</p>
-              {pageTracking.firstSnapshot && pageTracking.firstSnapshot.id !== pageTracking.lastSnapshot.id && (
-                <p style={s.p}>أول قياس مسجل: {pageTracking.firstSnapshot.followers ?? "؟"} متابع بتاريخ {pageTracking.firstSnapshot.date}</p>
+              {pageTracking.pageGrowth.map((g) => {
+                const Icon = PLATFORM_ICON[g.key];
+                return (
+                  <p key={g.key} style={s.p}>
+                    {Icon && <Icon size={12} color="#5B6472" style={{ verticalAlign: -2 }} />} {g.label}:{" "}
+                    {g.hasGrowth
+                      ? `زيادة المتابعين ${g.diff >= 0 ? "+" : ""}${g.diff} متابع (من ${g.first.followers ?? "؟"} بتاريخ ${g.first.date} لحد ${g.latest.followers ?? "؟"} بتاريخ ${g.latest.date})`
+                      : `${g.latest.followers ?? "؟"} متابع بتاريخ ${g.latest.date}`}
+                  </p>
+                );
+              })}
+              {pageTracking.pageGrowth.filter((g) => g.diff != null).length >= 2 && (
+                <p style={{ ...s.p, fontWeight: 800 }}>إجمالي زيادة المتابعين: {pageTracking.totalGrowth >= 0 ? "+" : ""}{pageTracking.totalGrowth}</p>
               )}
             </>
-          ) : (
-            <p style={s.pMuted}>مفيش قياسات مسجلة لصفحة البراند لسه.</p>
           )}
         </Section>
       )}
