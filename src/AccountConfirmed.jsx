@@ -23,7 +23,7 @@ export default function AccountConfirmed({ onContinue }) {
         </div>
         <h1 style={styles.title}>{t("تم تفعيل حسابك بنجاح!")}</h1>
         <p style={styles.subtitle}>
-          {t("الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 14 يوم.")}
+          {t("الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام.")}
         </p>
         <button onClick={onContinue} style={styles.continueBtn}>{t("يلا نبدأ")}</button>
       </div>

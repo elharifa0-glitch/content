@@ -193,8 +193,8 @@ export const translations = {
 
     // ===== AccountConfirmed.jsx =====
     "تم تفعيل حسابك بنجاح!": "Your account is activated!",
-    "الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 14 يوم.":
-      "Your email is confirmed and your account is ready. You can now start using ContentST — enjoy a 14-day free trial.",
+    "الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام.":
+      "Your email is confirmed and your account is ready. You can now start using ContentST — enjoy a 7-day free trial.",
     "يلا نبدأ": "Let's get started",
 
     // ===== HeroSection.jsx =====
