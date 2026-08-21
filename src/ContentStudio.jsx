@@ -3230,6 +3230,19 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
 
 /* ---------- Share link modal ---------- */
 
+// بترجع رسالة واضحة (لسه من غير أي تفاصيل SQL خام) حسب نوع الخطأ الراجع
+// من Supabase — عشان لو الدالة مش موجودة أو فشلت جوّاها (زي مشكلة
+// pgcrypto القديمة)، المستخدم يعرف إن المشكلة إعداد في قاعدة البيانات
+// مش حاجة هو غلط فيها، بدل رسالة عامة مبتقولش حاجة.
+function shareLinkErrorMessage(e, t) {
+  const code = e?.code;
+  const msg = (e?.message || "").toLowerCase();
+  if (code === "PGRST202" || code === "42883" || msg.includes("does not exist") || msg.includes("could not find the function")) {
+    return t("الميزة دي محتاجة إعداد إضافي في قاعدة البيانات (SQL) — لو إنت الأدمن، شغّل تحديث supabase-schema.sql الخاص بلينكات المشاركة في Supabase SQL Editor.");
+  }
+  return t("حصلت مشكلة، جرب تاني.");
+}
+
 function ShareLinkModal({ brand, onPatchBrand, onClose }) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
@@ -3246,7 +3259,8 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
       if (err) throw err;
       onPatchBrand(brand.id, { shareToken: data });
     } catch (e) {
-      setError(t("حصلت مشكلة، جرب تاني."));
+      console.error("create_brand_share failed:", e);
+      setError(shareLinkErrorMessage(e, t));
     } finally {
       setLoading(false);
     }
@@ -3260,7 +3274,8 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
       if (err) throw err;
       onPatchBrand(brand.id, { shareToken: null });
     } catch (e) {
-      setError(t("حصلت مشكلة، جرب تاني."));
+      console.error("revoke_brand_share failed:", e);
+      setError(shareLinkErrorMessage(e, t));
     } finally {
       setLoading(false);
     }
@@ -3292,8 +3307,16 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
           <div style={{ marginTop: 14 }}>
             <div style={{ ...S.input, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shareUrl}</div>
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             <button onClick={copyLink} style={S.primaryBtn(brand.color)}><Copy size={14} /> {copied ? t("اتنسخ") : t("انسخ اللينك")}</button>
+            <a
+              href={shareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...S.secondaryBtn, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+            >
+              <ExternalLink size={14} /> {t("افتح اللينك")}
+            </a>
             <button onClick={revokeLink} disabled={loading} style={S.dangerBtn}><Trash2 size={14} /> {t("ألغِ اللينك")}</button>
           </div>
         </>

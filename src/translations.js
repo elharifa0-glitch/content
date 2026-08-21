@@ -514,7 +514,10 @@ export const translations = {
     "من غير ما يحتاج يسجل دخول. هتوريه المحتوى الجاي والمنشور بس — مفيش أي بيانات مالية أو براندات تانية.":
       "'s client without them needing to log in. It only shows upcoming and published content — no financial data or other brands.",
     "انسخ اللينك": "Copy link",
+    "افتح اللينك": "Open link",
     "ألغِ اللينك": "Revoke link",
+    "الميزة دي محتاجة إعداد إضافي في قاعدة البيانات (SQL) — لو إنت الأدمن، شغّل تحديث supabase-schema.sql الخاص بلينكات المشاركة في Supabase SQL Editor.":
+      "This feature needs additional database setup — if you're the admin, run the share-link update from supabase-schema.sql in the Supabase SQL Editor.",
     "بيتعمل...": "Creating...",
     "أنشئ لينك مشاركة": "Create share link",
 
