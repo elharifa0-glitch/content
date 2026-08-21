@@ -126,6 +126,8 @@ export default function SharedBrandView({ token }) {
     .filter((it) => it.status === "done")
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const upcomingGroups = groupByMonth(upcoming);
+  const totalViews = published.reduce((sum, it) => sum + (Number(it.views) || 0), 0)
+    + analyses.reduce((sum, a) => sum + (Number(a.views) || 0), 0);
 
   return (
     <div style={styles.wrap} dir="rtl">
@@ -142,6 +144,22 @@ export default function SharedBrandView({ token }) {
               <div style={styles.brandSub}><Link2 size={11} style={{ verticalAlign: -1 }} /> خطة المحتوى — لينك مشاركة للقراءة بس</div>
             </div>
           </div>
+          <div style={styles.statsRow}>
+            <div style={styles.statCell}>
+              <div style={styles.statValue}>{upcoming.length}</div>
+              <div style={styles.statLabel}>جاي قريب</div>
+            </div>
+            <div style={styles.statDivider} />
+            <div style={styles.statCell}>
+              <div style={styles.statValue}>{published.length}</div>
+              <div style={styles.statLabel}>اتنشر</div>
+            </div>
+            <div style={styles.statDivider} />
+            <div style={styles.statCell}>
+              <div style={styles.statValue}>{fmtMoney(totalViews)}</div>
+              <div style={styles.statLabel}>إجمالي مشاهدات</div>
+            </div>
+          </div>
         </div>
 
         <div style={styles.sectionHead}>
@@ -156,7 +174,7 @@ export default function SharedBrandView({ token }) {
           upcomingGroups.map((g) => (
             <div key={g.key} style={{ marginBottom: spacing.lg }}>
               <div style={styles.monthLabel}>{g.label}</div>
-              <div style={styles.list}>
+              <div style={styles.grid}>
                 {g.items.map((it) => (
                   <ItemRow key={it.id} it={it} analyses={analysesForItem(it.id)} />
                 ))}
@@ -173,7 +191,7 @@ export default function SharedBrandView({ token }) {
         {published.length === 0 ? (
           <EmptyState icon={<Sparkles size={18} />} description="لسه مفيش حاجة اتنشرت." />
         ) : (
-          <div style={styles.list}>
+          <div style={styles.grid}>
             {published.slice(0, 10).map((it) => (
               <ItemRow key={it.id} it={it} analyses={analysesForItem(it.id)} published />
             ))}
@@ -264,20 +282,28 @@ const styles = {
   },
   errorIcon: { fontSize: 26, marginBottom: 10 },
   errorText: { color: colors.danger, fontSize: 14, lineHeight: 1.7, margin: 0 },
-  container: { width: "100%", maxWidth: 640 },
+  container: { width: "100%", maxWidth: 900 },
 
   headerCard: {
     position: "relative", background: colors.card, border: `1px solid ${colors.border}`,
     borderRadius: radius.lg, overflow: "hidden", marginBottom: spacing.xxl,
   },
   headerStripe: { height: 5, width: "100%" },
-  headerInner: { display: "flex", alignItems: "center", gap: 14, padding: "20px 18px" },
+  headerInner: { display: "flex", alignItems: "center", gap: 14, padding: "20px 20px 16px" },
   avatar: {
     width: 50, height: 50, borderRadius: radius.md, display: "flex", alignItems: "center",
     justifyContent: "center", fontSize: 23, flexShrink: 0,
   },
   brandName: { color: colors.text, ...typography.scale.pageTitle, fontSize: 19 },
   brandSub: { color: colors.textFaint, fontSize: 12, marginTop: 3, display: "flex", alignItems: "center", gap: 4 },
+  statsRow: {
+    display: "flex", alignItems: "stretch", borderTop: `1px solid ${colors.border}`,
+    background: colors.bg,
+  },
+  statCell: { flex: 1, textAlign: "center", padding: "12px 8px" },
+  statValue: { color: colors.text, fontSize: 17, fontWeight: 800 },
+  statLabel: { color: colors.textFaint, fontSize: 10.5, fontWeight: 700, marginTop: 2 },
+  statDivider: { width: 1, background: colors.border },
 
   sectionHead: { display: "flex", alignItems: "center", gap: 7, marginBottom: spacing.md },
   sectionTitle: { color: colors.text, fontSize: 14.5, fontWeight: 800, margin: 0 },
@@ -287,20 +313,23 @@ const styles = {
   },
   monthLabel: { color: colors.textFaint, fontSize: 11.5, fontWeight: 700, margin: "0 0 8px 2px" },
 
-  list: { display: "flex", flexDirection: "column", gap: spacing.sm },
+  grid: {
+    display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+    gap: spacing.sm, alignItems: "start",
+  },
   rowCol: {
     display: "flex", flexDirection: "column", background: colors.card,
     border: `1px solid ${colors.border}`, borderRadius: radius.md, overflow: "hidden",
   },
   row: { display: "flex", alignItems: "stretch" },
   rowStripe: { width: 3, flexShrink: 0 },
-  rowTitle: { color: colors.text, fontSize: 13.5, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  rowMeta: { color: colors.textFaint, fontSize: 11, marginTop: 3 },
+  rowTitle: { color: colors.text, fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  rowMeta: { color: colors.textFaint, fontSize: 10.5, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
 
-  analyticsWrap: { display: "flex", flexDirection: "column", gap: 6, borderTop: `1px solid ${colors.border}`, padding: "9px 12px" },
-  analyticsRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
-  analyticsPlatform: { display: "flex", alignItems: "center", gap: 4, fontSize: 10.5, fontWeight: 700, flexShrink: 0 },
-  analyticsMetrics: { display: "flex", alignItems: "center", gap: 9, color: colors.textDim, fontSize: 10.5, flexWrap: "wrap" },
+  analyticsWrap: { display: "flex", flexDirection: "column", gap: 6, borderTop: `1px solid ${colors.border}`, padding: "8px 10px" },
+  analyticsRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" },
+  analyticsPlatform: { display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, flexShrink: 0 },
+  analyticsMetrics: { display: "flex", alignItems: "center", gap: 7, color: colors.textDim, fontSize: 10, flexWrap: "wrap" },
 
   footer: { textAlign: "center", color: colors.textFaint, fontSize: 11, marginTop: spacing.xxxl, opacity: 0.8 },
 };
