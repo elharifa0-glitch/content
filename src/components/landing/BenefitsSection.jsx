@@ -1,6 +1,7 @@
 import React from "react";
 import { ListChecks, BarChart3, Clock, Sparkles } from "lucide-react";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const BENEFITS = [
   { icon: ListChecks, title: "نظّم أفكارك", desc: "تابع كل محتواك من مكان واحد." },
@@ -10,14 +11,15 @@ const BENEFITS = [
 ];
 
 export default function BenefitsSection() {
+  const { t } = useLanguage();
   return (
     <section id="product" style={styles.section}>
       <div style={styles.grid} className="landing-benefits-grid">
         {BENEFITS.map((b) => (
           <div key={b.title} style={styles.card} className="landing-card-hover">
             <div style={styles.iconWrap}><b.icon size={20} color={landing.red} /></div>
-            <div style={styles.cardTitle}>{b.title}</div>
-            <div style={styles.cardDesc}>{b.desc}</div>
+            <div style={styles.cardTitle}>{t(b.title)}</div>
+            <div style={styles.cardDesc}>{t(b.desc)}</div>
           </div>
         ))}
       </div>

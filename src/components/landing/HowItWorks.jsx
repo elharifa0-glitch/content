@@ -1,6 +1,7 @@
 import React from "react";
 import { Lightbulb, Rocket, LineChart, TrendingUp, ArrowLeft } from "lucide-react";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const STEPS = [
   { n: "01", icon: Lightbulb, title: "خطط", desc: "نظّم أفكارك وحوّلها إلى محتوى واضح." },
@@ -10,11 +11,12 @@ const STEPS = [
 ];
 
 export default function HowItWorks() {
+  const { t } = useLanguage();
   return (
     <section id="how-it-works" style={styles.section}>
       <div style={styles.head}>
-        <h2 style={styles.title}>كيف يعمل ContentST؟</h2>
-        <p style={styles.sub}>من الفكرة إلى نتائج قابلة للقياس في 4 خطوات.</p>
+        <h2 style={styles.title}>{t("كيف يعمل ContentST؟")}</h2>
+        <p style={styles.sub}>{t("من الفكرة إلى نتائج قابلة للقياس في 4 خطوات.")}</p>
       </div>
 
       <div style={styles.stepsRow} className="landing-steps-row">
@@ -23,8 +25,8 @@ export default function HowItWorks() {
             <div style={styles.step}>
               <div style={styles.stepNum}>{s.n}</div>
               <div style={styles.stepIcon}><s.icon size={18} color={landing.red} /></div>
-              <div style={styles.stepTitle}>{s.title}</div>
-              <div style={styles.stepDesc}>{s.desc}</div>
+              <div style={styles.stepTitle}>{t(s.title)}</div>
+              <div style={styles.stepDesc}>{t(s.desc)}</div>
             </div>
             {i < STEPS.length - 1 && <ArrowLeft size={16} color={landing.borderStrong} style={styles.arrow} className="landing-steps-arrow" />}
           </React.Fragment>

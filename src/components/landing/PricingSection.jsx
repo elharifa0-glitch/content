@@ -2,26 +2,28 @@ import React from "react";
 import { Check } from "lucide-react";
 import { PLANS, INCLUDED_FEATURES } from "../../PlanPicker";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 export default function PricingSection() {
+  const { t } = useLanguage();
   return (
     <section id="pricing" style={styles.section}>
       <div style={styles.head}>
-        <h2 style={styles.title}>باقات بسيطة، بدون مفاجآت.</h2>
-        <p style={styles.sub}>كل الباقات فيها نفس الميزات بالظبط — الفرق بس في عدد البراندات.</p>
+        <h2 style={styles.title}>{t("باقات بسيطة، بدون مفاجآت.")}</h2>
+        <p style={styles.sub}>{t("كل الباقات فيها نفس الميزات بالظبط — الفرق بس في عدد البراندات.")}</p>
       </div>
 
       <div style={styles.cardsRow} className="landing-pricing-grid">
         {PLANS.map((p) => (
           <div key={p.key} style={{ ...styles.card, ...(p.recommended ? styles.cardRecommended : {}) }}>
-            {p.recommended && <div style={styles.badge}>الأكتر اختيارًا</div>}
+            {p.recommended && <div style={styles.badge}>{t("الأكتر اختيارًا")}</div>}
             <div style={styles.planName}>{p.name}</div>
-            <div style={styles.planBrands}>{p.brands}</div>
+            <div style={styles.planBrands}>{t(p.brands)}</div>
             <div style={styles.priceRow}>
-              <span style={styles.price}>{p.price}</span>
+              <span style={styles.price}>{t(p.price)}</span>
             </div>
-            <div style={styles.annual}>أو {p.annual} (وفّر شهرين)</div>
-            <a href="/signup" style={p.recommended ? styles.ctaPrimary : styles.ctaSecondary}>ابدأ مجانًا</a>
+            <div style={styles.annual}>{t("أو")} {t(p.annual)} {t("(وفّر شهرين)")}</div>
+            <a href="/signup" style={p.recommended ? styles.ctaPrimary : styles.ctaSecondary}>{t("ابدأ مجانًا")}</a>
           </div>
         ))}
       </div>
@@ -31,7 +33,7 @@ export default function PricingSection() {
           {INCLUDED_FEATURES.map((f) => (
             <div key={f} style={styles.featureRow}>
               <Check size={14} color={landing.good} style={{ flexShrink: 0 }} />
-              <span>{f}</span>
+              <span>{t(f)}</span>
             </div>
           ))}
         </div>

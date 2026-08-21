@@ -20,6 +20,7 @@ import { colors, radius, spacing, shadows, transitions, softBg, borderTint } fro
 import { Button, Badge, EmptyState, LogoIcon } from "./components";
 import { useTheme } from "./ThemeContext";
 import { useLanguage } from "./LanguageContext";
+import { currentLang } from "./translations";
 
 /* ---------- Platform icons ---------- */
 
@@ -261,7 +262,12 @@ const MONTHS_AR = [
   "يناير","فبراير","مارس","أبريل","مايو","يونيو",
   "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر",
 ];
+const MONTHS_EN = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
 const WEEKDAYS_AR = ["حد","اتنين","تلات","أربع","خميس","جمعة","سبت"];
+const WEEKDAYS_EN = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 function uid() {
   return (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -282,7 +288,8 @@ function todayISO() { return isoFromDate(new Date()); }
 
 function fmtDate(d) {
   const dt = new Date(d + "T00:00:00");
-  return `${dt.getDate()} ${MONTHS_AR[dt.getMonth()]}`;
+  const months = currentLang === "en" ? MONTHS_EN : MONTHS_AR;
+  return `${dt.getDate()} ${months[dt.getMonth()]}`;
 }
 
 // "2026-08" -> "أغسطس 2026" — لعرض شهر التقرير المختار بدل تاريخ اليوم.
@@ -290,7 +297,8 @@ function fmtMonthKey(monthKey) {
   if (!monthKey) return "";
   const [y, m] = monthKey.split("-").map(Number);
   if (!y || !m) return monthKey;
-  return `${MONTHS_AR[m - 1]} ${y}`;
+  const months = currentLang === "en" ? MONTHS_EN : MONTHS_AR;
+  return `${months[m - 1]} ${y}`;
 }
 
 function daysUntil(dateStr) {
@@ -330,7 +338,8 @@ function fmtAnalysisDate(iso) {
   if (!iso) return "";
   const dt = new Date(iso);
   if (Number.isNaN(dt.getTime())) return "";
-  return `${dt.getDate()} ${MONTHS_AR[dt.getMonth()]} ${dt.getFullYear()}`;
+  const months = currentLang === "en" ? MONTHS_EN : MONTHS_AR;
+  return `${dt.getDate()} ${months[dt.getMonth()]} ${dt.getFullYear()}`;
 }
 
 function analysisEngagement(a) {
@@ -543,8 +552,8 @@ export default function ContentStudio({
       const key = `reminder-notified-${it.id}-${today}`;
       if (localStorage.getItem(key)) continue;
       try {
-        new Notification("تذكير من ContentST", {
-          body: `"${it.title}" — الميعاد بعد ${it.reminderDays} يوم`,
+        new Notification(t("تذكير من ContentST"), {
+          body: `"${it.title}" — ${t("الميعاد بعد")} ${it.reminderDays} ${t("يوم")}`,
           tag: key,
         });
         localStorage.setItem(key, "1");
@@ -1187,7 +1196,7 @@ export default function ContentStudio({
 
         {view === "calendar" && (
           <div style={S.section}>
-            <SectionHeader icon={<CalendarIcon size={20} />} title="التقويم العام" subtitle="كل البراندات مع بعض، كل واحد بلونه" />
+            <SectionHeader icon={<CalendarIcon size={20} />} title={t("التقويم العام")} subtitle={t("كل البراندات مع بعض، كل واحد بلونه")} />
             <MonthCalendar
               items={items}
               brands={brands}
@@ -1282,10 +1291,10 @@ export default function ContentStudio({
         <ConfirmModal
           text={
             confirmDelete.type === "brand"
-              ? `هتمسح براند "${confirmDelete.label}" وكل الأفكار اللي جواه. الخطوة دي مفيهاش رجوع.`
+              ? `${t("هتمسح براند")} "${confirmDelete.label}" ${t("وكل الأفكار اللي جواه. الخطوة دي مفيهاش رجوع.")}`
               : confirmDelete.type === "analysis"
-                ? `هتمسح تحليل "${confirmDelete.label}". الخطوة دي مفيهاش رجوع.`
-                : `هتمسح "${confirmDelete.label}". الخطوة دي مفيهاش رجوع.`
+                ? `${t("هتمسح تحليل")} "${confirmDelete.label}". ${t("الخطوة دي مفيهاش رجوع.")}`
+                : `${t("هتمسح")} "${confirmDelete.label}". ${t("الخطوة دي مفيهاش رجوع.")}`
           }
           onCancel={() => setConfirmDelete(null)}
           onConfirm={() => {
@@ -1298,8 +1307,8 @@ export default function ContentStudio({
 
       {confirmSignOut && (
         <ConfirmModal
-          text="هتخرج من حسابك دلوقتي. تقدر تسجل دخول تاني أي وقت بنفس الإيميل والباسورد."
-          confirmLabel="سجّل خروج"
+          text={t("هتخرج من حسابك دلوقتي. تقدر تسجل دخول تاني أي وقت بنفس الإيميل والباسورد.")}
+          confirmLabel={t("سجّل خروج")}
           danger={false}
           onCancel={() => setConfirmSignOut(false)}
           onConfirm={() => { setConfirmSignOut(false); onSignOut(); }}
@@ -1308,26 +1317,26 @@ export default function ContentStudio({
 
       {limitModalOpen && (
         <ModalShell onClose={() => setLimitModalOpen(false)}>
-          <div style={S.modalTitle}>وصلت لأقصى عدد براندات في باقتك</div>
+          <div style={S.modalTitle}>{t("وصلت لأقصى عدد براندات في باقتك")}</div>
           <p style={S.confirmText}>
-            باقتك الحالية ({planLabel(plan) || "الحالية"}) بتسمح بـ{" "}
-            {brandLimit === Infinity ? "براندات غير محدودة" : `${brandLimit} براندات`} بس، وإنت وصلت للحد ده.
-            رقّي باقتك عشان تضيف براندات أكتر.
+            {t("باقتك الحالية")} ({planLabel(plan) || t("الحالية")}) {t("بتسمح بـ")}{" "}
+            {brandLimit === Infinity ? t("براندات غير محدودة") : `${brandLimit} ${t("براندات")}`} {t("بس، وإنت وصلت للحد ده.")}
+            {" "}{t("رقّي باقتك عشان تضيف براندات أكتر.")}
           </p>
           {brands.length > brandLimit && (
             <p style={{ ...S.confirmText, color: colors.good, fontSize: 12 }}>
-              اطمّن: البراندات الزيادة من فترة التجربة مش هتتمسح ولا تختفي — هتفضل موجودة وتقدر تشتغل عليها زي ما هي، بس مش هتقدر تضيف واحد جديد لحد ما ترقّي أو تمسح واحد قديم.
+              {t("اطمّن: البراندات الزيادة من فترة التجربة مش هتتمسح ولا تختفي — هتفضل موجودة وتقدر تشتغل عليها زي ما هي، بس مش هتقدر تضيف واحد جديد لحد ما ترقّي أو تمسح واحد قديم.")}
             </p>
           )}
           <div style={S.modalFooter}>
-            <button onClick={() => setLimitModalOpen(false)} style={S.secondaryBtn}>رجوع</button>
+            <button onClick={() => setLimitModalOpen(false)} style={S.secondaryBtn}>{t("رجوع")}</button>
             <a
               href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في ContentST.")}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{ ...S.primaryBtn(colors.warning), textDecoration: "none" }}
             >
-              رقّي الباقة
+              {t("رقّي الباقة")}
             </a>
           </div>
         </ModalShell>
@@ -1599,6 +1608,7 @@ function OnboardingGuide({
   brands, items, socialAnalyses, dismissed, userType, marketingSource,
   onAddBrand, onAddItem, onOpenAnalyzer, onDismiss, onChooseUserType, onChooseMarketingSource,
 }) {
+  const { t } = useLanguage();
   const stepIndex = getOnboardingStepIndex(brands, items, socialAnalyses, userType, marketingSource);
   const [selectedOption, setSelectedOption] = useState(null);
   useEffect(() => { setSelectedOption(null); }, [stepIndex]);
@@ -1608,8 +1618,8 @@ function OnboardingGuide({
   const step = ONBOARDING_STEPS[stepIndex];
   const isChoiceStep = stepIndex === 0 || stepIndex === 1;
   const description = stepIndex === 3 && brands[0]?.name
-    ? `ابدأ ببناء خطة المحتوى الخاصة بـ ${brands[0].name}.`
-    : step.description;
+    ? `${t("ابدأ ببناء خطة المحتوى الخاصة بـ")} ${brands[0].name}.`
+    : t(step.description);
   const onCta = stepIndex === 2 ? onAddBrand : stepIndex === 3 ? onAddItem : onOpenAnalyzer;
   const CtaIcon = stepIndex === 4 ? Search : Plus;
   const onChoose = stepIndex === 0 ? onChooseUserType : onChooseMarketingSource;
@@ -1622,19 +1632,19 @@ function OnboardingGuide({
             <React.Fragment key={s.key}>
               <span style={{ ...S.onboardingStepChip, ...(i < stepIndex ? S.onboardingStepChipDone : {}), ...(i === stepIndex ? S.onboardingStepChipActive : {}) }}>
                 {i < stepIndex ? <Check size={11} /> : <span>{i + 1}</span>}
-                {s.label}
+                {t(s.label)}
               </span>
               {i < ONBOARDING_STEPS.length - 1 && <ChevronLeft size={13} color={colors.textFaint} style={{ flexShrink: 0 }} />}
             </React.Fragment>
           ))}
         </div>
-        <button type="button" onClick={onDismiss} style={S.onboardingSkipBtn}>تخطي</button>
+        <button type="button" onClick={onDismiss} style={S.onboardingSkipBtn}>{t("تخطي")}</button>
       </div>
 
       {isChoiceStep ? (
         <div>
-          <h3 style={S.onboardingTitle}>{stepIndex === 0 ? "👋 أهلاً بك في ContentST" : step.title}</h3>
-          <p style={S.onboardingDesc}>{stepIndex === 0 ? step.description : description}</p>
+          <h3 style={S.onboardingTitle}>{stepIndex === 0 ? t("👋 أهلاً بك في ContentST") : t(step.title)}</h3>
+          <p style={S.onboardingDesc}>{stepIndex === 0 ? t(step.description) : description}</p>
           <div style={S.onboardingOptionsGrid}>
             {step.options.map((opt) => (
               <button
@@ -1643,30 +1653,30 @@ function OnboardingGuide({
                 onClick={() => setSelectedOption(opt.key)}
                 style={{ ...S.onboardingOptionBtn, ...(selectedOption === opt.key ? S.onboardingOptionBtnActive : {}) }}
               >
-                {opt.label}
+                {t(opt.label)}
               </button>
             ))}
           </div>
           <div style={S.onboardingChoiceFooter}>
-            <button type="button" onClick={() => onChoose("skipped")} style={S.secondaryBtn}>تخطي</button>
+            <button type="button" onClick={() => onChoose("skipped")} style={S.secondaryBtn}>{t("تخطي")}</button>
             <button
               type="button"
               disabled={!selectedOption}
               onClick={() => onChoose(selectedOption)}
               style={{ ...S.primaryBtn(colors.accentGradient), opacity: selectedOption ? 1 : 0.5, cursor: selectedOption ? "pointer" : "not-allowed" }}
             >
-              متابعة
+              {t("متابعة")}
             </button>
           </div>
         </div>
       ) : (
         <div style={S.onboardingBody}>
           <div style={{ minWidth: 0 }}>
-            <h3 style={S.onboardingTitle}>{step.title}</h3>
+            <h3 style={S.onboardingTitle}>{t(step.title)}</h3>
             <p style={S.onboardingDesc}>{description}</p>
           </div>
           <button type="button" onClick={onCta} style={S.primaryBtn(colors.accentGradient)}>
-            <CtaIcon size={15} /> {step.cta}
+            <CtaIcon size={15} /> {t(step.cta)}
           </button>
         </div>
       )}
@@ -1680,6 +1690,7 @@ function Dashboard({
   userType, marketingSource, onChooseUserType, onChooseMarketingSource,
   tasks, onAddTask, onToggleTask, onDeleteTask,
 }) {
+  const { t } = useLanguage();
   const totalOpen = items.filter((i) => i.status !== "done").length;
   const [newTask, setNewTask] = useState("");
   const today = todayISO();
@@ -1764,8 +1775,8 @@ function Dashboard({
     <div style={S.section}>
       <div style={S.dashHeaderRow}>
         <div>
-          <h2 style={S.dashGreeting}>أهلاً بيك 👋</h2>
-          <p style={S.dashGreetingSub}>دي نظرة سريعة على شغلك النهارده.</p>
+          <h2 style={S.dashGreeting}>{t("أهلاً بيك 👋")}</h2>
+          <p style={S.dashGreetingSub}>{t("دي نظرة سريعة على شغلك النهارده.")}</p>
         </div>
       </div>
 
@@ -1786,40 +1797,40 @@ function Dashboard({
 
       {/* KPI summary — compact, at-a-glance */}
       <div style={S.kpiRow} className="kpiRow">
-        <KpiCard label="البراندات" value={brands.length} icon={<Users size={15} />} />
-        <KpiCard label="أفكار جديدة" value={items.filter((i) => i.status === "idea").length} icon={<Sparkles size={15} />} color={STATUS_DEFS[0].color} />
-        <KpiCard label="محتوى مجدول" value={items.filter((i) => i.status === "scheduled").length} icon={<CalendarClock size={15} />} color={STATUS_DEFS[2].color} />
-        <KpiCard label="محتوى متأخر" value={overdueCount} icon={<AlertTriangle size={15} />} color={overdueCount > 0 ? colors.danger : colors.good} />
+        <KpiCard label={t("البراندات")} value={brands.length} icon={<Users size={15} />} />
+        <KpiCard label={t("أفكار جديدة")} value={items.filter((i) => i.status === "idea").length} icon={<Sparkles size={15} />} color={STATUS_DEFS[0].color} />
+        <KpiCard label={t("محتوى مجدول")} value={items.filter((i) => i.status === "scheduled").length} icon={<CalendarClock size={15} />} color={STATUS_DEFS[2].color} />
+        <KpiCard label={t("محتوى متأخر")} value={overdueCount} icon={<AlertTriangle size={15} />} color={overdueCount > 0 ? colors.danger : colors.good} />
       </div>
 
       {/* Financial overview */}
       {brands.length > 0 && (
         <div style={S.dashSection}>
-          <h3 style={S.dashSectionTitle}><Banknote size={14} /> الوضع المالي</h3>
+          <h3 style={S.dashSectionTitle}><Banknote size={14} /> {t("الوضع المالي")}</h3>
           <div style={S.financeRow} className="financeRow">
             <div style={S.financeCard}>
-              <div style={S.financeLabel}>الدخل الشهر ده</div>
+              <div style={S.financeLabel}>{t("الدخل الشهر ده")}</div>
               <div style={S.financeValue}>{fmtMoney(monthIncome)}</div>
               {incomeChangePct !== null && (
                 <div style={{ ...S.financeTrend, color: incomeChangePct >= 0 ? colors.good : colors.danger }}>
                   {incomeChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                  {Math.abs(incomeChangePct)}% عن الشهر اللي فات
+                  {Math.abs(incomeChangePct)}% {t("عن الشهر اللي فات")}
                 </div>
               )}
             </div>
             <div style={S.financeCard}>
-              <div style={S.financeLabel}>المصاريف الشهر ده</div>
+              <div style={S.financeLabel}>{t("المصاريف الشهر ده")}</div>
               <div style={{ ...S.financeValue, color: colors.danger }}>{fmtMoney(monthExpenses)}</div>
             </div>
             <div style={S.financeCard}>
-              <div style={S.financeLabel}>صافي الربح الشهر ده</div>
+              <div style={S.financeLabel}>{t("صافي الربح الشهر ده")}</div>
               <div style={{ ...S.financeValue, color: monthNet < 0 ? colors.danger : colors.good }}>{fmtMoney(monthNet)}</div>
             </div>
           </div>
           <div style={S.financeFooterRow}>
-            <span>إجمالي كل الوقت: <b style={{ color: colors.text }}>{fmtMoney(totalIncome)}</b></span>
-            <span>الصافي الكلي: <b style={{ color: totalNetProfit < 0 ? colors.danger : colors.good }}>{fmtMoney(totalNetProfit)}</b></span>
-            <span>متبقي ليك: <b style={{ color: colors.warning }}>{fmtMoney(totalRemaining)}</b></span>
+            <span>{t("إجمالي كل الوقت")}: <b style={{ color: colors.text }}>{fmtMoney(totalIncome)}</b></span>
+            <span>{t("الصافي الكلي")}: <b style={{ color: totalNetProfit < 0 ? colors.danger : colors.good }}>{fmtMoney(totalNetProfit)}</b></span>
+            <span>{t("متبقي ليك")}: <b style={{ color: colors.warning }}>{fmtMoney(totalRemaining)}</b></span>
           </div>
         </div>
       )}
@@ -1827,7 +1838,7 @@ function Dashboard({
       {/* Performance chart */}
       {brands.length > 0 && (
         <div style={S.dashSection}>
-          <h3 style={S.dashSectionTitle}><BarChart3 size={14} /> أداء المحتوى (آخر 30 يوم)</h3>
+          <h3 style={S.dashSectionTitle}><BarChart3 size={14} /> {t("أداء المحتوى (آخر 30 يوم)")}</h3>
           {perfChartData.length > 1 ? (
             <div style={S.chartCard}>
               <ResponsiveContainer width="100%" height={220}>
@@ -1842,13 +1853,13 @@ function Dashboard({
                   <XAxis dataKey="date" stroke={colors.textFaint} fontSize={11} tickLine={false} axisLine={false} />
                   <YAxis stroke={colors.textFaint} fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ background: colors.card, border: `1px solid ${colors.borderStrong}`, borderRadius: 8, fontSize: 12 }} labelStyle={{ color: colors.text }} itemStyle={{ color: colors.warning }} />
-                  <Area type="monotone" dataKey="views" name="مشاهدات" stroke={colors.warning} strokeWidth={2} fill="url(#perfGradient)" />
+                  <Area type="monotone" dataKey="views" name={t("مشاهدات")} stroke={colors.warning} strokeWidth={2} fill="url(#perfGradient)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
             <div style={S.chartCard}>
-              <p style={S.aiHint}>سجّل المشاهدات في "نتيجة النشر" لأي فكرة عشان يبدأ يظهر هنا رسم بياني لأدائك بمرور الوقت.</p>
+              <p style={S.aiHint}>{t('سجّل المشاهدات في "نتيجة النشر" لأي فكرة عشان يبدأ يظهر هنا رسم بياني لأدائك بمرور الوقت.')}</p>
             </div>
           )}
         </div>
@@ -1858,9 +1869,9 @@ function Dashboard({
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Today's content */}
           <div>
-            <h3 style={S.dashSectionTitle}><ListChecks size={14} /> محتوى النهارده</h3>
+            <h3 style={S.dashSectionTitle}><ListChecks size={14} /> {t("محتوى النهارده")}</h3>
             <div style={S.compactList}>
-              {todayContent.length === 0 && <div style={S.emptyBrands}>مفيش محتوى مجدول النهارده.</div>}
+              {todayContent.length === 0 && <div style={S.emptyBrands}>{t("مفيش محتوى مجدول النهارده.")}</div>}
               {todayContent.map((it) => {
                 const b = brands.find((x) => x.id === it.brandId);
                 const sd = STATUS_DEFS.find((s) => s.key === it.status);
@@ -1869,9 +1880,9 @@ function Dashboard({
                     <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.upcomingTitle}>{it.title}</div>
-                      <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
+                      <div style={S.upcomingMeta}>{b?.name} · {t(it.type)}</div>
                     </div>
-                    <span style={{ ...S.miniBadge, color: sd?.color, background: sd?.bg }}>{sd?.label}</span>
+                    <span style={{ ...S.miniBadge, color: sd?.color, background: sd?.bg }}>{t(sd?.label)}</span>
                   </div>
                 );
               })}
@@ -1880,9 +1891,9 @@ function Dashboard({
 
           {/* Needs attention */}
           <div>
-            <h3 style={S.dashSectionTitle}><AlertTriangle size={14} color={colors.danger} /> يحتاج انتباهك</h3>
+            <h3 style={S.dashSectionTitle}><AlertTriangle size={14} color={colors.danger} /> {t("يحتاج انتباهك")}</h3>
             <div style={S.compactList}>
-              {attentionItems.length === 0 && <div style={S.emptyBrands}>مفيش حاجة مستعجلة دلوقتي — تمام كده 👍</div>}
+              {attentionItems.length === 0 && <div style={S.emptyBrands}>{t("مفيش حاجة مستعجلة دلوقتي — تمام كده 👍")}</div>}
               {attentionItems.map(({ kind, item: it }) => {
                 const b = brands.find((x) => x.id === it.brandId);
                 const dLeft = daysUntil(it.date);
@@ -1894,7 +1905,7 @@ function Dashboard({
                       <div style={S.upcomingMeta}>{b?.name}</div>
                     </div>
                     <span style={S.attentionTag}>
-                      {kind === "overdue" ? `متأخرة ${Math.abs(dLeft)} يوم` : "تذكير النهاردة"}
+                      {kind === "overdue" ? `${t("متأخرة")} ${Math.abs(dLeft)} ${t("يوم")}` : t("تذكير النهاردة")}
                     </span>
                   </div>
                 );
@@ -1904,7 +1915,7 @@ function Dashboard({
 
           {/* General tasks (existing feature, preserved) */}
           <div>
-            <h3 style={S.dashSectionTitle}><ClipboardList size={14} /> مهام عامة (برة الأفكار)</h3>
+            <h3 style={S.dashSectionTitle}><ClipboardList size={14} /> {t("مهام عامة (برة الأفكار)")}</h3>
             <div style={S.refCard}>
               <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
                 <input
@@ -1912,24 +1923,24 @@ function Dashboard({
                   value={newTask}
                   onChange={(e) => setNewTask(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") submitTask(); }}
-                  placeholder="مهمة إدارية مش مرتبطة بفكرة معينة..."
+                  placeholder={t("مهمة إدارية مش مرتبطة بفكرة معينة...")}
                 />
                 <button onClick={submitTask} style={S.primaryBtn(colors.warning)}><Plus size={14} /></button>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }} className="scrollbar">
-                {tasks.length === 0 && <div style={S.emptyBrands}>لسه مفيش مهام مسجلة.</div>}
-                {pendingTasks.map((t) => (
-                  <div key={t.id} style={S.taskRow}>
-                    <button onClick={() => onToggleTask(t.id)} style={S.taskCheckBtn} title="خلصت"><Circle size={14} /></button>
-                    <span style={S.taskText}>{t.text}</span>
-                    <button onClick={() => onDeleteTask(t.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
+                {tasks.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش مهام مسجلة.")}</div>}
+                {pendingTasks.map((tk) => (
+                  <div key={tk.id} style={S.taskRow}>
+                    <button onClick={() => onToggleTask(tk.id)} style={S.taskCheckBtn} title={t("خلصت")}><Circle size={14} /></button>
+                    <span style={S.taskText}>{tk.text}</span>
+                    <button onClick={() => onDeleteTask(tk.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
                   </div>
                 ))}
-                {doneTasks.map((t) => (
-                  <div key={t.id} style={{ ...S.taskRow, opacity: 0.55 }}>
-                    <button onClick={() => onToggleTask(t.id)} style={S.taskCheckBtn} title="ارجعها"><CheckCircle2 size={14} /></button>
-                    <span style={{ ...S.taskText, textDecoration: "line-through" }}>{t.text}</span>
-                    <button onClick={() => onDeleteTask(t.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
+                {doneTasks.map((tk) => (
+                  <div key={tk.id} style={{ ...S.taskRow, opacity: 0.55 }}>
+                    <button onClick={() => onToggleTask(tk.id)} style={S.taskCheckBtn} title={t("ارجعها")}><CheckCircle2 size={14} /></button>
+                    <span style={{ ...S.taskText, textDecoration: "line-through" }}>{tk.text}</span>
+                    <button onClick={() => onDeleteTask(tk.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
                   </div>
                 ))}
               </div>
@@ -1940,11 +1951,11 @@ function Dashboard({
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Brands — compact */}
           <div>
-            <h3 style={S.dashSectionTitle}><Users size={14} /> برانداتك</h3>
+            <h3 style={S.dashSectionTitle}><Users size={14} /> {t("برانداتك")}</h3>
             {brands.length === 0 ? (
               <button onClick={onAddBrand} style={S.dashedAddCard}>
                 <Plus size={18} />
-                <span>ضيف أول براند</span>
+                <span>{t("ضيف أول براند")}</span>
               </button>
             ) : (
               <div style={S.brandMiniList}>
@@ -1956,14 +1967,14 @@ function Dashboard({
                       <span style={{ ...S.idCardAvatar, width: 32, height: 32, fontSize: 14, background: b.color + "26", color: b.color }}>{b.emoji}</span>
                       <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
                         <div style={S.brandMiniName}>{b.name}</div>
-                        <div style={S.brandMiniMeta}>{activeCount} حاجة شغالة</div>
+                        <div style={S.brandMiniMeta}>{activeCount} {t("حاجة شغالة")}</div>
                       </div>
                       <span style={{ ...S.dot, background: b.color }} />
                     </button>
                   );
                 })}
                 <button onClick={onAddBrand} style={S.brandMiniAdd}>
-                  <Plus size={15} /> براند جديد
+                  <Plus size={15} /> {t("براند جديد")}
                 </button>
               </div>
             )}
@@ -1971,9 +1982,9 @@ function Dashboard({
 
           {/* Week priorities (existing feature, preserved) */}
           <div>
-            <h3 style={S.dashSectionTitle}><CalendarIcon size={14} /> أولويات الأسبوع الجاي</h3>
+            <h3 style={S.dashSectionTitle}><CalendarIcon size={14} /> {t("أولويات الأسبوع الجاي")}</h3>
             <div style={S.compactList}>
-              {weekPriorities.length === 0 && <div style={S.emptyBrands}>مفيش حاجة مجدولة في السبع أيام الجايين.</div>}
+              {weekPriorities.length === 0 && <div style={S.emptyBrands}>{t("مفيش حاجة مجدولة في السبع أيام الجايين.")}</div>}
               {weekPriorities.map((it) => {
                 const b = brands.find((x) => x.id === it.brandId);
                 const dLeft = daysUntil(it.date);
@@ -1983,7 +1994,7 @@ function Dashboard({
                     <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.upcomingTitle}>{it.title}</div>
-                      <div style={S.upcomingMeta}>{b?.name} · {it.type}</div>
+                      <div style={S.upcomingMeta}>{b?.name} · {t(it.type)}</div>
                     </div>
                     <span style={{ ...S.miniBadge, color: near ? colors.danger : colors.warning, background: near ? "rgba(217,112,122,0.16)" : "rgba(231,163,62,0.16)" }}>
                       {near && <AlertTriangle size={10} style={{ verticalAlign: -1 }} />} {fmtDate(it.date)}
@@ -2023,6 +2034,7 @@ function StatCard({ label, value, color }) {
 /* ---------- Search across all brands ---------- */
 
 function SearchView({ items, brands, onOpenItem }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -2041,28 +2053,28 @@ function SearchView({ items, brands, onOpenItem }) {
 
   return (
     <div style={S.section}>
-      <SectionHeader icon={<Search size={20} />} title="بحث في كل الأفكار" subtitle="دوّر بالاسم أو الملاحظات عبر كل البراندات مرة واحدة" />
+      <SectionHeader icon={<Search size={20} />} title={t("بحث في كل الأفكار")} subtitle={t("دوّر بالاسم أو الملاحظات عبر كل البراندات مرة واحدة")} />
 
       <div style={S.searchBar} className="searchBar">
-        <input style={{ ...S.input, flex: 2 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ابحث عن فكرة..." autoFocus />
+        <input style={{ ...S.input, flex: 2 }} value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("ابحث عن فكرة...")} autoFocus />
         <select style={{ ...S.input, flex: 1 }} value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
-          <option value="">كل البراندات</option>
+          <option value="">{t("كل البراندات")}</option>
           {brands.map((b) => <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>)}
         </select>
         <select style={{ ...S.input, flex: 1 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-          <option value="">كل الأنواع</option>
-          {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          <option value="">{t("كل الأنواع")}</option>
+          {TYPE_OPTIONS.map((opt) => <option key={opt} value={opt}>{t(opt)}</option>)}
         </select>
         <select style={{ ...S.input, flex: 1 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">كل الحالات</option>
-          {STATUS_DEFS.map((sd) => <option key={sd.key} value={sd.key}>{sd.label}</option>)}
+          <option value="">{t("كل الحالات")}</option>
+          {STATUS_DEFS.map((sd) => <option key={sd.key} value={sd.key}>{t(sd.label)}</option>)}
         </select>
       </div>
 
-      <p style={{ ...S.aiHint, margin: "12px 0" }}>{results.length} نتيجة</p>
+      <p style={{ ...S.aiHint, margin: "12px 0" }}>{results.length} {t("نتيجة")}</p>
 
       <div style={S.upcomingList}>
-        {results.length === 0 && <div style={S.emptyBrands}>مفيش نتائج مطابقة.</div>}
+        {results.length === 0 && <div style={S.emptyBrands}>{t("مفيش نتائج مطابقة.")}</div>}
         {results.map((it) => {
           const b = brands.find((x) => x.id === it.brandId);
           const sd = STATUS_DEFS.find((s) => s.key === it.status);
@@ -2071,9 +2083,9 @@ function SearchView({ items, brands, onOpenItem }) {
               <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
               <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
                 <div style={S.upcomingTitle}>{it.title}</div>
-                <div style={S.upcomingMeta}>{b?.name} · {it.type}{it.date ? ` · ${fmtDate(it.date)}` : ""}</div>
+                <div style={S.upcomingMeta}>{b?.name} · {t(it.type)}{it.date ? ` · ${fmtDate(it.date)}` : ""}</div>
               </div>
-              <span style={{ ...S.miniBadge, color: sd?.color, background: sd?.bg }}>{sd?.label}</span>
+              <span style={{ ...S.miniBadge, color: sd?.color, background: sd?.bg }}>{t(sd?.label)}</span>
             </button>
           );
         })}
@@ -2085,13 +2097,14 @@ function SearchView({ items, brands, onOpenItem }) {
 /* ---------- Compare brands ---------- */
 
 function CompareView({ brands, items, onOpenBrand }) {
+  const { t } = useLanguage();
   const rows = useMemo(() => {
-    const t = todayISO();
+    const today = todayISO();
     return brands.map((b) => {
       const brandItems = items.filter((it) => it.brandId === b.id);
       const total = brandItems.length;
       const done = brandItems.filter((i) => i.status === "done").length;
-      const overdue = brandItems.filter((i) => i.date && i.date < t && i.status !== "done").length;
+      const overdue = brandItems.filter((i) => i.date && i.date < today && i.status !== "done").length;
       const received = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
       const remaining = (Number(b.paymentTotal) || 0) - received;
       const followers = (b.pageTracking?.instagram?.snapshots || b.pageSnapshots || [])[0]?.followers ?? null;
@@ -2106,25 +2119,25 @@ function CompareView({ brands, items, onOpenBrand }) {
   if (brands.length === 0) {
     return (
       <div style={S.section}>
-        <SectionHeader icon={<BarChart3 size={20} />} title="مقارنة البراندات" subtitle="لسه مفيش براندات تقارن بينها" />
+        <SectionHeader icon={<BarChart3 size={20} />} title={t("مقارنة البراندات")} subtitle={t("لسه مفيش براندات تقارن بينها")} />
       </div>
     );
   }
 
   return (
     <div style={S.section}>
-      <SectionHeader icon={<BarChart3 size={20} />} title="مقارنة البراندات" subtitle="كل البراندات جنب بعض عشان تحدد مين محتاج اهتمام أكتر" />
+      <SectionHeader icon={<BarChart3 size={20} />} title={t("مقارنة البراندات")} subtitle={t("كل البراندات جنب بعض عشان تحدد مين محتاج اهتمام أكتر")} />
 
       <div style={{ overflowX: "auto" }} className="scrollbar">
         <table style={S.compareTable} className="compareTable">
           <thead>
             <tr>
-              <th style={S.compareTh}>البراند</th>
-              <th style={S.compareTh}>نسبة الإنجاز</th>
-              <th style={S.compareTh}>متأخرة</th>
-              <th style={S.compareTh}>المتابعين</th>
-              <th style={S.compareTh}>إجمالي مشاهدات</th>
-              <th style={S.compareTh}>المتبقي ماديًا</th>
+              <th style={S.compareTh}>{t("البراند")}</th>
+              <th style={S.compareTh}>{t("نسبة الإنجاز")}</th>
+              <th style={S.compareTh}>{t("متأخرة")}</th>
+              <th style={S.compareTh}>{t("المتابعين")}</th>
+              <th style={S.compareTh}>{t("إجمالي مشاهدات")}</th>
+              <th style={S.compareTh}>{t("المتبقي ماديًا")}</th>
             </tr>
           </thead>
           <tbody>
@@ -2150,6 +2163,7 @@ function CompareView({ brands, items, onOpenBrand }) {
 /* ---------- Content analytics (post-publication) ---------- */
 
 function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(currentIdeaId || null);
   const q = query.trim().toLowerCase();
@@ -2158,21 +2172,21 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
   return (
     <ModalShell onClose={onClose}>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}>ربط التحليل بفكرة</span>
+        <span style={S.modalTitle}>{t("ربط التحليل بفكرة")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
-      <p style={S.aiHint}>اختر الفكرة المرتبطة بهذا المحتوى من أفكار البراند.</p>
+      <p style={S.aiHint}>{t("اختر الفكرة المرتبطة بهذا المحتوى من أفكار البراند.")}</p>
 
       <input
         style={{ ...S.input, marginTop: 10 }}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="ابحث في أفكار البراند..."
+        placeholder={t("ابحث في أفكار البراند...")}
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, maxHeight: 280, overflowY: "auto" }} className="scrollbar">
-        {items.length === 0 && <div style={S.emptyBrands}>مفيش أفكار في البراند ده لسه.</div>}
-        {items.length > 0 && filtered.length === 0 && <div style={S.emptyBrands}>مفيش أفكار تطابق البحث.</div>}
+        {items.length === 0 && <div style={S.emptyBrands}>{t("مفيش أفكار في البراند ده لسه.")}</div>}
+        {items.length > 0 && filtered.length === 0 && <div style={S.emptyBrands}>{t("مفيش أفكار تطابق البحث.")}</div>}
         {filtered.map((it) => (
           <button
             key={it.id}
@@ -2183,7 +2197,7 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
             <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</div>
               <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>
-                {it.type}{it.date ? ` · ${fmtDate(it.date)}` : ""}
+                {t(it.type)}{it.date ? ` · ${fmtDate(it.date)}` : ""}
               </div>
             </div>
             {selected === it.id && <Check size={15} color={colors.good} />}
@@ -2192,9 +2206,9 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
       </div>
 
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
+        <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
         <button disabled={!selected} onClick={() => onConfirm(selected)} style={S.primaryBtn(colors.accentBlue)}>
-          <Link2 size={14} /> ربط
+          <Link2 size={14} /> {t("ربط")}
         </button>
       </div>
     </ModalShell>
@@ -2202,6 +2216,7 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
 }
 
 function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
+  const { t } = useLanguage();
   const [views, setViews] = useState(analysis.views ?? "");
   const [likes, setLikes] = useState(analysis.likes ?? "");
   const [comments, setComments] = useState(analysis.comments ?? "");
@@ -2221,63 +2236,64 @@ function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
   return (
     <ModalShell onClose={onClose}>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}>تعديل بيانات التحليل</span>
+        <span style={S.modalTitle}>{t("تعديل بيانات التحليل")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
 
       <div style={S.rowTwo} className="rowTwo">
         <div>
-          <label style={S.label}>المشاهدات</label>
+          <label style={S.label}>{t("المشاهدات")}</label>
           <input type="number" min="0" style={S.input} value={views} onChange={(e) => setViews(e.target.value)} />
         </div>
         <div>
-          <label style={S.label}>الإعجابات</label>
+          <label style={S.label}>{t("الإعجابات")}</label>
           <input type="number" min="0" style={S.input} value={likes} onChange={(e) => setLikes(e.target.value)} />
         </div>
       </div>
       <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
         <div>
-          <label style={S.label}>التعليقات</label>
+          <label style={S.label}>{t("التعليقات")}</label>
           <input type="number" min="0" style={S.input} value={comments} onChange={(e) => setComments(e.target.value)} />
         </div>
         <div>
-          <label style={S.label}>المشاركات</label>
+          <label style={S.label}>{t("المشاركات")}</label>
           <input type="number" min="0" style={S.input} value={shares} onChange={(e) => setShares(e.target.value)} />
         </div>
       </div>
       <div style={{ marginTop: 10 }}>
-        <label style={S.label}>الحفظ</label>
+        <label style={S.label}>{t("الحفظ")}</label>
         <input type="number" min="0" style={S.input} value={saves} onChange={(e) => setSaves(e.target.value)} />
       </div>
 
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
-        <button onClick={handleSave} style={S.primaryBtn(colors.accentBlue)}><Save size={14} /> حفظ</button>
+        <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
+        <button onClick={handleSave} style={S.primaryBtn(colors.accentBlue)}><Save size={14} /> {t("حفظ")}</button>
       </div>
     </ModalShell>
   );
 }
 
 function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, onUnlink, onDelete, onRefresh, refreshing, refreshDisabled, refreshStatus }) {
+  const { t } = useLanguage();
   const platform = ANALYZER_PLATFORMS.find((p) => p.key === analysis.platform) || detectPlatform(analysis.url);
   const hasMetrics = [analysis.views, analysis.likes, analysis.comments, analysis.shares, analysis.saves].some((v) => v !== null && v !== undefined);
 
   return (
     <ModalShell onClose={onClose} wide>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}>تفاصيل التحليل</span>
+        <span style={S.modalTitle}>{t("تفاصيل التحليل")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>المنصة</label>
+        <label style={S.label}>{t("المنصة")}</label>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13.5, fontWeight: 700, color: colors.text }}>
-          {platform && <platform.Icon size={15} />} {platform?.label || "غير معروفة"}
+          {platform && <platform.Icon size={15} />} {platform?.label || t("غير معروفة")}
         </div>
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>الرابط</label>
+        <label style={S.label}>{t("الرابط")}</label>
         <a
           href={normalizeUrl(analysis.url)} target="_blank" rel="noopener noreferrer"
           style={{ fontSize: 12.5, color: colors.accentBlue, wordBreak: "break-all", direction: "ltr", display: "block", textAlign: "right" }}
@@ -2287,37 +2303,37 @@ function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, o
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>آخر تحديث للبيانات</label>
+        <label style={S.label}>{t("آخر تحديث للبيانات")}</label>
         <div style={{ fontSize: 13, color: colors.textDim }}>{fmtAnalysisDate(analysis.analyzedAt)}</div>
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>الأرقام</label>
+        <label style={S.label}>{t("الأرقام")}</label>
         <div style={S.analyzerMetricsRow}>
           {analysis.views !== null && analysis.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(analysis.views)}</span>}
           {analysis.likes !== null && analysis.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(analysis.likes)}</span>}
           {analysis.comments !== null && analysis.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(analysis.comments)}</span>}
           {analysis.shares !== null && analysis.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(analysis.shares)}</span>}
           {analysis.saves !== null && analysis.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(analysis.saves)}</span>}
-          {!hasMetrics && <span style={{ fontSize: 12, color: colors.textFaint }}>مفيش أرقام مسجلة</span>}
+          {!hasMetrics && <span style={{ fontSize: 12, color: colors.textFaint }}>{t("مفيش أرقام مسجلة")}</span>}
         </div>
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>الفكرة المرتبطة</label>
+        <label style={S.label}>{t("الفكرة المرتبطة")}</label>
         {linkedIdea ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
             <span style={S.analyzerLinkedBadge}><Link2 size={11} /> {linkedIdea.title}</span>
             <div style={{ display: "flex", gap: 6 }}>
-              <button type="button" onClick={onLink} style={S.analyzerLinkBtn}>تغيير الفكرة</button>
-              <button type="button" onClick={onUnlink} style={S.analyzerLinkBtnDanger}>إزالة الربط</button>
+              <button type="button" onClick={onLink} style={S.analyzerLinkBtn}>{t("تغيير الفكرة")}</button>
+              <button type="button" onClick={onUnlink} style={S.analyzerLinkBtnDanger}>{t("إزالة الربط")}</button>
             </div>
           </div>
         ) : (
           <>
-            <div style={{ fontSize: 12.5, color: colors.textFaint, marginBottom: 8 }}>غير مرتبط بفكرة</div>
+            <div style={{ fontSize: 12.5, color: colors.textFaint, marginBottom: 8 }}>{t("غير مرتبط بفكرة")}</div>
             <button type="button" onClick={onLink} style={S.analyzerLinkBtn}>
-              <Link2 size={11} /> ربط بفكرة
+              <Link2 size={11} /> {t("ربط بفكرة")}
             </button>
           </>
         )}
@@ -2334,24 +2350,24 @@ function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, o
           {refreshing && <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} />}
           {!refreshing && refreshStatus?.type === "success" && <CheckCircle2 size={12} />}
           {!refreshing && refreshStatus?.type === "error" && <AlertTriangle size={12} />}
-          <span>{refreshing ? "جاري تحديث البيانات..." : refreshStatus?.type === "success" ? "تم تحديث البيانات" : refreshStatus?.message}</span>
+          <span>{refreshing ? t("جاري تحديث البيانات...") : refreshStatus?.type === "success" ? t("تم تحديث البيانات") : refreshStatus?.message}</span>
         </div>
       )}
 
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onDelete} style={S.dangerBtn}><Trash2 size={14} /> حذف التحليل</button>
+        <button onClick={onDelete} style={S.dangerBtn}><Trash2 size={14} /> {t("حذف التحليل")}</button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <a href={normalizeUrl(analysis.url)} target="_blank" rel="noopener noreferrer" style={S.secondaryBtn}>
-            <ExternalLink size={14} /> فتح المحتوى
+            <ExternalLink size={14} /> {t("فتح المحتوى")}
           </a>
-          <button onClick={onEdit} style={S.secondaryBtn}><Pencil size={14} /> تعديل البيانات</button>
+          <button onClick={onEdit} style={S.secondaryBtn}><Pencil size={14} /> {t("تعديل البيانات")}</button>
           <button
             onClick={onRefresh}
             disabled={refreshDisabled}
             style={{ ...S.primaryBtn(colors.accentBlue), opacity: refreshDisabled ? 0.7 : 1, cursor: refreshDisabled ? "not-allowed" : "pointer" }}
           >
             {refreshing ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={14} />}
-            {refreshing ? "جاري التحديث..." : "تحديث البيانات"}
+            {refreshing ? t("جاري التحديث...") : t("تحديث البيانات")}
           </button>
         </div>
       </div>
@@ -2360,14 +2376,15 @@ function AnalysisDetailsModal({ analysis, linkedIdea, onClose, onEdit, onLink, o
 }
 
 function DuplicateAnalysisModal({ analysis, loading, onCancel, onConfirm }) {
+  const { t } = useLanguage();
   const platform = ANALYZER_PLATFORMS.find((p) => p.key === analysis.platform) || detectPlatform(analysis.url);
   const hasMetrics = [analysis.views, analysis.likes, analysis.comments, analysis.shares, analysis.saves].some((v) => v !== null && v !== undefined);
 
   return (
     <ModalShell onClose={loading ? () => {} : onCancel}>
-      <div style={S.modalTitle}>الفيديو ده متحلل قبل كده</div>
+      <div style={S.modalTitle}>{t("الفيديو ده متحلل قبل كده")}</div>
       <p style={S.confirmText}>
-        {platform && <platform.Icon size={13} style={{ verticalAlign: -2 }} />} آخر تحليل: {fmtAnalysisDate(analysis.analyzedAt)}
+        {platform && <platform.Icon size={13} style={{ verticalAlign: -2 }} />} {t("آخر تحليل")}: {fmtAnalysisDate(analysis.analyzedAt)}
       </p>
       <div style={S.analyzerMetricsRow}>
         {analysis.views !== null && analysis.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(analysis.views)}</span>}
@@ -2375,18 +2392,18 @@ function DuplicateAnalysisModal({ analysis, loading, onCancel, onConfirm }) {
         {analysis.comments !== null && analysis.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(analysis.comments)}</span>}
         {analysis.shares !== null && analysis.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(analysis.shares)}</span>}
         {analysis.saves !== null && analysis.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(analysis.saves)}</span>}
-        {!hasMetrics && <span style={{ fontSize: 12, color: colors.textFaint }}>مفيش أرقام مسجلة</span>}
+        {!hasMetrics && <span style={{ fontSize: 12, color: colors.textFaint }}>{t("مفيش أرقام مسجلة")}</span>}
       </div>
-      <p style={{ ...S.confirmText, marginTop: 14 }}>هل تريد تحديث التحليل القديم؟</p>
+      <p style={{ ...S.confirmText, marginTop: 14 }}>{t("هل تريد تحديث التحليل القديم؟")}</p>
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onCancel} disabled={loading} style={{ ...S.secondaryBtn, opacity: loading ? 0.6 : 1 }}>إلغاء</button>
+        <button onClick={onCancel} disabled={loading} style={{ ...S.secondaryBtn, opacity: loading ? 0.6 : 1 }}>{t("إلغاء")}</button>
         <button
           onClick={onConfirm}
           disabled={loading}
           style={{ ...S.primaryBtn(colors.accentBlue), opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer" }}
         >
           {loading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={14} />}
-          {loading ? "جاري تحديث التحليل..." : "تحديث التحليل"}
+          {loading ? t("جاري تحديث التحليل...") : t("تحديث التحليل")}
         </button>
       </div>
     </ModalShell>
@@ -2399,6 +2416,7 @@ const ANALYZER_PLATFORM_FILTERS = [{ key: "all", label: "الكل" }, ...ANALYZE
 const ANALYZER_PAGE_SIZE = 6;
 
 function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, prefillIdeaId, onConsumePrefill }) {
+  const { t } = useLanguage();
   const [url, setUrl] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -2452,7 +2470,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       } else {
         const data = await fetchAnalysisMetrics(urlToAnalyze);
         if (!data.ok) {
-          setErrorMsg(data.message || "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.");
+          setErrorMsg(data.message || t("معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني."));
           return;
         }
         onSaveAnalysis({
@@ -2470,7 +2488,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       setUrl("");
       if (prefillIdeaId && !existingAnalysis) onConsumePrefill?.();
     } catch (e) {
-      setErrorMsg("حصلت مشكلة في الاتصال، جرب تاني.");
+      setErrorMsg(t("حصلت مشكلة في الاتصال، جرب تاني."));
     } finally {
       setAnalyzing(false);
     }
@@ -2572,7 +2590,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
     const successCount = results.filter((r) => r.ok).length;
     const failedLabels = results
       .filter((r) => !r.ok)
-      .map((r) => (ANALYZER_PLATFORMS.find((p) => p.key === r.analysis.platform) || detectPlatform(r.analysis.url))?.label || "منصة غير معروفة");
+      .map((r) => (ANALYZER_PLATFORMS.find((p) => p.key === r.analysis.platform) || detectPlatform(r.analysis.url))?.label || t("منصة غير معروفة"));
 
     setIdeaRefreshingIds((prev) => {
       const next = new Set(prev);
@@ -2582,8 +2600,8 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
 
     let status;
     if (successCount === total) status = { type: "success" };
-    else if (successCount === 0) status = { type: "error", message: "فشل تحديث البيانات، حاول مرة أخرى." };
-    else status = { type: "partial", message: `تم تحديث ${successCount} من ${total} منصات${failedLabels.length ? ` (فشل: ${failedLabels.join("، ")})` : ""}` };
+    else if (successCount === 0) status = { type: "error", message: t("فشل تحديث البيانات، حاول مرة أخرى.") };
+    else status = { type: "partial", message: `${t("تم تحديث")} ${successCount} ${t("من أصل")} ${total} ${t("منصات")}${failedLabels.length ? ` (${t("فشل")}: ${failedLabels.join("، ")})` : ""}` };
     setIdeaRefreshStatus((prev) => ({ ...prev, [ideaId]: status }));
 
     if (successCount === total) {
@@ -2689,12 +2707,12 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   return (
     <div>
       <div style={S.analyzerCard}>
-        <h3 style={S.analyzerTitle}>تحليل محتوى جديد</h3>
-        <p style={S.analyzerDesc}>اعرف أداء أي Reel أو Post أو Video من خلال رابطه.</p>
+        <h3 style={S.analyzerTitle}>{t("تحليل محتوى جديد")}</h3>
+        <p style={S.analyzerDesc}>{t("اعرف أداء أي Reel أو Post أو Video من خلال رابطه.")}</p>
 
         {prefillIdea && (
           <p style={{ ...S.aiHint, color: colors.accentBlue }}>
-            <Link2 size={11} style={{ verticalAlign: -1 }} /> هيتربط التحليل ده تلقائي بفكرة "{prefillIdea.title}" بعد التحليل.
+            <Link2 size={11} style={{ verticalAlign: -1 }} /> {t("هيتربط التحليل ده تلقائي بفكرة")} "{prefillIdea.title}" {t("بعد التحليل.")}
           </p>
         )}
 
@@ -2705,7 +2723,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
             value={url}
             onChange={(e) => { setUrl(e.target.value); setErrorMsg(""); }}
             onKeyDown={(e) => { if (e.key === "Enter") analyze(); }}
-            placeholder="الصق رابط المحتوى هنا..."
+            placeholder={t("الصق رابط المحتوى هنا...")}
             dir="ltr"
           />
           <button
@@ -2715,12 +2733,12 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
             style={{ ...S.primaryBtn(colors.accentBlue), opacity: canAnalyze ? 1 : 0.5, cursor: canAnalyze ? "pointer" : "not-allowed" }}
           >
             {analyzing ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={15} />}
-            {analyzing ? "بيحلل..." : "تحليل المحتوى"}
+            {analyzing ? t("بيحلل...") : t("تحليل المحتوى")}
           </button>
         </div>
 
         {!urlValid && trimmedUrl.length > 0 && (
-          <p style={{ ...S.aiHint, color: colors.danger }}>الرابط ده مش شكله صح، تأكد منه وجرب تاني.</p>
+          <p style={{ ...S.aiHint, color: colors.danger }}>{t("الرابط ده مش شكله صح، تأكد منه وجرب تاني.")}</p>
         )}
         {errorMsg && <p style={{ ...S.aiHint, color: colors.danger }}>{errorMsg}</p>}
 
@@ -2737,23 +2755,23 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       {analyses.length === 0 ? (
         <EmptyState
           icon={<TrendingUp size={20} />}
-          title="حلّل أول محتوى ليك"
-          description="أضف رابط Reel أو Post أو فيديو لمعرفة أرقام الأداء الخاصة بالمحتوى."
+          title={t("حلّل أول محتوى ليك")}
+          description={t("أضف رابط Reel أو Post أو فيديو لمعرفة أرقام الأداء الخاصة بالمحتوى.")}
           action={
             <button type="button" onClick={() => urlInputRef.current?.focus()} style={S.secondaryBtn}>
-              <Search size={13} style={{ verticalAlign: -2 }} /> تحليل المحتوى
+              <Search size={13} style={{ verticalAlign: -2 }} /> {t("تحليل المحتوى")}
             </button>
           }
         />
       ) : (
         <>
           <div style={S.analyzerSummaryRow} className="analyzerSummaryRow">
-            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{totals.count}</span><span style={S.analyzerSummaryLabel}>محتوى محلل</span></div>
-            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.views)}</span><span style={S.analyzerSummaryLabel}>مشاهدات</span></div>
-            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.likes)}</span><span style={S.analyzerSummaryLabel}>إعجابات</span></div>
-            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.comments)}</span><span style={S.analyzerSummaryLabel}>تعليقات</span></div>
-            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.shares)}</span><span style={S.analyzerSummaryLabel}>مشاركات</span></div>
-            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.saves)}</span><span style={S.analyzerSummaryLabel}>حفظ</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{totals.count}</span><span style={S.analyzerSummaryLabel}>{t("محتوى محلل")}</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.views)}</span><span style={S.analyzerSummaryLabel}>{t("مشاهدات")}</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.likes)}</span><span style={S.analyzerSummaryLabel}>{t("إعجابات")}</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.comments)}</span><span style={S.analyzerSummaryLabel}>{t("تعليقات")}</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.shares)}</span><span style={S.analyzerSummaryLabel}>{t("مشاركات")}</span></div>
+            <div style={S.analyzerSummaryItem}><span style={S.analyzerSummaryValue}>{fmtMoney(totals.saves)}</span><span style={S.analyzerSummaryLabel}>{t("حفظ")}</span></div>
           </div>
 
           <div style={S.analyzerToolbar} className="analyzerToolbar">
@@ -2761,18 +2779,18 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
               style={{ ...S.input, flex: "1 1 200px", minWidth: 0 }}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحث في التحليلات..."
+              placeholder={t("ابحث في التحليلات...")}
             />
             <select style={{ ...S.input, width: "auto", flexShrink: 0 }} value={linkFilter} onChange={(e) => setLinkFilter(e.target.value)}>
-              <option value="all">كل الروابط</option>
-              <option value="linked">مرتبط بفكرة</option>
-              <option value="unlinked">غير مرتبط</option>
+              <option value="all">{t("كل الروابط")}</option>
+              <option value="linked">{t("مرتبط بفكرة")}</option>
+              <option value="unlinked">{t("غير مرتبط")}</option>
             </select>
             <select style={{ ...S.input, width: "auto", flexShrink: 0 }} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="newest">الأحدث</option>
-              <option value="oldest">الأقدم</option>
-              <option value="views">الأكثر مشاهدة</option>
-              <option value="engagement">الأكثر تفاعلًا</option>
+              <option value="newest">{t("الأحدث")}</option>
+              <option value="oldest">{t("الأقدم")}</option>
+              <option value="views">{t("الأكثر مشاهدة")}</option>
+              <option value="engagement">{t("الأكثر تفاعلًا")}</option>
             </select>
           </div>
 
@@ -2784,7 +2802,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
                 onClick={() => setPlatformFilter(f.key)}
                 style={{ ...S.analyzerFilterChip, ...(platformFilter === f.key ? S.analyzerFilterChipActive : {}) }}
               >
-                {f.label}
+                {f.key === "all" ? t(f.label) : f.label}
               </button>
             ))}
           </div>
@@ -2792,13 +2810,13 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
           <div style={S.analyzerListHeader}>
             <button type="button" onClick={() => setListCollapsed((c) => !c)} style={S.secondaryBtn}>
               {listCollapsed
-                ? <>عرض التحليلات <ChevronDown size={13} style={{ verticalAlign: -2 }} /></>
-                : <>طي التحليلات <ChevronUp size={13} style={{ verticalAlign: -2 }} /></>}
+                ? <>{t("عرض التحليلات")} <ChevronDown size={13} style={{ verticalAlign: -2 }} /></>
+                : <>{t("طي التحليلات")} <ChevronUp size={13} style={{ verticalAlign: -2 }} /></>}
             </button>
           </div>
 
           {!listCollapsed && (combinedList.length === 0 ? (
-            <div style={S.emptyBrands}>مفيش تحليلات تطابق البحث أو الفلتر الحالي.</div>
+            <div style={S.emptyBrands}>{t("مفيش تحليلات تطابق البحث أو الفلتر الحالي.")}</div>
           ) : (
             <>
               {visibleIdeaEntries.length > 0 && (
@@ -2831,7 +2849,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
               {visibleUnlinkedEntries.length > 0 && (
                 <>
                   <h4 style={S.analyzerUnlinkedHeading}>
-                    تحليلات غير مرتبطة بفكرة <span style={{ color: colors.textFaint, fontWeight: 600 }}>({unlinkedList.length})</span>
+                    {t("تحليلات غير مرتبطة بفكرة")} <span style={{ color: colors.textFaint, fontWeight: 600 }}>({unlinkedList.length})</span>
                   </h4>
                   <div style={S.analyzerGrid} className="analyzerGrid">
                     {visibleUnlinkedEntries.map(({ analysis: a }) => (
@@ -2858,8 +2876,8 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
 
               <p style={S.analyzerPaginationInfo}>
                 {hasMore
-                  ? `عرض ${visible.length} من ${combinedList.length} نتيجة`
-                  : "تم عرض جميع النتائج"}
+                  ? `${t("عرض")} ${visible.length} ${t("من أصل")} ${combinedList.length} ${t("نتيجة")}`
+                  : t("تم عرض جميع النتائج")}
               </p>
               {hasMore && (
                 <button
@@ -2867,7 +2885,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
                   onClick={() => setVisibleCount((c) => c + ANALYZER_PAGE_SIZE)}
                   style={{ ...S.secondaryBtn, width: "100%", justifyContent: "center" }}
                 >
-                  عرض المزيد
+                  {t("عرض المزيد")}
                 </button>
               )}
             </>
@@ -2931,7 +2949,8 @@ function IdeaAnalysisCard({
   openMenuFor, onToggleMenu, onCloseMenu,
   onOpenDetails, onEdit, onLink, onUnlink, onDelete,
 }) {
-  const title = idea?.title || "فكرة محذوفة";
+  const { t } = useLanguage();
+  const title = idea?.title || t("فكرة محذوفة");
 
   return (
     <div style={S.analyzerIdeaCard}>
@@ -2940,7 +2959,7 @@ function IdeaAnalysisCard({
           <div style={S.analyzerIdeaTitle} title={title}>{title}</div>
           <div style={S.analyzerIdeaMetaRow}>
             {idea?.date && <span style={S.analyzerIdeaMeta}>{fmtDate(idea.date)}</span>}
-            <span style={S.analyzerIdeaPlatformCount}>{analyses.length} منصات</span>
+            <span style={S.analyzerIdeaPlatformCount}>{analyses.length} {t("منصات")}</span>
           </div>
         </div>
         <div style={S.analyzerIdeaHeadActions}>
@@ -2951,13 +2970,13 @@ function IdeaAnalysisCard({
             style={{ ...S.analyzerIdeaRefreshBtn, opacity: refreshDisabled ? 0.6 : 1, cursor: refreshDisabled ? "not-allowed" : "pointer" }}
           >
             {refreshing ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={12} />}
-            {refreshing ? "جاري تحديث البيانات..." : "تحديث البيانات"}
+            {refreshing ? t("جاري تحديث البيانات...") : t("تحديث البيانات")}
           </button>
           <button
             type="button"
             onClick={onToggleCollapse}
             style={S.analyzerIdeaCollapseBtn}
-            aria-label={collapsed ? "توسيع الفكرة" : "طي الفكرة"}
+            aria-label={collapsed ? t("توسيع الفكرة") : t("طي الفكرة")}
           >
             {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
           </button>
@@ -2978,7 +2997,7 @@ function IdeaAnalysisCard({
           {refreshing && <RefreshCw size={12} style={{ animation: "spin 1s linear infinite" }} />}
           {!refreshing && refreshStatus?.type === "success" && <CheckCircle2 size={12} />}
           {!refreshing && refreshStatus?.type !== "success" && <AlertTriangle size={12} />}
-          <span>{refreshing ? "جاري تحديث البيانات..." : refreshStatus?.type === "success" ? "تم تحديث البيانات" : refreshStatus?.message}</span>
+          <span>{refreshing ? t("جاري تحديث البيانات...") : refreshStatus?.type === "success" ? t("تم تحديث البيانات") : refreshStatus?.message}</span>
         </div>
       )}
 
@@ -3011,6 +3030,7 @@ function IdeaAnalysisCard({
 // مسؤولية كارت الفكرة الأب) ومن غير عنوان تكرار لاسم الفكرة (معروض مرة واحدة
 // فوق في رأس الكارت).
 function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, onEdit, onLink, onUnlink, onDelete }) {
+  const { t } = useLanguage();
   const platform = a._platform;
 
   return (
@@ -3018,7 +3038,7 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
       <div style={S.analyzerIdeaSectionHead}>
         <span style={S.analyzerCardPlatform}>
           <PlatformBadgeIcon platform={platform} />
-          {platform?.label || "غير معروفة"}
+          {platform?.label || t("غير معروفة")}
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={S.analyzerCardDateInline}>{fmtAnalysisDate(a.analyzedAt)}</span>
@@ -3027,7 +3047,7 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
               type="button"
               onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
               style={S.analyzerKebabBtn}
-              aria-label="خيارات التحليل"
+              aria-label={t("خيارات التحليل")}
             >
               <MoreVertical size={13} />
             </button>
@@ -3036,24 +3056,24 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
                 <div onClick={(e) => { e.stopPropagation(); onCloseMenu(); }} style={S.menuBackdrop} />
                 <div style={S.analyzerKebabMenu} onClick={(e) => e.stopPropagation()}>
                   <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
-                    <Pencil size={13} /> تعديل البيانات
+                    <Pencil size={13} /> {t("تعديل البيانات")}
                   </button>
                   <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onLink(); }}>
-                    <Link2 size={13} /> {a.ideaId ? "تغيير الفكرة" : "ربط بفكرة"}
+                    <Link2 size={13} /> {a.ideaId ? t("تغيير الفكرة") : t("ربط بفكرة")}
                   </button>
                   {a.ideaId && (
                     <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onUnlink(); }}>
-                      <X size={13} /> إزالة الربط
+                      <X size={13} /> {t("إزالة الربط")}
                     </button>
                   )}
                   <a
                     href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
                     style={S.kebabMenuItem} onClick={(e) => { e.stopPropagation(); onCloseMenu(); }}
                   >
-                    <ExternalLink size={13} /> فتح المحتوى
+                    <ExternalLink size={13} /> {t("فتح المحتوى")}
                   </a>
                   <button type="button" style={{ ...S.kebabMenuItem, color: colors.danger }} onClick={() => { onCloseMenu(); onDelete(); }}>
-                    <Trash2 size={13} /> حذف التحليل
+                    <Trash2 size={13} /> {t("حذف التحليل")}
                   </button>
                 </div>
               </>
@@ -3068,6 +3088,7 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
 }
 
 function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, onEdit, onLink, onUnlink, onDelete, onRefresh, refreshing, refreshDisabled, refreshStatus }) {
+  const { t } = useLanguage();
   const platform = a._platform;
   const title = a._linkedIdea?.title || shortContentLabel(a.url);
 
@@ -3076,14 +3097,14 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
       <div style={S.analyzerCardHead}>
         <span style={S.analyzerCardPlatform}>
           <PlatformBadgeIcon platform={platform} />
-          {platform?.label || "غير معروفة"}
+          {platform?.label || t("غير معروفة")}
         </span>
         <div style={{ position: "relative" }}>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
             style={S.analyzerKebabBtn}
-            aria-label="خيارات التحليل"
+            aria-label={t("خيارات التحليل")}
           >
             <MoreVertical size={13} />
           </button>
@@ -3098,27 +3119,27 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
                   onClick={() => { onCloseMenu(); onRefresh(); }}
                 >
                   <RefreshCw size={13} style={refreshing ? { animation: "spin 1s linear infinite" } : undefined} />
-                  {refreshing ? "جاري التحديث..." : "تحديث البيانات"}
+                  {refreshing ? t("جاري التحديث...") : t("تحديث البيانات")}
                 </button>
                 <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
-                  <Pencil size={13} /> تعديل البيانات
+                  <Pencil size={13} /> {t("تعديل البيانات")}
                 </button>
                 <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onLink(); }}>
-                  <Link2 size={13} /> {a.ideaId ? "تغيير الفكرة" : "ربط بفكرة"}
+                  <Link2 size={13} /> {a.ideaId ? t("تغيير الفكرة") : t("ربط بفكرة")}
                 </button>
                 {a.ideaId && (
                   <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onUnlink(); }}>
-                    <X size={13} /> إزالة الربط
+                    <X size={13} /> {t("إزالة الربط")}
                   </button>
                 )}
                 <a
                   href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
                   style={S.kebabMenuItem} onClick={(e) => { e.stopPropagation(); onCloseMenu(); }}
                 >
-                  <ExternalLink size={13} /> فتح المحتوى
+                  <ExternalLink size={13} /> {t("فتح المحتوى")}
                 </a>
                 <button type="button" style={{ ...S.kebabMenuItem, color: colors.danger }} onClick={() => { onCloseMenu(); onDelete(); }}>
-                  <Trash2 size={13} /> حذف التحليل
+                  <Trash2 size={13} /> {t("حذف التحليل")}
                 </button>
               </div>
             </>
@@ -3139,7 +3160,7 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
           {refreshing && <RefreshCw size={11} style={{ animation: "spin 1s linear infinite" }} />}
           {!refreshing && refreshStatus?.type === "success" && <CheckCircle2 size={11} />}
           {!refreshing && refreshStatus?.type === "error" && <AlertTriangle size={11} />}
-          <span>{refreshing ? "جاري تحديث البيانات..." : refreshStatus?.type === "success" ? "تم تحديث البيانات" : refreshStatus?.message}</span>
+          <span>{refreshing ? t("جاري تحديث البيانات...") : refreshStatus?.type === "success" ? t("تم تحديث البيانات") : refreshStatus?.message}</span>
         </div>
       )}
 
@@ -3151,13 +3172,14 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
 /* ---------- Account / subscription view ---------- */
 
 function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRow, brandsCount, brandLimit, onRecheck }) {
+  const { t } = useLanguage();
   const statusLabel = isTrialing
-    ? "تجربة مجانية"
+    ? t("تجربة مجانية")
     : plan
-      ? "مفعّل"
+      ? t("مفعّل")
       : hasSubRow
-        ? "غير مفعّل"
-        : "لسه مفيش اشتراك مسجل";
+        ? t("غير مفعّل")
+        : t("لسه مفيش اشتراك مسجل");
 
   const statusColor = isTrialing ? colors.warning : plan ? colors.good : colors.danger;
 
@@ -3165,21 +3187,21 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
   // إنجليزية مضمونة — مش en-US عشان متغيرش ترتيب التاريخ نفسه.
   let dateLine = null;
   if (isTrialing && trialEndsAt) {
-    dateLine = `التجربة المجانية بتنتهي بتاريخ ${new Date(trialEndsAt).toLocaleDateString("ar-EG-u-nu-latn")}`;
+    dateLine = `${t("التجربة المجانية بتنتهي بتاريخ")} ${new Date(trialEndsAt).toLocaleDateString("ar-EG-u-nu-latn")}`;
   } else if (plan && currentPeriodEnd) {
-    dateLine = `الاشتراك شغال لحد ${new Date(currentPeriodEnd).toLocaleDateString("ar-EG-u-nu-latn")}`;
+    dateLine = `${t("الاشتراك شغال لحد")} ${new Date(currentPeriodEnd).toLocaleDateString("ar-EG-u-nu-latn")}`;
   } else if (plan && !currentPeriodEnd) {
-    dateLine = "الاشتراك شغال من غير تاريخ انتهاء محدد";
+    dateLine = t("الاشتراك شغال من غير تاريخ انتهاء محدد");
   }
 
   return (
     <div style={S.section}>
-      <SectionHeader icon={<Wallet size={20} />} title="الاشتراك والباقة" subtitle="حالة اشتراكك دلوقتي وخياراتك لو عايز تغيّر أو ترقّي" />
+      <SectionHeader icon={<Wallet size={20} />} title={t("الاشتراك والباقة")} subtitle={t("حالة اشتراكك دلوقتي وخياراتك لو عايز تغيّر أو ترقّي")} />
 
       <div style={S.refCard}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div>
-            <div style={{ fontSize: 11.5, color: colors.textDim, fontWeight: 700, marginBottom: 4 }}>الحالة</div>
+            <div style={{ fontSize: 11.5, color: colors.textDim, fontWeight: 700, marginBottom: 4 }}>{t("الحالة")}</div>
             <div style={{ fontSize: 16, fontWeight: 800, color: statusColor }}>
               {statusLabel}{plan ? <> — <span style={{ color: planColor(plan) }}>{planLabel(plan) || plan}</span></> : ""}
             </div>
@@ -3188,7 +3210,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
           {!isTrialing && brandLimit !== Infinity && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: colors.text }}>{brandsCount}/{brandLimit}</div>
-              <div style={{ fontSize: 10.5, color: colors.textFaint }}>البراندات المستخدمة</div>
+              <div style={{ fontSize: 10.5, color: colors.textFaint }}>{t("البراندات المستخدمة")}</div>
             </div>
           )}
         </div>
@@ -3196,11 +3218,11 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
 
       {!hasSubRow && (
         <p style={{ ...S.aiHint, marginTop: 10 }}>
-          حسابك لسه مالوش سجل اشتراك في قاعدة البيانات — ده بيحصل عادة لو الحساب اتعمل قبل ما نظام الباقات يتفعّل. تواصل مع الدعم عشان يتظبط.
+          {t("حسابك لسه مالوش سجل اشتراك في قاعدة البيانات — ده بيحصل عادة لو الحساب اتعمل قبل ما نظام الباقات يتفعّل. تواصل مع الدعم عشان يتظبط.")}
         </p>
       )}
 
-      <h3 style={{ ...S.h3, marginTop: 24 }}>{plan ? "غيّر أو رقّي باقتك" : "اشترك دلوقتي"}</h3>
+      <h3 style={{ ...S.h3, marginTop: 24 }}>{plan ? t("غيّر أو رقّي باقتك") : t("اشترك دلوقتي")}</h3>
       <PlanPicker onRecheck={onRecheck} defaultPlan={(plan || "pro").toString().trim().toLowerCase()} />
     </div>
   );
@@ -3209,6 +3231,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
 /* ---------- Share link modal ---------- */
 
 function ShareLinkModal({ brand, onPatchBrand, onClose }) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -3223,7 +3246,7 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
       if (err) throw err;
       onPatchBrand(brand.id, { shareToken: data });
     } catch (e) {
-      setError("حصلت مشكلة، جرب تاني.");
+      setError(t("حصلت مشكلة، جرب تاني."));
     } finally {
       setLoading(false);
     }
@@ -3237,7 +3260,7 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
       if (err) throw err;
       onPatchBrand(brand.id, { shareToken: null });
     } catch (e) {
-      setError("حصلت مشكلة، جرب تاني.");
+      setError(t("حصلت مشكلة، جرب تاني."));
     } finally {
       setLoading(false);
     }
@@ -3254,12 +3277,12 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
   return (
     <ModalShell onClose={onClose}>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}><Share2 size={16} style={{ verticalAlign: -2 }} /> لينك مشاركة مع العميل</span>
+        <span style={S.modalTitle}><Share2 size={16} style={{ verticalAlign: -2 }} /> {t("لينك مشاركة مع العميل")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
 
       <p style={S.aiHint}>
-        اللينك ده صفحة للقراءة بس، تقدر تبعتها لعميل {brand.name} من غير ما يحتاج يسجل دخول. هتوريه المحتوى الجاي والمنشور بس — مفيش أي بيانات مالية أو براندات تانية.
+        {t("اللينك ده صفحة للقراءة بس، تقدر تبعتها لعميل")} {brand.name} {t("من غير ما يحتاج يسجل دخول. هتوريه المحتوى الجاي والمنشور بس — مفيش أي بيانات مالية أو براندات تانية.")}
       </p>
 
       {error && <p style={{ color: colors.danger, fontSize: 12, marginTop: 8 }}>{error}</p>}
@@ -3270,13 +3293,13 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
             <div style={{ ...S.input, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shareUrl}</div>
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button onClick={copyLink} style={S.primaryBtn(brand.color)}><Copy size={14} /> {copied ? "اتنسخ" : "انسخ اللينك"}</button>
-            <button onClick={revokeLink} disabled={loading} style={S.dangerBtn}><Trash2 size={14} /> ألغِ اللينك</button>
+            <button onClick={copyLink} style={S.primaryBtn(brand.color)}><Copy size={14} /> {copied ? t("اتنسخ") : t("انسخ اللينك")}</button>
+            <button onClick={revokeLink} disabled={loading} style={S.dangerBtn}><Trash2 size={14} /> {t("ألغِ اللينك")}</button>
           </div>
         </>
       ) : (
         <button onClick={createLink} disabled={loading} style={{ ...S.primaryBtn(brand.color), width: "100%", justifyContent: "center", marginTop: 14 }}>
-          {loading ? "بيتعمل..." : <><Share2 size={14} /> أنشئ لينك مشاركة</>}
+          {loading ? t("بيتعمل...") : <><Share2 size={14} /> {t("أنشئ لينك مشاركة")}</>}
         </button>
       )}
     </ModalShell>
@@ -3290,6 +3313,7 @@ function BrandPage({
   onAddItem, onBulkAdd, onEditItem, onDeleteItem, onSetStatus, onPatchItem, onPatchBrand, onUseIdea, calMonth, setCalMonth,
   analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill,
 }) {
+  const { t } = useLanguage();
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
@@ -3300,11 +3324,11 @@ function BrandPage({
           <span style={{ ...S.idBadgeAvatar, background: brand.color + "26", color: brand.color }}>{brand.emoji}</span>
           <div style={{ flex: 1 }}>
             <div style={S.idBadgeName} className="idBadgeName">{brand.name}</div>
-            <div style={S.idBadgeHandle} className="idBadgeHandle">{brand.handle || "بدون بيانات تواصل"}</div>
+            <div style={S.idBadgeHandle} className="idBadgeHandle">{brand.handle || t("بدون بيانات تواصل")}</div>
           </div>
-          <button onClick={() => setShareOpen(true)} style={S.iconBtnSm} title="لينك مشاركة للعميل"><Share2 size={14} /></button>
-          <button onClick={onEditBrand} style={S.iconBtnSm} title="عدّل البراند"><Pencil size={14} /></button>
-          <button onClick={onDeleteBrand} style={S.iconBtnSmDanger} title="امسح البراند"><Trash2 size={14} /></button>
+          <button onClick={() => setShareOpen(true)} style={S.iconBtnSm} title={t("لينك مشاركة للعميل")}><Share2 size={14} /></button>
+          <button onClick={onEditBrand} style={S.iconBtnSm} title={t("عدّل البراند")}><Pencil size={14} /></button>
+          <button onClick={onDeleteBrand} style={S.iconBtnSmDanger} title={t("امسح البراند")}><Trash2 size={14} /></button>
         </div>
       </div>
 
@@ -3312,28 +3336,28 @@ function BrandPage({
 
       <div style={S.tabRow} className="tabRow">
         <button onClick={() => setTab("board")} style={{ ...S.tabBtn, ...(tab === "board" ? S.tabBtnActive : {}) }}>
-          <LayoutGrid size={15} /> لوحة الأفكار
+          <LayoutGrid size={15} /> {t("لوحة الأفكار")}
         </button>
         <button onClick={() => setTab("calendar")} style={{ ...S.tabBtn, ...(tab === "calendar" ? S.tabBtnActive : {}) }}>
-          <CalendarIcon size={15} /> التقويم
+          <CalendarIcon size={15} /> {t("التقويم")}
         </button>
         <button onClick={() => setTab("insights")} style={{ ...S.tabBtn, ...(tab === "insights" ? S.tabBtnActive : {}) }}>
-          <BarChart3 size={15} /> تحليل البراند
+          <BarChart3 size={15} /> {t("تحليل البراند")}
         </button>
         <button onClick={() => setTab("payments")} style={{ ...S.tabBtn, ...(tab === "payments" ? S.tabBtnActive : {}) }}>
-          <Wallet size={15} /> المدفوعات
+          <Wallet size={15} /> {t("المدفوعات")}
         </button>
         <button onClick={() => setTab("reference")} style={{ ...S.tabBtn, ...(tab === "reference" ? S.tabBtnActive : {}) }}>
-          <BookOpen size={15} /> مرجع سريع
+          <BookOpen size={15} /> {t("مرجع سريع")}
         </button>
         <div style={{ flex: 1 }} />
         {tab === "board" && (
           <>
             <button onClick={onBulkAdd} style={S.secondaryBtn}>
-              <ListPlus size={15} /> أفكار بالجملة
+              <ListPlus size={15} /> {t("أفكار بالجملة")}
             </button>
             <button onClick={onAddItem} style={S.primaryBtn(brand.color)}>
-              <Plus size={15} /> فكرة جديدة
+              <Plus size={15} /> {t("فكرة جديدة")}
             </button>
           </>
         )}
@@ -3343,11 +3367,11 @@ function BrandPage({
         items.length === 0 ? (
           <EmptyState
             icon={<Sparkles size={20} />}
-            title="أضف أول فكرة محتوى"
-            description={`ابدأ ببناء خطة المحتوى الخاصة بـ ${brand.name}.`}
+            title={t("أضف أول فكرة محتوى")}
+            description={`${t("ابدأ ببناء خطة المحتوى الخاصة بـ")} ${brand.name}.`}
             action={
               <button type="button" onClick={onAddItem} style={S.primaryBtn(brand.color)}>
-                <Plus size={14} /> إضافة فكرة
+                <Plus size={14} /> {t("إضافة فكرة")}
               </button>
             }
           />
@@ -3388,6 +3412,7 @@ function BrandPage({
 /* ---------- Board — explicit per-card controls (no drag, fully reliable) ---------- */
 
 function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
+  const { t } = useLanguage();
   return (
     <div style={S.board} className="scrollbar board">
       {STATUS_DEFS.map((sd, colIdx) => {
@@ -3396,11 +3421,11 @@ function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
           <div key={sd.key} style={S.column} className="column">
             <div style={S.columnHead}>
               <span style={{ ...S.dot, background: sd.color }} />
-              <span style={S.columnTitle}>{sd.label}</span>
+              <span style={S.columnTitle}>{t(sd.label)}</span>
               <span style={S.columnCount}>{colItems.length}</span>
             </div>
             <div style={S.columnBody} className="scrollbar columnBody">
-              {colItems.length === 0 && <div style={S.columnEmpty}>مفيش أفكار هنا</div>}
+              {colItems.length === 0 && <div style={S.columnEmpty}>{t("مفيش أفكار هنا")}</div>}
               {colItems.map((it) => (
                 <TicketCard
                   key={it.id}
@@ -3422,6 +3447,7 @@ function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
 }
 
 function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, onSavePerf }) {
+  const { t } = useLanguage();
   const dLeft = item.date ? daysUntil(item.date) : null;
   const isOverdue = dLeft !== null && dLeft < 0 && item.status !== "done";
   const isNear = dLeft !== null && dLeft >= 0 && dLeft <= 2 && item.status !== "done";
@@ -3460,17 +3486,17 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
       });
       const data = await res.json();
       if (!data.ok) {
-        setAnalyzeMsg(data.message || "معرفناش نجيب البيانات.");
+        setAnalyzeMsg(data.message || t("معرفناش نجيب البيانات."));
       } else {
         if (data.views !== null && data.views !== undefined) setViews(data.views);
         if (data.likes !== null && data.likes !== undefined) setLikes(data.likes);
         if (data.comments !== null && data.comments !== undefined) setComments(data.comments);
         if (data.shares !== null && data.shares !== undefined) setShares(data.shares);
         if (data.saves !== null && data.saves !== undefined) setSaves(data.saves);
-        setAnalyzeMsg("تم الجلب ✓");
+        setAnalyzeMsg(t("تم الجلب ✓"));
       }
     } catch (e) {
-      setAnalyzeMsg("حصلت مشكلة، جرب تاني.");
+      setAnalyzeMsg(t("حصلت مشكلة، جرب تاني."));
     } finally {
       setAnalyzing(false);
     }
@@ -3481,20 +3507,20 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
   return (
     <div style={{ ...S.ticket, borderTopColor: statusColor }}>
       <div style={S.ticketHead}>
-        <span style={S.ticketType}>{item.type}</span>
+        <span style={S.ticketType}>{t(item.type)}</span>
         <div style={{ display: "flex", gap: 4 }}>
           {item.referenceLink && (
-            <a href={normalizeUrl(item.referenceLink)} target="_blank" rel="noopener noreferrer" style={S.ticketIconBtn} title="افتح لينك الريفرنس">
+            <a href={normalizeUrl(item.referenceLink)} target="_blank" rel="noopener noreferrer" style={S.ticketIconBtn} title={t("افتح لينك الريفرنس")}>
               <Link2 size={12} />
             </a>
           )}
           {item.link && (
-            <a href={normalizeUrl(item.link)} target="_blank" rel="noopener noreferrer" style={S.ticketIconBtn} title="افتح لينك المنشور في تبويبة جديدة">
+            <a href={normalizeUrl(item.link)} target="_blank" rel="noopener noreferrer" style={S.ticketIconBtn} title={t("افتح لينك المنشور في تبويبة جديدة")}>
               <ExternalLink size={12} />
             </a>
           )}
-          <button onClick={onEdit} style={S.ticketIconBtn} title="عدّل"><Pencil size={12} /></button>
-          <button onClick={onDelete} style={S.ticketIconBtnDanger} title="امسح"><Trash2 size={12} /></button>
+          <button onClick={onEdit} style={S.ticketIconBtn} title={t("عدّل")}><Pencil size={12} /></button>
+          <button onClick={onDelete} style={S.ticketIconBtnDanger} title={t("امسح")}><Trash2 size={12} /></button>
         </div>
       </div>
       <div style={S.ticketTitle}>{item.title}</div>
@@ -3502,8 +3528,8 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
 
       {(isOverdue || isNear || hasPerf) && (
         <div style={S.ticketBadgesRow}>
-          {isOverdue && <span style={S.badgeDanger}><AlertTriangle size={10} /> متأخرة {Math.abs(dLeft)} يوم</span>}
-          {isNear && !isOverdue && <span style={S.badgeWarning}><AlertTriangle size={10} /> قرّب الميعاد</span>}
+          {isOverdue && <span style={S.badgeDanger}><AlertTriangle size={10} /> {t("متأخرة")} {Math.abs(dLeft)} {t("يوم")}</span>}
+          {isNear && !isOverdue && <span style={S.badgeWarning}><AlertTriangle size={10} /> {t("قرّب الميعاد")}</span>}
           {item.views !== undefined && item.views !== null && item.views !== "" && (
             <span style={S.badgeGeneric}><Eye size={10} /> {item.views}</span>
           )}
@@ -3515,56 +3541,56 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
 
       <div style={S.ticketFooter} className="ticketFooter">
         <span style={S.ticketDate}>
-          {item.date ? <><Clock size={11} style={{ verticalAlign: -1 }} /> {fmtDate(item.date)}</> : "بدون معاد"}
+          {item.date ? <><Clock size={11} style={{ verticalAlign: -1 }} /> {fmtDate(item.date)}</> : t("بدون معاد")}
           {item.reminderDays !== undefined && item.reminderDays !== null && (
-            <span title={`تذكير قبل الميعاد بـ ${item.reminderDays} يوم`}> · <Bell size={10} style={{ verticalAlign: -1 }} /></span>
+            <span title={`${t("تذكير قبل الميعاد بـ")} ${item.reminderDays} ${t("يوم")}`}> · <Bell size={10} style={{ verticalAlign: -1 }} /></span>
           )}
         </span>
         <button onClick={() => setPerfOpen((o) => !o)} style={S.perfToggleBtn}>
-          <Eye size={11} /> {hasPerf ? "عدّل نتيجة النشر" : "سجّل نتيجة النشر"}
+          <Eye size={11} /> {hasPerf ? t("عدّل نتيجة النشر") : t("سجّل نتيجة النشر")}
         </button>
       </div>
 
       {perfOpen && (
         <div style={S.perfPanel}>
-          <label style={S.perfLinkLabel}>لينك المنشور</label>
-          <input style={{ ...S.input, fontSize: 11.5, padding: "6px 8px" }} value={linkVal} onChange={(e) => setLinkVal(e.target.value)} placeholder="حط لينك المنشور هنا بعد النشر" />
+          <label style={S.perfLinkLabel}>{t("لينك المنشور")}</label>
+          <input style={{ ...S.input, fontSize: 11.5, padding: "6px 8px" }} value={linkVal} onChange={(e) => setLinkVal(e.target.value)} placeholder={t("حط لينك المنشور هنا بعد النشر")} />
 
           {linkVal.trim() && (
             <button type="button" onClick={analyzeLink} disabled={analyzing} style={{ ...S.moveTextBtn, marginTop: 6, borderStyle: "solid" }}>
-              {analyzing ? "بيجيب البيانات..." : "🔍 اجلب الأرقام تلقائي"}
+              {analyzing ? t("بيجيب البيانات...") : t("🔍 اجلب الأرقام تلقائي")}
             </button>
           )}
           {analyzeMsg && <p style={{ ...S.aiHint, fontSize: 10, marginTop: 4 }}>{analyzeMsg}</p>}
 
-          <p style={S.aiHint}>أو حط الأرقام بنفسك تحت.</p>
+          <p style={S.aiHint}>{t("أو حط الأرقام بنفسك تحت.")}</p>
           <div style={S.perfInputsRow} className="perfInputsRow">
-            <input type="number" min="0" style={S.perfInput} value={views} onChange={(e) => setViews(e.target.value)} placeholder="مشاهدات" />
-            <input type="number" min="0" style={S.perfInput} value={likes} onChange={(e) => setLikes(e.target.value)} placeholder="لايكات" />
-            <input type="number" min="0" style={S.perfInput} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="كومنتات" />
+            <input type="number" min="0" style={S.perfInput} value={views} onChange={(e) => setViews(e.target.value)} placeholder={t("مشاهدات")} />
+            <input type="number" min="0" style={S.perfInput} value={likes} onChange={(e) => setLikes(e.target.value)} placeholder={t("لايكات")} />
+            <input type="number" min="0" style={S.perfInput} value={comments} onChange={(e) => setComments(e.target.value)} placeholder={t("كومنتات")} />
           </div>
           <div style={{ ...S.perfInputsRow, marginTop: 5 }} className="perfInputsRow">
-            <input type="number" min="0" style={S.perfInput} value={shares} onChange={(e) => setShares(e.target.value)} placeholder="مشاركات" />
-            <input type="number" min="0" style={S.perfInput} value={saves} onChange={(e) => setSaves(e.target.value)} placeholder="حفظ" />
+            <input type="number" min="0" style={S.perfInput} value={shares} onChange={(e) => setShares(e.target.value)} placeholder={t("مشاركات")} />
+            <input type="number" min="0" style={S.perfInput} value={saves} onChange={(e) => setSaves(e.target.value)} placeholder={t("حفظ")} />
           </div>
-          <button onClick={savePerf} style={{ ...S.moveTextBtn, marginTop: 6 }}><Save size={12} style={{ verticalAlign: -1 }} /> احفظ نتيجة النشر</button>
+          <button onClick={savePerf} style={{ ...S.moveTextBtn, marginTop: 6 }}><Save size={12} style={{ verticalAlign: -1 }} /> {t("احفظ نتيجة النشر")}</button>
         </div>
       )}
 
       <label style={S.ticketMoveLabel}>
-        نقل هذه الفكرة لمرحلة:
+        {t("نقل هذه الفكرة لمرحلة:")}
         <select
           value={item.status}
           onChange={(e) => onMove(e.target.value)}
           style={S.ticketStatusSelect}
         >
-          {STATUS_DEFS.map((sd) => <option key={sd.key} value={sd.key}>{sd.label}</option>)}
+          {STATUS_DEFS.map((sd) => <option key={sd.key} value={sd.key}>{t(sd.label)}</option>)}
         </select>
       </label>
 
       {nextStatus && (
         <button onClick={() => onMove(nextStatus.key)} style={S.moveTextBtn}>
-          قدّم هذه الفكرة لمرحلة "{nextStatus.label}"
+          {t('قدّم هذه الفكرة لمرحلة "{label}"').replace("{label}", t(nextStatus.label))}
         </button>
       )}
     </div>
@@ -3574,6 +3600,7 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
 /* ---------- Brand insights ---------- */
 
 function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill }) {
+  const { t } = useLanguage();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -3834,7 +3861,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
 
   return (
     <div>
-      <h3 style={S.h3}><TrendingUp size={13} style={{ verticalAlign: -2 }} /> تحليل محتوى منشور</h3>
+      <h3 style={S.h3}><TrendingUp size={13} style={{ verticalAlign: -2 }} /> {t("تحليل محتوى منشور")}</h3>
       <div style={{ marginBottom: 26 }}>
         <SocialAnalyzer
           brand={brand}
@@ -3850,72 +3877,72 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
       </div>
 
       <div style={S.statRow} className="statRow">
-        <StatCard label="إجمالي الأفكار" value={total} />
-        <StatCard label="نسبة الإنجاز" value={`${completionRate}%`} color={colors.good} />
-        <StatCard label="مجدولة دلوقتي" value={items.filter((i) => i.status === "scheduled").length} color={colors.warning} />
-        <StatCard label="متأخرة عن معادها" value={overdue} color={colors.danger} />
-        <StatCard label="المتبقي من البراند" value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
+        <StatCard label={t("إجمالي الأفكار")} value={total} />
+        <StatCard label={t("نسبة الإنجاز")} value={`${completionRate}%`} color={colors.good} />
+        <StatCard label={t("مجدولة دلوقتي")} value={items.filter((i) => i.status === "scheduled").length} color={colors.warning} />
+        <StatCard label={t("متأخرة عن معادها")} value={overdue} color={colors.danger} />
+        <StatCard label={t("المتبقي من البراند")} value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
       </div>
 
-      <h3 style={S.h3}><Eye size={14} style={{ verticalAlign: -2 }} /> أداء المحتوى مع البراند ده</h3>
+      <h3 style={S.h3}><Eye size={14} style={{ verticalAlign: -2 }} /> {t("أداء المحتوى مع البراند ده")}</h3>
       <div style={S.perfTotalsGrid} className="perfTotalsGrid">
         <div style={S.perfTotalsCol}>
-          <span style={S.perfTotalsLabel}>الشهر ده</span>
+          <span style={S.perfTotalsLabel}>{t("الشهر ده")}</span>
           <div style={S.statRow} className="statRow">
-            <StatCard label="مشاهدات" value={fmtMoney(perfTotals.monthViews)} color={colors.info} />
-            <StatCard label="لايكات" value={fmtMoney(perfTotals.monthLikes)} color={colors.good} />
-            <StatCard label="كومنتات" value={fmtMoney(perfTotals.monthComments)} color={colors.warning} />
+            <StatCard label={t("مشاهدات")} value={fmtMoney(perfTotals.monthViews)} color={colors.info} />
+            <StatCard label={t("لايكات")} value={fmtMoney(perfTotals.monthLikes)} color={colors.good} />
+            <StatCard label={t("كومنتات")} value={fmtMoney(perfTotals.monthComments)} color={colors.warning} />
           </div>
         </div>
         <div style={S.perfTotalsCol}>
-          <span style={S.perfTotalsLabel}>إجمالي كل الوقت</span>
+          <span style={S.perfTotalsLabel}>{t("إجمالي كل الوقت")}</span>
           <div style={S.statRow} className="statRow">
-            <StatCard label="محتوى تم تحليله" value={perfTotals.count} />
-            <StatCard label="مشاهدات" value={fmtMoney(perfTotals.views)} color={colors.info} />
-            <StatCard label="لايكات" value={fmtMoney(perfTotals.likes)} color={colors.good} />
-            <StatCard label="كومنتات" value={fmtMoney(perfTotals.comments)} color={colors.warning} />
-            <StatCard label="مشاركات" value={fmtMoney(perfTotals.shares)} />
-            <StatCard label="حفظ" value={fmtMoney(perfTotals.saves)} />
+            <StatCard label={t("محتوى تم تحليله")} value={perfTotals.count} />
+            <StatCard label={t("مشاهدات")} value={fmtMoney(perfTotals.views)} color={colors.info} />
+            <StatCard label={t("لايكات")} value={fmtMoney(perfTotals.likes)} color={colors.good} />
+            <StatCard label={t("كومنتات")} value={fmtMoney(perfTotals.comments)} color={colors.warning} />
+            <StatCard label={t("مشاركات")} value={fmtMoney(perfTotals.shares)} />
+            <StatCard label={t("حفظ")} value={fmtMoney(perfTotals.saves)} />
           </div>
         </div>
       </div>
       {perfTotals.count === 0 && (
-        <p style={S.aiHint}>الأرقام دي بتتجمع من تحليلات المحتوى اللي بتعملها للبراند ده — حلّل أول رابط من "تحليل محتوى جديد" فوق وهتلاقي الإجمالي هنا.</p>
+        <p style={S.aiHint}>{t('الأرقام دي بتتجمع من تحليلات المحتوى اللي بتعملها للبراند ده — حلّل أول رابط من "تحليل محتوى جديد" فوق وهتلاقي الإجمالي هنا.')}</p>
       )}
 
       <div style={S.dashGrid} className="dashGrid">
         <div>
-          <h3 style={S.h3}><Target size={13} style={{ verticalAlign: -2 }} /> ميزان المحتوى (الفعلي مقابل المستهدف)</h3>
+          <h3 style={S.h3}><Target size={13} style={{ verticalAlign: -2 }} /> {t("ميزان المحتوى (الفعلي مقابل المستهدف)")}</h3>
           <div style={S.barList}>
-            {byType.length === 0 && <div style={S.emptyBrands}>لسه مفيش أفكار مسجلة.</div>}
-            {byType.map(([t, c]) => {
+            {byType.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش أفكار مسجلة.")}</div>}
+            {byType.map(([ty, c]) => {
               const actualPct = total ? Math.round((c / total) * 100) : 0;
-              const target = mixTargets[t];
+              const target = mixTargets[ty];
               return (
-                <div key={t} style={S.mixRow}>
-                  <span style={S.barLabel}>{t}</span>
+                <div key={ty} style={S.mixRow}>
+                  <span style={S.barLabel}>{t(ty)}</span>
                   <div style={{ ...S.barTrack, position: "relative" }}>
                     <div style={{ ...S.barFill, width: `${actualPct}%`, background: brand.color }} />
-                    {target !== undefined && <div style={{ ...S.mixTargetMarker, left: `${Math.min(target, 100)}%` }} title={`مستهدف ${target}%`} />}
+                    {target !== undefined && <div style={{ ...S.mixTargetMarker, left: `${Math.min(target, 100)}%` }} title={`${t("مستهدف")} ${target}%`} />}
                   </div>
                   <span style={S.barValue}>{actualPct}%</span>
                   <input
                     type="number" min="0" max="100" style={S.mixTargetInput}
                     defaultValue={target ?? ""}
-                    onBlur={(e) => saveMixTarget(t, e.target.value)}
-                    placeholder="هدف%"
+                    onBlur={(e) => saveMixTarget(ty, e.target.value)}
+                    placeholder={t("هدف%")}
                   />
                 </div>
               );
             })}
           </div>
           {mixTargetSum > 0 && mixTargetSum !== 100 && (
-            <p style={S.aiHint}>مجموع النسب المستهدفة دلوقتي {mixTargetSum}% — يفضل يكون المجموع 100% عشان الميزان يبقى مظبوط.</p>
+            <p style={S.aiHint}>{t("مجموع النسب المستهدفة دلوقتي")} {mixTargetSum}% — {t("يفضل يكون المجموع 100% عشان الميزان يبقى مظبوط.")}</p>
           )}
 
-          <h3 style={{ ...S.h3, marginTop: 22 }}><Award size={13} style={{ verticalAlign: -2 }} /> أفضل 5 محتوى (مشاهدات/تفاعل)</h3>
+          <h3 style={{ ...S.h3, marginTop: 22 }}><Award size={13} style={{ verticalAlign: -2 }} /> {t("أفضل 5 محتوى (مشاهدات/تفاعل)")}</h3>
           <div style={S.leaderboard}>
-            {top5.length === 0 && <div style={S.emptyBrands}>حلّل محتوى منشور من فوق عشان يظهر ترتيبه هنا.</div>}
+            {top5.length === 0 && <div style={S.emptyBrands}>{t("حلّل محتوى منشور من فوق عشان يظهر ترتيبه هنا.")}</div>}
             {top5.map((it, i) => (
               <div key={it.id} style={S.leaderRow}>
                 <span style={S.leaderRank}>{i + 1}</span>
@@ -3939,13 +3966,13 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
         </div>
 
         <div>
-          <h3 style={S.h3}><FileText size={14} style={{ verticalAlign: -2 }} /> تقرير البراند</h3>
+          <h3 style={S.h3}><FileText size={14} style={{ verticalAlign: -2 }} /> {t("تقرير البراند")}</h3>
           <div style={S.aiAnalysisCard}>
-            <p style={S.aiHint}>يجمّعلك تقرير من البيانات المسجلة عن البراند ده — تختار إيه يتحط فيه، وتقدر تنسخه أو تنزّله PDF جاهز تبعته للعميل.</p>
+            <p style={S.aiHint}>{t("يجمّعلك تقرير من البيانات المسجلة عن البراند ده — تختار إيه يتحط فيه، وتقدر تنسخه أو تنزّله PDF جاهز تبعته للعميل.")}</p>
             <button onClick={() => setReportOpen(true)} style={S.primaryBtn(brand.color)} disabled={total === 0}>
-              <FileText size={14} /> استخرج تقرير كامل عن البراند
+              <FileText size={14} /> {t("استخرج تقرير كامل عن البراند")}
             </button>
-            {total === 0 && <p style={S.aiHint}>ضيف كام فكرة للبراند الأول عشان يبقى فيه محتوى للتقرير.</p>}
+            {total === 0 && <p style={S.aiHint}>{t("ضيف كام فكرة للبراند الأول عشان يبقى فيه محتوى للتقرير.")}</p>}
           </div>
         </div>
       </div>
@@ -3953,12 +3980,12 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
       {reportOpen && (
         <ModalShell onClose={() => setReportOpen(false)} wide>
           <div style={S.modalHead}>
-            <span style={S.modalTitle}><FileText size={16} style={{ verticalAlign: -2 }} /> تقرير {brand.name}</span>
+            <span style={S.modalTitle}><FileText size={16} style={{ verticalAlign: -2 }} /> {t("تقرير")} {brand.name}</span>
             <button onClick={() => setReportOpen(false)} style={S.iconBtnSm}><X size={16} /></button>
           </div>
 
           <div style={S.formGroup}>
-            <label style={S.label}>شهر التقرير</label>
+            <label style={S.label}>{t("شهر التقرير")}</label>
             <input
               type="month"
               style={S.input}
@@ -3968,87 +3995,87 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             />
           </div>
 
-          <p style={S.aiHint}>اختار إيه اللي يتحط في التقرير (المصاريف والربح الصافي بتاعك مش بيتحطوش خالص حتى لو اخترت "الوضع المالي" — دي بيانات داخلية بس):</p>
+          <p style={S.aiHint}>{t('اختار إيه اللي يتحط في التقرير (المصاريف والربح الصافي بتاعك مش بيتحطوش خالص حتى لو اخترت "الوضع المالي" — دي بيانات داخلية بس):')}</p>
           <div style={S.sectionCheckGrid}>
             {REPORT_SECTIONS.map((s) => (
               <label key={s.key} style={S.sectionCheckLabel}>
                 <input type="checkbox" checked={sections[s.key]} onChange={() => toggleSection(s.key)} />
-                {s.label}
+                {t(s.label)}
               </label>
             ))}
           </div>
 
           <div ref={reportRef} style={S.reportPreview}>
-            <h2 style={S.reportPreviewTitle}>تقرير {brand.name}</h2>
-            <p style={S.reportPreviewDate}>بتاريخ {fmtMonthKey(reportMonth)}</p>
+            <h2 style={S.reportPreviewTitle}>{t("تقرير")} {brand.name}</h2>
+            <p style={S.reportPreviewDate}>{t("بتاريخ")} {fmtMonthKey(reportMonth)}</p>
 
             {sections.overview && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>نظرة عامة</h4>
-                {brand.agreementNotes && <p style={S.reportP}>الاتفاق مع البراند: {brand.agreementNotes}</p>}
-                <p style={S.reportP}>إجمالي الأفكار: {reportTotal} | نسبة الإنجاز: {reportCompletionRate}% | متأخرة عن معادها: {reportOverdue}</p>
+                <h4 style={S.reportSectionTitle}>{t("نظرة عامة")}</h4>
+                {brand.agreementNotes && <p style={S.reportP}>{t("الاتفاق مع البراند")}: {brand.agreementNotes}</p>}
+                <p style={S.reportP}>{t("إجمالي الأفكار")}: {reportTotal} | {t("نسبة الإنجاز")}: {reportCompletionRate}% | {t("متأخرة عن معادها")}: {reportOverdue}</p>
               </div>
             )}
             {sections.status && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>حالة الأفكار</h4>
+                <h4 style={S.reportSectionTitle}>{t("حالة الأفكار")}</h4>
                 {reportStatusCounts.map((sc) => (
-                  <p key={sc.label} style={S.reportP}>{sc.label}: {sc.count}</p>
+                  <p key={sc.label} style={S.reportP}>{t(sc.label)}: {sc.count}</p>
                 ))}
               </div>
             )}
             {sections.byType && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>حسب نوع المحتوى</h4>
+                <h4 style={S.reportSectionTitle}>{t("حسب نوع المحتوى")}</h4>
                 {reportByType.length === 0 ? (
-                  <p style={S.reportP}>لسه مفيش أفكار مسجلة للشهر ده.</p>
-                ) : reportByType.map(([t, c]) => (
-                  <p key={t} style={S.reportP}>{t}: {c}{mixTargets[t] !== undefined ? ` (مستهدف ${mixTargets[t]}%)` : ""}</p>
+                  <p style={S.reportP}>{t("لسه مفيش أفكار مسجلة للشهر ده.")}</p>
+                ) : reportByType.map(([ty, c]) => (
+                  <p key={ty} style={S.reportP}>{t(ty)}: {c}{mixTargets[ty] !== undefined ? ` (${t("مستهدف")} ${mixTargets[ty]}%)` : ""}</p>
                 ))}
               </div>
             )}
             {sections.performance && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>الأداء</h4>
-                <p style={S.reportP}>إجمالي المشاهدات: {reportPerfTotals.views} | إجمالي اللايكات: {reportPerfTotals.likes} | إجمالي الكومنتات: {reportPerfTotals.comments}</p>
-                <p style={S.reportP}>إجمالي المشاركات: {reportPerfTotals.shares} | إجمالي الحفظ: {reportPerfTotals.saves}</p>
+                <h4 style={S.reportSectionTitle}>{t("الأداء")}</h4>
+                <p style={S.reportP}>{t("إجمالي المشاهدات")}: {reportPerfTotals.views} | {t("إجمالي اللايكات")}: {reportPerfTotals.likes} | {t("إجمالي الكومنتات")}: {reportPerfTotals.comments}</p>
+                <p style={S.reportP}>{t("إجمالي المشاركات")}: {reportPerfTotals.shares} | {t("إجمالي الحفظ")}: {reportPerfTotals.saves}</p>
               </div>
             )}
             {sections.top5 && reportData.top5Items.length > 0 && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>أفضل 5 محتوى</h4>
+                <h4 style={S.reportSectionTitle}>{t("أفضل 5 محتوى")}</h4>
                 {reportData.top5Items.map((i, idx) => (
-                  <p key={i.id} style={S.reportP}>{idx + 1}. {i.title} — {i.views} مشاهدة{i.successNote ? ` (${i.successNote})` : ""}</p>
+                  <p key={i.id} style={S.reportP}>{idx + 1}. {i.title} — {i.views} {t("مشاهدة")}{i.successNote ? ` (${i.successNote})` : ""}</p>
                 ))}
               </div>
             )}
             {sections.financial && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>الوضع المالي</h4>
+                <h4 style={S.reportSectionTitle}>{t("الوضع المالي")}</h4>
                 {brand.paymentTotal ? (
-                  <p style={S.reportP}>الإجمالي المتفق عليه: {fmtMoney(brand.paymentTotal)} | المستلم: {fmtMoney(reportData.receivedTotal)} | المتبقي: {fmtMoney(reportData.remainingTotal)}</p>
+                  <p style={S.reportP}>{t("الإجمالي المتفق عليه")}: {fmtMoney(brand.paymentTotal)} | {t("المستلم")}: {fmtMoney(reportData.receivedTotal)} | {t("المتبقي")}: {fmtMoney(reportData.remainingTotal)}</p>
                 ) : (
-                  <p style={S.reportP}>مفيش إجمالي متفق عليه مسجل.</p>
+                  <p style={S.reportP}>{t("مفيش إجمالي متفق عليه مسجل.")}</p>
                 )}
               </div>
             )}
             {sections.pageTracking && (
               <div style={S.reportSection}>
-                <h4 style={S.reportSectionTitle}>تتبع ونمو الصفحات</h4>
+                <h4 style={S.reportSectionTitle}>{t("تتبع ونمو الصفحات")}</h4>
                 {reportData.pageGrowth.length === 0 ? (
-                  <p style={S.reportP}>مفيش قياسات مسجلة للشهر ده لأي منصة.</p>
+                  <p style={S.reportP}>{t("مفيش قياسات مسجلة للشهر ده لأي منصة.")}</p>
                 ) : (
                   <>
                     {reportData.pageGrowth.map((g) => (
                       <p key={g.key} style={S.reportP}>
-                        {g.Icon && <g.Icon size={13} style={{ verticalAlign: -2 }} />} {g.label}:{" "}
+                        {g.Icon && <g.Icon size={13} style={{ verticalAlign: -2 }} />} {t(g.label)}:{" "}
                         {g.hasGrowth
-                          ? <>زيادة المتابعين <strong>{g.diff >= 0 ? "+" : ""}{g.diff}</strong> متابع (من {fmtDate(g.first.date)} لحد {fmtDate(g.latest.date)})</>
-                          : <>{g.latest.followers ?? "؟"} متابع بتاريخ {fmtDate(g.latest.date)}</>}
+                          ? <>{t("زيادة المتابعين")} <strong>{g.diff >= 0 ? "+" : ""}{g.diff}</strong> {t("متابع")} ({t("من")} {fmtDate(g.first.date)} {t("لحد")} {fmtDate(g.latest.date)})</>
+                          : <>{g.latest.followers ?? "؟"} {t("متابع بتاريخ")} {fmtDate(g.latest.date)}</>}
                       </p>
                     ))}
                     {reportData.pageGrowth.filter((g) => g.diff != null).length >= 2 && (
-                      <p style={S.reportP}>إجمالي زيادة المتابعين: <strong>{reportData.totalGrowth >= 0 ? "+" : ""}{reportData.totalGrowth}</strong></p>
+                      <p style={S.reportP}>{t("إجمالي زيادة المتابعين")}: <strong>{reportData.totalGrowth >= 0 ? "+" : ""}{reportData.totalGrowth}</strong></p>
                     )}
                   </>
                 )}
@@ -4057,10 +4084,10 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
           </div>
 
           <div style={{ ...S.modalFooter, justifyContent: "flex-start", marginTop: 12, flexWrap: "wrap" }} className="modalFooter">
-            <button onClick={copyReport} style={S.secondaryBtn}><Copy size={14} /> {reportCopied ? "اتنسخ" : "انسخ التقرير"}</button>
-            <button onClick={downloadReportTxt} style={S.secondaryBtn}><Download size={14} /> نزّل كملف نصي</button>
+            <button onClick={copyReport} style={S.secondaryBtn}><Copy size={14} /> {reportCopied ? t("اتنسخ") : t("انسخ التقرير")}</button>
+            <button onClick={downloadReportTxt} style={S.secondaryBtn}><Download size={14} /> {t("نزّل كملف نصي")}</button>
             <button onClick={downloadReportPdf} disabled={pdfLoading} style={S.primaryBtn(brand.color)}>
-              <FileText size={14} /> {pdfLoading ? "بيتجهّز..." : "نزّل PDF"}
+              <FileText size={14} /> {pdfLoading ? t("بيتجهّز...") : t("نزّل PDF")}
             </button>
           </div>
         </ModalShell>
@@ -4081,10 +4108,11 @@ function PageTrackingCard({ brand, onPatchBrand }) {
     onPatchBrand(brand.id, { pageTracking: { ...pageTracking, [key]: { ...current, ...patch } } });
   }
 
+  const { t } = useLanguage();
   return (
     <div>
-      <h3 style={S.h3}><Users size={14} style={{ verticalAlign: -2 }} /> تتبع صفحات البراند</h3>
-      <p style={S.aiHint}>سجّل أول قياس أول ما تمسك كل منصة، وكرر التسجيل كل فترة عشان تبني سجل نمو حقيقي — كل منصة بسجلها ونموها لوحدها.</p>
+      <h3 style={S.h3}><Users size={14} style={{ verticalAlign: -2 }} /> {t("تتبع صفحات البراند")}</h3>
+      <p style={S.aiHint}>{t("سجّل أول قياس أول ما تمسك كل منصة، وكرر التسجيل كل فترة عشان تبني سجل نمو حقيقي — كل منصة بسجلها ونموها لوحدها.")}</p>
       {PAGE_TRACKING_PLATFORMS.map((p) => (
         <PlatformTrackingBlock
           key={p.key}
@@ -4099,6 +4127,7 @@ function PageTrackingCard({ brand, onPatchBrand }) {
 }
 
 function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
+  const { t } = useLanguage();
   const [link, setLink] = useState(state.link || "");
   const [followersInput, setFollowersInput] = useState("");
   const [postsInput, setPostsInput] = useState("");
@@ -4164,19 +4193,19 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
     <div style={{ marginBottom: 22 }}>
       <h4 style={{ ...S.h3, fontSize: 13, marginBottom: 8 }}><Icon size={14} style={{ verticalAlign: -2 }} /> {platform.label}</h4>
       <div style={S.refCard}>
-        <input style={S.input} value={link} onChange={(e) => setLink(e.target.value)} onBlur={saveLink} placeholder={`لينك صفحة ${platform.label}`} />
+        <input style={S.input} value={link} onChange={(e) => setLink(e.target.value)} onBlur={saveLink} placeholder={`${t("لينك صفحة")} ${platform.label}`} />
 
         <div style={{ ...S.rowTwo, marginTop: 10 }} className="rowTwo">
           <div style={S.formGroup}>
-            <label style={S.label}>عدد المتابعين</label>
-            <input type="number" min="0" style={S.input} value={followersInput} onChange={(e) => setFollowersInput(e.target.value)} placeholder="اكتب الرقم اللي شفته" />
+            <label style={S.label}>{t("عدد المتابعين")}</label>
+            <input type="number" min="0" style={S.input} value={followersInput} onChange={(e) => setFollowersInput(e.target.value)} placeholder={t("اكتب الرقم اللي شفته")} />
           </div>
           <div style={S.formGroup}>
-            <label style={S.label}>عدد البوستات</label>
-            <input type="number" min="0" style={S.input} value={postsInput} onChange={(e) => setPostsInput(e.target.value)} placeholder="اكتب الرقم اللي شفته" />
+            <label style={S.label}>{t("عدد البوستات")}</label>
+            <input type="number" min="0" style={S.input} value={postsInput} onChange={(e) => setPostsInput(e.target.value)} placeholder={t("اكتب الرقم اللي شفته")} />
           </div>
         </div>
-        <button onClick={saveSnapshot} style={S.primaryBtn(brand.color)}><Save size={14} /> سجّل القياس ده</button>
+        <button onClick={saveSnapshot} style={S.primaryBtn(brand.color)}><Save size={14} /> {t("سجّل القياس ده")}</button>
       </div>
 
       {snapshots.length > 0 && (
@@ -4184,8 +4213,8 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
           {growthSummary && (
             <div style={{ ...S.refCard, marginTop: 10, marginBottom: 10 }}>
               <p style={{ ...S.aiAnalysisText, margin: 0 }}>
-                <TrendingUp size={13} style={{ verticalAlign: -2 }} /> من {fmtDate(growthSummary.from.date)} لحد {fmtDate(growthSummary.to.date)} ({growthSummary.days} يوم):
-                {" "}{growthSummary.diff >= 0 ? "زوّدت" : "قلّت"} {fmtMoney(Math.abs(growthSummary.diff))} متابع.
+                <TrendingUp size={13} style={{ verticalAlign: -2 }} /> {t("من")} {fmtDate(growthSummary.from.date)} {t("لحد")} {fmtDate(growthSummary.to.date)} ({growthSummary.days} {t("يوم")}):
+                {" "}{growthSummary.diff >= 0 ? t("زوّدت") : t("قلّت")} {fmtMoney(Math.abs(growthSummary.diff))} {t("متابع.")}
               </p>
             </div>
           )}
@@ -4198,21 +4227,21 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
                   <div key={s.id} style={S.refCard}>
                     <div style={S.rowTwo} className="rowTwo">
                       <div style={S.formGroup}>
-                        <label style={S.label}>عدد المتابعين</label>
+                        <label style={S.label}>{t("عدد المتابعين")}</label>
                         <input type="number" min="0" style={S.input} value={editFollowers} onChange={(e) => setEditFollowers(e.target.value)} />
                       </div>
                       <div style={S.formGroup}>
-                        <label style={S.label}>عدد البوستات</label>
+                        <label style={S.label}>{t("عدد البوستات")}</label>
                         <input type="number" min="0" style={S.input} value={editPosts} onChange={(e) => setEditPosts(e.target.value)} />
                       </div>
                     </div>
                     <div style={S.formGroup}>
-                      <label style={S.label}>التاريخ</label>
+                      <label style={S.label}>{t("التاريخ")}</label>
                       <input type="date" style={S.input} value={editDate} onChange={(e) => setEditDate(e.target.value)} />
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={cancelEditSnapshot} style={S.secondaryBtn}>إلغاء</button>
-                      <button onClick={saveEditedSnapshot} style={S.primaryBtn(brand.color)}><Save size={13} /> احفظ</button>
+                      <button onClick={cancelEditSnapshot} style={S.secondaryBtn}>{t("إلغاء")}</button>
+                      <button onClick={saveEditedSnapshot} style={S.primaryBtn(brand.color)}><Save size={13} /> {t("احفظ")}</button>
                     </div>
                   </div>
                 );
@@ -4222,8 +4251,8 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
                   <span style={{ ...S.dot, background: brand.color }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={S.upcomingTitle}>
-                      {s.followers != null ? `${fmtMoney(s.followers)} متابع` : "متابعين غير مسجلة"}
-                      {s.posts != null && ` · ${fmtMoney(s.posts)} بوست`}
+                      {s.followers != null ? `${fmtMoney(s.followers)} ${t("متابع")}` : t("متابعين غير مسجلة")}
+                      {s.posts != null && ` · ${fmtMoney(s.posts)} ${t("بوستات")}`}
                       {fDiff != null && (fDiff >= 0 ? ` · +${fmtMoney(fDiff)}` : ` · ${fmtMoney(fDiff)}`)}
                     </div>
                     <div style={S.upcomingMeta}>{fmtDate(s.date)}</div>
@@ -4243,6 +4272,7 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
 /* ---------- Payments tab (brand-level running ledger) ---------- */
 
 function PaymentsTab({ brand, onPatchBrand }) {
+  const { t } = useLanguage();
   const [totalInput, setTotalInput] = useState(brand.paymentTotal ?? 0);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -4337,70 +4367,70 @@ function PaymentsTab({ brand, onPatchBrand }) {
   return (
     <div>
       <div style={S.statRow} className="statRow">
-        <StatCard label="الإجمالي المتفق عليه" value={fmtMoney(total)} />
-        <StatCard label="المستلم لحد دلوقتي" value={fmtMoney(received)} color={colors.good} />
-        <StatCard label="المتبقي" value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
-        <StatCard label="إجمالي المصاريف" value={fmtMoney(spent)} color={colors.danger} />
-        <StatCard label="الصافي (ربحك الحقيقي)" value={fmtMoney(netProfit)} color={netProfit < 0 ? colors.danger : colors.good} />
+        <StatCard label={t("الإجمالي المتفق عليه")} value={fmtMoney(total)} />
+        <StatCard label={t("المستلم لحد دلوقتي")} value={fmtMoney(received)} color={colors.good} />
+        <StatCard label={t("المتبقي")} value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
+        <StatCard label={t("إجمالي المصاريف")} value={fmtMoney(spent)} color={colors.danger} />
+        <StatCard label={t("الصافي (ربحك الحقيقي)")} value={fmtMoney(netProfit)} color={netProfit < 0 ? colors.danger : colors.good} />
       </div>
 
       <div style={S.dashGrid} className="dashGrid">
         <div>
-          <h3 style={S.h3}><Banknote size={14} style={{ verticalAlign: -2 }} /> الإجمالي المتفق عليه مع البراند</h3>
+          <h3 style={S.h3}><Banknote size={14} style={{ verticalAlign: -2 }} /> {t("الإجمالي المتفق عليه مع البراند")}</h3>
           <div style={S.refCard}>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="number" min="0" style={S.input} value={totalInput} onChange={(e) => setTotalInput(e.target.value)} onBlur={saveTotal} placeholder="مثلاً 10000" />
+              <input type="number" min="0" style={S.input} value={totalInput} onChange={(e) => setTotalInput(e.target.value)} onBlur={saveTotal} placeholder={t("مثلاً 10000")} />
               <button onClick={saveTotal} style={S.primaryBtn(brand.color)}><Save size={14} /></button>
             </div>
-            <p style={S.aiHint}>ده الرقم الكلي المتفق عليه مع البراند. كل دفعة تسجلها تحت بتتخصم منه تلقائي.</p>
+            <p style={S.aiHint}>{t("ده الرقم الكلي المتفق عليه مع البراند. كل دفعة تسجلها تحت بتتخصم منه تلقائي.")}</p>
           </div>
         </div>
 
         <div>
-          <h3 style={S.h3}>سجّل دفعة جديدة</h3>
+          <h3 style={S.h3}>{t("سجّل دفعة جديدة")}</h3>
           <div style={S.refCard}>
             <div style={S.rowTwo} className="rowTwo">
               <div style={S.formGroup}>
-                <label style={S.label}>المبلغ</label>
-                <input type="number" min="0" style={S.input} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="مثلاً 2000" />
+                <label style={S.label}>{t("المبلغ")}</label>
+                <input type="number" min="0" style={S.input} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={t("مثلاً 2000")} />
               </div>
               <div style={S.formGroup}>
-                <label style={S.label}>التاريخ</label>
+                <label style={S.label}>{t("التاريخ")}</label>
                 <input type="date" style={S.input} value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
             </div>
             <div style={S.formGroup}>
-              <label style={S.label}>ملاحظة (اختياري)</label>
-              <input style={S.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً: دفعة أولى" />
+              <label style={S.label}>{t("ملاحظة (اختياري)")}</label>
+              <input style={S.input} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("مثلاً: دفعة أولى")} />
             </div>
-            <button onClick={addPayment} style={S.primaryBtn(brand.color)}><Plus size={14} /> سجّل الدفعة</button>
+            <button onClick={addPayment} style={S.primaryBtn(brand.color)}><Plus size={14} /> {t("سجّل الدفعة")}</button>
           </div>
         </div>
       </div>
 
-      <h3 style={{ ...S.h3, marginTop: 22 }}>سجل الدفعات</h3>
+      <h3 style={{ ...S.h3, marginTop: 22 }}>{t("سجل الدفعات")}</h3>
       <div style={{ ...S.upcomingList, maxHeight: 320, overflowY: "auto" }} className="scrollbar">
-        {payments.length === 0 && <div style={S.emptyBrands}>لسه مفيش دفعات مسجلة.</div>}
+        {payments.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش دفعات مسجلة.")}</div>}
         {payments.map((p) =>
           editingId === p.id ? (
             <div key={p.id} style={S.refCard}>
               <div style={S.rowTwo} className="rowTwo">
                 <div style={S.formGroup}>
-                  <label style={S.label}>المبلغ</label>
+                  <label style={S.label}>{t("المبلغ")}</label>
                   <input type="number" min="0" style={S.input} value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
                 </div>
                 <div style={S.formGroup}>
-                  <label style={S.label}>التاريخ</label>
+                  <label style={S.label}>{t("التاريخ")}</label>
                   <input type="date" style={S.input} value={editDate} onChange={(e) => setEditDate(e.target.value)} />
                 </div>
               </div>
               <div style={S.formGroup}>
-                <label style={S.label}>ملاحظة (اختياري)</label>
+                <label style={S.label}>{t("ملاحظة (اختياري)")}</label>
                 <input style={S.input} value={editNote} onChange={(e) => setEditNote(e.target.value)} />
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={cancelEdit} style={S.secondaryBtn}>إلغاء</button>
-                <button onClick={saveEditedPayment} style={S.primaryBtn(brand.color)}><Save size={13} /> احفظ</button>
+                <button onClick={cancelEdit} style={S.secondaryBtn}>{t("إلغاء")}</button>
+                <button onClick={saveEditedPayment} style={S.primaryBtn(brand.color)}><Save size={13} /> {t("احفظ")}</button>
               </div>
             </div>
           ) : (
@@ -4417,47 +4447,47 @@ function PaymentsTab({ brand, onPatchBrand }) {
         )}
       </div>
 
-      <h3 style={{ ...S.h3, marginTop: 28 }}><Minus size={14} style={{ verticalAlign: -2 }} /> المصاريف (إعلانات، مصممين، أدوات...)</h3>
+      <h3 style={{ ...S.h3, marginTop: 28 }}><Minus size={14} style={{ verticalAlign: -2 }} /> {t("المصاريف (إعلانات، مصممين، أدوات...)")}</h3>
       <div style={S.refCard}>
         <div style={S.rowTwo} className="rowTwo">
           <div style={S.formGroup}>
-            <label style={S.label}>المبلغ</label>
-            <input type="number" min="0" style={S.input} value={expAmount} onChange={(e) => setExpAmount(e.target.value)} placeholder="مثلاً 500" />
+            <label style={S.label}>{t("المبلغ")}</label>
+            <input type="number" min="0" style={S.input} value={expAmount} onChange={(e) => setExpAmount(e.target.value)} placeholder={t("مثلاً 500")} />
           </div>
           <div style={S.formGroup}>
-            <label style={S.label}>التاريخ</label>
+            <label style={S.label}>{t("التاريخ")}</label>
             <input type="date" style={S.input} value={expDate} onChange={(e) => setExpDate(e.target.value)} />
           </div>
         </div>
         <div style={S.formGroup}>
-          <label style={S.label}>على إيه؟ (اختياري)</label>
-          <input style={S.input} value={expNote} onChange={(e) => setExpNote(e.target.value)} placeholder="مثلاً: بوست ممول، مصمم فريلانس..." />
+          <label style={S.label}>{t("على إيه؟ (اختياري)")}</label>
+          <input style={S.input} value={expNote} onChange={(e) => setExpNote(e.target.value)} placeholder={t("مثلاً: بوست ممول، مصمم فريلانس...")} />
         </div>
-        <button onClick={addExpense} style={S.dangerBtn}><Minus size={14} /> سجّل مصروف</button>
+        <button onClick={addExpense} style={S.dangerBtn}><Minus size={14} /> {t("سجّل مصروف")}</button>
       </div>
 
       <div style={{ ...S.upcomingList, maxHeight: 320, overflowY: "auto", marginTop: 10 }} className="scrollbar">
-        {expenses.length === 0 && <div style={S.emptyBrands}>لسه مفيش مصاريف مسجلة.</div>}
+        {expenses.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش مصاريف مسجلة.")}</div>}
         {expenses.map((p) =>
           editingExpId === p.id ? (
             <div key={p.id} style={S.refCard}>
               <div style={S.rowTwo} className="rowTwo">
                 <div style={S.formGroup}>
-                  <label style={S.label}>المبلغ</label>
+                  <label style={S.label}>{t("المبلغ")}</label>
                   <input type="number" min="0" style={S.input} value={editExpAmount} onChange={(e) => setEditExpAmount(e.target.value)} />
                 </div>
                 <div style={S.formGroup}>
-                  <label style={S.label}>التاريخ</label>
+                  <label style={S.label}>{t("التاريخ")}</label>
                   <input type="date" style={S.input} value={editExpDate} onChange={(e) => setEditExpDate(e.target.value)} />
                 </div>
               </div>
               <div style={S.formGroup}>
-                <label style={S.label}>على إيه؟ (اختياري)</label>
+                <label style={S.label}>{t("على إيه؟ (اختياري)")}</label>
                 <input style={S.input} value={editExpNote} onChange={(e) => setEditExpNote(e.target.value)} />
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={cancelEditExpense} style={S.secondaryBtn}>إلغاء</button>
-                <button onClick={saveEditedExpense} style={S.primaryBtn(brand.color)}><Save size={13} /> احفظ</button>
+                <button onClick={cancelEditExpense} style={S.secondaryBtn}>{t("إلغاء")}</button>
+                <button onClick={saveEditedExpense} style={S.primaryBtn(brand.color)}><Save size={13} /> {t("احفظ")}</button>
               </div>
             </div>
           ) : (
@@ -4480,6 +4510,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
 /* ---------- Reference tab ---------- */
 
 function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
+  const { t } = useLanguage();
   const [hashtags, setHashtags] = useState(brand.hashtags || "");
   const [agreementNotes, setAgreementNotes] = useState(brand.agreementNotes || "");
   const [copied, setCopied] = useState(false);
@@ -4501,9 +4532,9 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
     onPatchBrand(brand.id, { captionTemplates: { ...templates, [type]: value } });
   }
   function addEvergreen() {
-    const t = newEvergreen.trim();
-    if (!t) return;
-    onPatchBrand(brand.id, { evergreenIdeas: [...evergreen, { id: uid(), text: t }] });
+    const txt = newEvergreen.trim();
+    if (!txt) return;
+    onPatchBrand(brand.id, { evergreenIdeas: [...evergreen, { id: uid(), text: txt }] });
     setNewEvergreen("");
   }
   function removeEvergreen(id) {
@@ -4525,35 +4556,35 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
 
   return (
     <div>
-      <h3 style={S.h3}><MessageCircle size={14} style={{ verticalAlign: -2 }} /> الاتفاق مع البراند</h3>
+      <h3 style={S.h3}><MessageCircle size={14} style={{ verticalAlign: -2 }} /> {t("الاتفاق مع البراند")}</h3>
       <div style={{ ...S.refCard, marginBottom: 22 }}>
         <textarea
           style={{ ...S.input, minHeight: 80, resize: "vertical" }}
           value={agreementNotes}
           onChange={(e) => setAgreementNotes(e.target.value)}
           onBlur={saveAgreementNotes}
-          placeholder="مثلاً: متفقين على 8 بوستات و4 ريلز في الشهر، البراند محتاج مني أفكار وتصوير، وهو مسؤول عن الموافقة النهائية والمنتج..."
+          placeholder={t("مثلاً: متفقين على 8 بوستات و4 ريلز في الشهر، البراند محتاج مني أفكار وتصوير، وهو مسؤول عن الموافقة النهائية والمنتج...")}
         />
       </div>
 
       <div style={S.dashGrid} className="dashGrid">
         <div>
-          <h3 style={S.h3}><Hash size={14} style={{ verticalAlign: -2 }} /> هاشتاجات البراند</h3>
+          <h3 style={S.h3}><Hash size={14} style={{ verticalAlign: -2 }} /> {t("هاشتاجات البراند")}</h3>
         <div style={S.refCard}>
           <textarea style={{ ...S.input, minHeight: 70, resize: "vertical" }} value={hashtags} onChange={(e) => setHashtags(e.target.value)} onBlur={saveHashtags} placeholder="#مثال #هاشتاج_تاني" />
-          <button onClick={copyHashtags} style={{ ...S.secondaryBtn, marginTop: 8 }}><Copy size={13} /> {copied ? "اتنسخت" : "انسخ"}</button>
+          <button onClick={copyHashtags} style={{ ...S.secondaryBtn, marginTop: 8 }}><Copy size={13} /> {copied ? t("اتنسخت") : t("انسخ")}</button>
         </div>
 
-        <h3 style={{ ...S.h3, marginTop: 22 }}>قوالب الكابشن حسب النوع</h3>
+        <h3 style={{ ...S.h3, marginTop: 22 }}>{t("قوالب الكابشن حسب النوع")}</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {TYPE_OPTIONS.map((t) => (
-            <div key={t} style={S.refCard}>
-              <div style={S.refTemplateLabel}>{t}</div>
+          {TYPE_OPTIONS.map((ty) => (
+            <div key={ty} style={S.refCard}>
+              <div style={S.refTemplateLabel}>{t(ty)}</div>
               <textarea
                 style={{ ...S.input, minHeight: 50, resize: "vertical" }}
-                defaultValue={templates[t] || ""}
-                onBlur={(e) => saveTemplate(t, e.target.value)}
-                placeholder={`قالب كابشن جاهز لمحتوى نوع ${t}...`}
+                defaultValue={templates[ty] || ""}
+                onBlur={(e) => saveTemplate(ty, e.target.value)}
+                placeholder={`${t("قالب كابشن جاهز لمحتوى نوع")} ${t(ty)}...`}
               />
             </div>
           ))}
@@ -4561,45 +4592,45 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
       </div>
 
       <div>
-        <h3 style={S.h3}><Link2 size={14} style={{ verticalAlign: -2 }} /> ريفرنسات وصفحات بتجيب منها أفكار</h3>
+        <h3 style={S.h3}><Link2 size={14} style={{ verticalAlign: -2 }} /> {t("ريفرنسات وصفحات بتجيب منها أفكار")}</h3>
         <div style={S.refCard}>
           <div style={S.formGroup}>
-            <label style={S.label}>اسم أو وصف قصير (اختياري)</label>
-            <input style={S.input} value={sourceTitle} onChange={(e) => setSourceTitle(e.target.value)} placeholder="مثلاً: صفحة إلهام ريلز" />
+            <label style={S.label}>{t("اسم أو وصف قصير (اختياري)")}</label>
+            <input style={S.input} value={sourceTitle} onChange={(e) => setSourceTitle(e.target.value)} placeholder={t("مثلاً: صفحة إلهام ريلز")} />
           </div>
           <div style={S.formGroup}>
-            <label style={S.label}>اللينك</label>
-            <input style={S.input} value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addSource(); }} placeholder="لينك الصفحة أو الحساب" />
+            <label style={S.label}>{t("اللينك")}</label>
+            <input style={S.input} value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addSource(); }} placeholder={t("لينك الصفحة أو الحساب")} />
           </div>
-          <button onClick={addSource} style={S.primaryBtn(brand.color)}><Plus size={14} /> ضيف ريفرنس</button>
+          <button onClick={addSource} style={S.primaryBtn(brand.color)}><Plus size={14} /> {t("ضيف ريفرنس")}</button>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12, maxHeight: 260, overflowY: "auto" }} className="scrollbar">
-            {sources.length === 0 && <div style={S.emptyBrands}>لسه مفيش ريفرنسات مسجلة.</div>}
+            {sources.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش ريفرنسات مسجلة.")}</div>}
             {sources.map((s) => (
               <div key={s.id} style={S.upcomingRow}>
                 <a href={normalizeUrl(s.url)} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, textDecoration: "none", color: colors.text }}>
                   <div style={S.upcomingTitle}>{s.title || s.url}</div>
                   {s.title && <div style={S.upcomingMeta}>{s.url}</div>}
                 </a>
-                <a href={normalizeUrl(s.url)} target="_blank" rel="noopener noreferrer" style={S.ticketIconBtn} title="افتح في تبويبة جديدة"><ExternalLink size={12} /></a>
+                <a href={normalizeUrl(s.url)} target="_blank" rel="noopener noreferrer" style={S.ticketIconBtn} title={t("افتح في تبويبة جديدة")}><ExternalLink size={12} /></a>
                 <button onClick={() => removeSource(s.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
               </div>
             ))}
           </div>
         </div>
 
-        <h3 style={{ ...S.h3, marginTop: 22 }}><Repeat size={14} style={{ verticalAlign: -2 }} /> أفكار evergreen شهرية</h3>
+        <h3 style={{ ...S.h3, marginTop: 22 }}><Repeat size={14} style={{ verticalAlign: -2 }} /> {t("أفكار evergreen شهرية")}</h3>
         <div style={S.refCard}>
           <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-            <input style={S.input} value={newEvergreen} onChange={(e) => setNewEvergreen(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addEvergreen(); }} placeholder="فكرة بتتكرر كل شهر..." />
+            <input style={S.input} value={newEvergreen} onChange={(e) => setNewEvergreen(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addEvergreen(); }} placeholder={t("فكرة بتتكرر كل شهر...")} />
             <button onClick={addEvergreen} style={S.primaryBtn(brand.color)}><Plus size={14} /></button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }} className="scrollbar">
-            {evergreen.length === 0 && <div style={S.emptyBrands}>لسه مفيش أفكار evergreen مسجلة.</div>}
+            {evergreen.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش أفكار evergreen مسجلة.")}</div>}
             {evergreen.map((e) => (
               <div key={e.id} style={S.upcomingRow}>
                 <div style={{ flex: 1, fontSize: 12.5 }}>{e.text}</div>
-                <button onClick={() => onUseIdea(brand.id, e.text)} style={S.aiUseBtn}><Plus size={11} /> استخدمها</button>
+                <button onClick={() => onUseIdea(brand.id, e.text)} style={S.aiUseBtn}><Plus size={11} /> {t("استخدمها")}</button>
                 <button onClick={() => removeEvergreen(e.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
               </div>
             ))}
@@ -4614,6 +4645,7 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
 /* ---------- Calendar ---------- */
 
 function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick, showBrandColor }) {
+  const { lang } = useLanguage();
   const { y, m } = month;
   const first = new Date(y, m, 1);
   const startWeekday = first.getDay();
@@ -4647,11 +4679,11 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
       )}
       <div style={S.calHeader} className="calHeader">
         <button onClick={() => setMonth((cm) => normMonth(cm.y, cm.m - 1))} style={S.iconBtnSm}><ChevronRight size={15} /></button>
-        <span style={S.calTitle}>{MONTHS_AR[m]} {y}</span>
+        <span style={S.calTitle}>{(lang === "en" ? MONTHS_EN : MONTHS_AR)[m]} {y}</span>
         <button onClick={() => setMonth((cm) => normMonth(cm.y, cm.m + 1))} style={S.iconBtnSm}><ChevronLeft size={15} /></button>
       </div>
       <div style={S.calGrid} className="calGrid">
-        {WEEKDAYS_AR.map((wd) => <div key={wd} style={S.calWeekday} className="calWeekday">{wd}</div>)}
+        {(lang === "en" ? WEEKDAYS_EN : WEEKDAYS_AR).map((wd) => <div key={wd} style={S.calWeekday} className="calWeekday">{wd}</div>)}
         {cells.map((d, i) => {
           if (d === null) return <div key={i} style={S.calCellEmpty} className="calCellEmpty" />;
           const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -4706,6 +4738,7 @@ function ModalShell({ onClose, children, wide }) {
 }
 
 function BrandModal({ brand, onClose, onSave }) {
+  const { t } = useLanguage();
   const [name, setName] = useState(brand?.name || "");
   const [handle, setHandle] = useState(brand?.handle || "");
   const [emoji, setEmoji] = useState(brand?.emoji || EMOJI_OPTIONS[0]);
@@ -4714,19 +4747,19 @@ function BrandModal({ brand, onClose, onSave }) {
   return (
     <ModalShell onClose={onClose}>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}>{brand ? "عدّل البراند" : "براند جديد"}</span>
+        <span style={S.modalTitle}>{brand ? t("عدّل البراند") : t("براند جديد")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
       <div style={S.formGroup}>
-        <label style={S.label}>اسم البراند</label>
-        <input style={S.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً: بن الصباح" />
+        <label style={S.label}>{t("اسم البراند")}</label>
+        <input style={S.input} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("مثلاً: بن الصباح")} />
       </div>
       <div style={S.formGroup}>
-        <label style={S.label}>بيانات تواصل (اختياري)</label>
-        <input style={S.input} value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@account أو رقم موبايل" />
+        <label style={S.label}>{t("بيانات تواصل (اختياري)")}</label>
+        <input style={S.input} value={handle} onChange={(e) => setHandle(e.target.value)} placeholder={t("@account أو رقم موبايل")} />
       </div>
       <div style={S.formGroup}>
-        <label style={S.label}>أيقونة</label>
+        <label style={S.label}>{t("أيقونة")}</label>
         <div style={S.swatchRow}>
           {EMOJI_OPTIONS.map((em) => (
             <button key={em} onClick={() => setEmoji(em)} style={{ ...S.emojiSwatch, ...(emoji === em ? S.emojiSwatchActive : {}) }}>{em}</button>
@@ -4734,7 +4767,7 @@ function BrandModal({ brand, onClose, onSave }) {
         </div>
       </div>
       <div style={S.formGroup}>
-        <label style={S.label}>اللون</label>
+        <label style={S.label}>{t("اللون")}</label>
         <div style={S.swatchRow}>
           {PALETTE.map((c) => (
             <button key={c} onClick={() => setColor(c)} style={{ ...S.colorSwatch, background: c, ...(color === c ? S.colorSwatchActive : {}) }} />
@@ -4742,9 +4775,9 @@ function BrandModal({ brand, onClose, onSave }) {
         </div>
       </div>
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
+        <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
         <button disabled={!name.trim()} onClick={() => onSave({ id: brand?.id, name: name.trim(), handle: handle.trim(), emoji, color })} style={S.primaryBtn(color)}>
-          <Check size={15} /> حفظ
+          <Check size={15} /> {t("حفظ")}
         </button>
       </div>
     </ModalShell>
@@ -4752,6 +4785,7 @@ function BrandModal({ brand, onClose, onSave }) {
 }
 
 function BulkAddModal({ brand, onClose, onSave }) {
+  const { t } = useLanguage();
   const [text, setText] = useState("");
   const [type, setType] = useState(TYPE_OPTIONS[0]);
   const [status, setStatus] = useState("idea");
@@ -4761,40 +4795,40 @@ function BulkAddModal({ brand, onClose, onSave }) {
   return (
     <ModalShell onClose={onClose} wide>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}><ListPlus size={16} style={{ verticalAlign: -2 }} /> إضافة أفكار بالجملة{brand ? ` لبراند ${brand.name}` : ""}</span>
+        <span style={S.modalTitle}><ListPlus size={16} style={{ verticalAlign: -2 }} /> {t("إضافة أفكار بالجملة")}{brand ? ` ${t("لبراند")} ${brand.name}` : ""}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>اكتب عنوان فكرة في كل سطر</label>
+        <label style={S.label}>{t("اكتب عنوان فكرة في كل سطر")}</label>
         <textarea
           style={{ ...S.input, minHeight: 160, resize: "vertical" }}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={"ريلز عن أسرار القهوة\nبوست تعريفي بالمنتج الجديد\nستوري سؤال وجواب"}
+          placeholder={t("ريلز عن أسرار القهوة\nبوست تعريفي بالمنتج الجديد\nستوري سؤال وجواب")}
         />
-        <p style={S.aiHint}>{lines.length} فكرة هتتضاف. تقدر تعدّل كل واحدة بتفاصيلها بعد ما تضيفها.</p>
+        <p style={S.aiHint}>{lines.length} {t("فكرة هتتضاف. تقدر تعدّل كل واحدة بتفاصيلها بعد ما تضيفها.")}</p>
       </div>
 
       <div style={S.rowTwo} className="rowTwo">
         <div style={S.formGroup}>
-          <label style={S.label}>النوع (لكل الأفكار)</label>
+          <label style={S.label}>{t("النوع (لكل الأفكار)")}</label>
           <select style={S.input} value={type} onChange={(e) => setType(e.target.value)}>
-            {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            {TYPE_OPTIONS.map((ty) => <option key={ty} value={ty}>{t(ty)}</option>)}
           </select>
         </div>
         <div style={S.formGroup}>
-          <label style={S.label}>الحالة (لكل الأفكار)</label>
+          <label style={S.label}>{t("الحالة (لكل الأفكار)")}</label>
           <select style={S.input} value={status} onChange={(e) => setStatus(e.target.value)}>
-            {STATUS_DEFS.map((sd) => <option key={sd.key} value={sd.key}>{sd.label}</option>)}
+            {STATUS_DEFS.map((sd) => <option key={sd.key} value={sd.key}>{t(sd.label)}</option>)}
           </select>
         </div>
       </div>
 
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
+        <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
         <button disabled={lines.length === 0} onClick={() => onSave(lines, type, status)} style={S.primaryBtn(brand?.color || PALETTE[0])}>
-          <ListPlus size={15} /> ضيف {lines.length || ""} فكرة
+          <ListPlus size={15} /> {t("ضيف")} {lines.length || ""} {t("فكرة")}
         </button>
       </div>
     </ModalShell>
@@ -4802,6 +4836,7 @@ function BulkAddModal({ brand, onClose, onSave }) {
 }
 
 function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, defaultNotes, linkedAnalysis, onClose, onSave, onAnalyzePerformance, onViewAnalysis }) {
+  const { t } = useLanguage();
   const [title, setTitle] = useState(item?.title || defaultTitle || "");
   const [notes, setNotes] = useState(item?.notes || defaultNotes || "");
   const [link, setLink] = useState(item?.link || "");
@@ -4823,13 +4858,13 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
   return (
     <ModalShell onClose={onClose} wide>
       <div style={S.modalHead}>
-        <span style={S.modalTitle}>{item ? "عدّل الفكرة" : "فكرة جديدة"}</span>
+        <span style={S.modalTitle}>{item ? t("عدّل الفكرة") : t("فكرة جديدة")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
 
       {brands.length > 1 && (
         <div style={S.formGroup}>
-          <label style={S.label}>البراند</label>
+          <label style={S.label}>{t("البراند")}</label>
           <select style={S.input} value={brandId} onChange={(e) => setBrandId(e.target.value)}>
             {brands.map((b) => <option key={b.id} value={b.id}>{b.emoji} {b.name}</option>)}
           </select>
@@ -4837,67 +4872,67 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
       )}
 
       <div style={S.formGroup}>
-        <label style={S.label}>العنوان</label>
-        <input style={S.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثلاً: ريلز عن طريقة تحضير القهوة" autoFocus />
+        <label style={S.label}>{t("العنوان")}</label>
+        <input style={S.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("مثلاً: ريلز عن طريقة تحضير القهوة")} autoFocus />
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}><Link2 size={12} style={{ verticalAlign: -1 }} /> لينك الريفرنس (المصدر اللي جبت منه الفكرة)</label>
-        <input style={S.input} value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder="لينك المحتوى اللي استلهمت منه الفكرة" />
+        <label style={S.label}><Link2 size={12} style={{ verticalAlign: -1 }} /> {t("لينك الريفرنس (المصدر اللي جبت منه الفكرة)")}</label>
+        <input style={S.input} value={referenceLink} onChange={(e) => setReferenceLink(e.target.value)} placeholder={t("لينك المحتوى اللي استلهمت منه الفكرة")} />
       </div>
 
       <div style={S.rowTwo} className="rowTwo">
         <div style={S.formGroup}>
-          <label style={S.label}>النوع</label>
+          <label style={S.label}>{t("النوع")}</label>
           <select style={S.input} value={type} onChange={(e) => setType(e.target.value)}>
-            {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            {TYPE_OPTIONS.map((ty) => <option key={ty} value={ty}>{t(ty)}</option>)}
           </select>
         </div>
         <div style={S.formGroup}>
-          <label style={S.label}>معاد التسليم/النشر (اختياري)</label>
+          <label style={S.label}>{t("معاد التسليم/النشر (اختياري)")}</label>
           <input type="date" style={S.input} value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
       </div>
 
       {date && (
         <div style={S.formGroup}>
-          <label style={S.label}><Bell size={12} style={{ verticalAlign: -1 }} /> ذكّرني قبل الميعاد بكام يوم؟ (اختياري)</label>
+          <label style={S.label}><Bell size={12} style={{ verticalAlign: -1 }} /> {t("ذكّرني قبل الميعاد بكام يوم؟ (اختياري)")}</label>
           <input
             type="number" min="0" max="60" style={S.input}
             value={reminderDays}
             onChange={(e) => setReminderDays(e.target.value)}
-            placeholder="مثلاً 2 (يذكّرك قبل الميعاد بيومين)"
+            placeholder={t("مثلاً 2 (يذكّرك قبل الميعاد بيومين)")}
           />
         </div>
       )}
 
       <div style={S.formGroup}>
-        <label style={S.label}><Link2 size={12} style={{ verticalAlign: -1 }} /> لينك الفيديو أو البوست بعد النشر (اختياري)</label>
-        <input style={S.input} value={link} onChange={(e) => setLink(e.target.value)} placeholder="حط اللينك بعد ما تنزل المحتوى" />
+        <label style={S.label}><Link2 size={12} style={{ verticalAlign: -1 }} /> {t("لينك الفيديو أو البوست بعد النشر (اختياري)")}</label>
+        <input style={S.input} value={link} onChange={(e) => setLink(e.target.value)} placeholder={t("حط اللينك بعد ما تنزل المحتوى")} />
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)</label>
+        <label style={S.label}>{t("نتيجة النشر (اختياري، تملاها بعد ما المحتوى ينزل)")}</label>
 
         {linkedAnalysis ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <span style={S.analyzerLinkedBadge}><TrendingUp size={12} /> يوجد تحليل أداء</span>
-            <button type="button" onClick={() => onViewAnalysis(item.brandId)} style={S.analyzerLinkBtn}>عرض التحليل</button>
+            <span style={S.analyzerLinkedBadge}><TrendingUp size={12} /> {t("يوجد تحليل أداء")}</span>
+            <button type="button" onClick={() => onViewAnalysis(item.brandId)} style={S.analyzerLinkBtn}>{t("عرض التحليل")}</button>
           </div>
         ) : item ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-            <p style={{ ...S.aiHint, margin: 0 }}>عايز تجيب الأرقام تلقائي من اللينك؟</p>
+            <p style={{ ...S.aiHint, margin: 0 }}>{t("عايز تجيب الأرقام تلقائي من اللينك؟")}</p>
             <button type="button" onClick={() => onAnalyzePerformance(item.brandId, item.id)} style={S.analyzerLinkBtn}>
-              <BarChart3 size={11} /> تحليل الأداء
+              <BarChart3 size={11} /> {t("تحليل الأداء")}
             </button>
           </div>
         ) : (
-          <p style={S.aiHint}>عايز تجيب الأرقام تلقائي من اللينك؟ احفظ الفكرة الأول، وبعدها هتلاقي زرار "تحليل الأداء" هنا.</p>
+          <p style={S.aiHint}>{t('عايز تجيب الأرقام تلقائي من اللينك؟ احفظ الفكرة الأول، وبعدها هتلاقي زرار "تحليل الأداء" هنا.')}</p>
         )}
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>الحالة</label>
+        <label style={S.label}>{t("الحالة")}</label>
         <div style={S.statusPicker}>
           {STATUS_DEFS.map((sd) => (
             <button
@@ -4905,24 +4940,24 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
               onClick={() => setStatus(sd.key)}
               style={{ ...S.statusPickerBtn, color: sd.color, background: status === sd.key ? sd.bg : "transparent", borderColor: status === sd.key ? sd.color : colors.borderStrong }}
             >
-              {status === sd.key ? <CheckCircle2 size={13} /> : <Circle size={13} />} {sd.label}
+              {status === sd.key ? <CheckCircle2 size={13} /> : <Circle size={13} />} {t(sd.label)}
             </button>
           ))}
         </div>
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>ملاحظات (اختياري)</label>
-        <textarea style={{ ...S.input, minHeight: 60, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="تفاصيل، كابشن..." />
+        <label style={S.label}>{t("ملاحظات (اختياري)")}</label>
+        <textarea style={{ ...S.input, minHeight: 60, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("تفاصيل، كابشن...")} />
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>ليه نجحت؟ (اختياري)</label>
-        <textarea style={{ ...S.input, minHeight: 50, resize: "vertical" }} value={successNote} onChange={(e) => setSuccessNote(e.target.value)} placeholder="ملاحظة سريعة ليه المحتوى ده اشتغل كويس..." />
+        <label style={S.label}>{t("ليه نجحت؟ (اختياري)")}</label>
+        <textarea style={{ ...S.input, minHeight: 50, resize: "vertical" }} value={successNote} onChange={(e) => setSuccessNote(e.target.value)} placeholder={t("ملاحظة سريعة ليه المحتوى ده اشتغل كويس...")} />
       </div>
 
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onClose} style={S.secondaryBtn}>إلغاء</button>
+        <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
         <button
           disabled={!title.trim() || !brandId}
           onClick={() => onSave({
@@ -4938,7 +4973,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
           })}
           style={S.primaryBtn(brand?.color || PALETTE[0])}
         >
-          <Save size={15} /> حفظ
+          <Save size={15} /> {t("حفظ")}
         </button>
       </div>
     </ModalShell>
@@ -4946,14 +4981,15 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
 }
 
 function ConfirmModal({ text, onCancel, onConfirm, confirmLabel, confirmIcon, danger = true }) {
+  const { t } = useLanguage();
   return (
     <ModalShell onClose={onCancel}>
-      <div style={S.modalTitle}>متأكد؟</div>
+      <div style={S.modalTitle}>{t("متأكد؟")}</div>
       <p style={S.confirmText}>{text}</p>
       <div style={S.modalFooter} className="modalFooter">
-        <button onClick={onCancel} style={S.secondaryBtn}>رجوع</button>
+        <button onClick={onCancel} style={S.secondaryBtn}>{t("رجوع")}</button>
         <button onClick={onConfirm} style={danger ? S.dangerBtn : S.primaryBtn(colors.warning)}>
-          {confirmIcon || (danger && <Trash2 size={14} />)} {confirmLabel || "مسح نهائي"}
+          {confirmIcon || (danger && <Trash2 size={14} />)} {confirmLabel || t("مسح نهائي")}
         </button>
       </div>
     </ModalShell>

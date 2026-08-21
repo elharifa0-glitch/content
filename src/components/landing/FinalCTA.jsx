@@ -1,15 +1,17 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 export default function FinalCTA() {
+  const { t } = useLanguage();
   return (
     <section style={styles.section}>
       <div style={styles.card}>
-        <h2 style={styles.title}>ابدأ بتنظيم محتواك اليوم.</h2>
-        <p style={styles.sub}>خطط أفضل. بيانات أوضح. قرارات أذكى.</p>
+        <h2 style={styles.title}>{t("ابدأ بتنظيم محتواك اليوم.")}</h2>
+        <p style={styles.sub}>{t("خطط أفضل. بيانات أوضح. قرارات أذكى.")}</p>
         <a href="/signup" style={styles.cta}>
-          ابدأ مجانًا <ArrowLeft size={16} />
+          {t("ابدأ مجانًا")} <ArrowLeft size={16} />
         </a>
       </div>
     </section>

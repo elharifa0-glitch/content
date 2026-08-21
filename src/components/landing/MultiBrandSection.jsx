@@ -1,6 +1,7 @@
 import React from "react";
 import { LayoutGrid, BarChart3, Wallet } from "lucide-react";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const BRANDS = [
   { name: "Nova Studio", emoji: "🟠", ideas: 18, views: "248.6K" },
@@ -15,11 +16,12 @@ const FEATURES = [
 ];
 
 export default function MultiBrandSection() {
+  const { t } = useLanguage();
   return (
     <section style={styles.section}>
       <div style={styles.head}>
-        <h2 style={styles.title}>براند واحد ولا عشرة، إدارتها من مكان واحد.</h2>
-        <p style={styles.sub}>لكل براند أفكاره ومحتواه وتحليله الخاص، من غير ما يتلخبط مع البراندات التانية.</p>
+        <h2 style={styles.title}>{t("براند واحد ولا عشرة، إدارتها من مكان واحد.")}</h2>
+        <p style={styles.sub}>{t("لكل براند أفكاره ومحتواه وتحليله الخاص، من غير ما يتلخبط مع البراندات التانية.")}</p>
       </div>
 
       <div style={styles.cardsRow} className="landing-brands-grid">
@@ -30,8 +32,8 @@ export default function MultiBrandSection() {
               <span style={styles.brandName}>{b.name}</span>
             </div>
             <div style={styles.brandStats}>
-              <div><div style={styles.brandStatVal}>{b.ideas}</div><div style={styles.brandStatLabel}>فكرة</div></div>
-              <div><div style={styles.brandStatVal}>{b.views}</div><div style={styles.brandStatLabel}>مشاهدة</div></div>
+              <div><div style={styles.brandStatVal}>{b.ideas}</div><div style={styles.brandStatLabel}>{t("فكرة")}</div></div>
+              <div><div style={styles.brandStatVal}>{b.views}</div><div style={styles.brandStatLabel}>{t("مشاهدة")}</div></div>
             </div>
           </div>
         ))}
@@ -40,7 +42,7 @@ export default function MultiBrandSection() {
       <div style={styles.featuresRow}>
         {FEATURES.map((f) => (
           <div key={f.label} style={styles.featureChip}>
-            <f.icon size={14} color={landing.red} /> {f.label}
+            <f.icon size={14} color={landing.red} /> {t(f.label)}
           </div>
         ))}
       </div>

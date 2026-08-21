@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
-import { translate } from "./translations";
+import React, { createContext, useCallback, useContext, useLayoutEffect, useState } from "react";
+import { translate, setCurrentLang } from "./translations";
 
 const STORAGE_KEY = "cs-lang";
 const LanguageContext = createContext(null);
@@ -26,6 +26,23 @@ function getInitialLang() {
  */
 export function LanguageProvider({ children }) {
   const [lang, setLang] = useState(getInitialLang);
+
+  // fmtDate/fmtMonthKey/fmtAnalysisDate (ContentStudio.jsx) aren't React
+  // components and can't call useLanguage() — they read this module-level
+  // mirror instead, kept in sync on every render so month/weekday names
+  // follow the current language without threading `lang` through dozens of
+  // call sites.
+  useLayoutEffect(() => {
+    setCurrentLang(lang);
+    if (typeof document !== "undefined") {
+      const isEn = lang === "en";
+      document.documentElement.lang = isEn ? "en" : "ar";
+      document.documentElement.dir = isEn ? "ltr" : "rtl";
+      document.title = isEn
+        ? "ContentST — Manage & analyze your content in one place"
+        : "ContentST — إدارة وتحليل محتواك من مكان واحد";
+    }
+  }, [lang]);
 
   const changeLang = useCallback((next) => {
     setLang(next);

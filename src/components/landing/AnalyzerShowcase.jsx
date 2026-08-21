@@ -2,6 +2,7 @@ import React from "react";
 import { Instagram, Facebook, Youtube } from "lucide-react";
 import { AnalyzerMockup } from "./DashboardMockup";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 function TiktokIcon({ size = 14 }) {
   return (
@@ -19,22 +20,23 @@ const PLATFORMS = [
 ];
 
 export default function AnalyzerShowcase() {
+  const { t } = useLanguage();
   return (
     <section id="features" style={styles.section}>
       <div style={styles.grid} className="landing-split-grid">
         <div style={styles.textCol}>
           <div style={styles.eyebrow}>Social Analyzer</div>
-          <h2 style={styles.title}>حلّل أي محتوى في ثواني.</h2>
+          <h2 style={styles.title}>{t("حلّل أي محتوى في ثواني.")}</h2>
           <p style={styles.desc}>
-            الصق رابط الـReel أو الـPost أو الـVideo وشوف أرقام الأداء في مكان واحد.
+            {t("الصق رابط الـReel أو الـPost أو الـVideo وشوف أرقام الأداء في مكان واحد.")}
           </p>
           <div style={styles.platformsRow}>
             {PLATFORMS.map((p) => (
               <span key={p.label} style={styles.platformChip}><p.icon size={14} /> {p.label}</span>
             ))}
           </div>
-          <a href="/signup" style={styles.cta}>تحليل المحتوى</a>
-          <p style={styles.demoNote}>* أرقام تجريبية للتوضيح فقط</p>
+          <a href="/signup" style={styles.cta}>{t("تحليل المحتوى")}</a>
+          <p style={styles.demoNote}>{t("* أرقام تجريبية للتوضيح فقط")}</p>
         </div>
         <div style={styles.visualCol}>
           <AnalyzerMockup />

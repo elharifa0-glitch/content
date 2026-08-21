@@ -2,6 +2,7 @@ import React from "react";
 import { Check } from "lucide-react";
 import { KanbanMockup } from "./DashboardMockup";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const POINTS = [
   "لوحة أفكار (Kanban) لكل مراحل المحتوى",
@@ -11,20 +12,21 @@ const POINTS = [
 ];
 
 export default function ContentShowcase() {
+  const { t } = useLanguage();
   return (
     <section style={styles.section}>
       <div style={styles.grid} className="landing-split-grid">
         <div style={styles.textCol}>
           <div style={styles.eyebrow}>Content Pipeline</div>
-          <h2 style={styles.title}>من الفكرة لجدول النشر، من غير فوضى.</h2>
+          <h2 style={styles.title}>{t("من الفكرة لجدول النشر، من غير فوضى.")}</h2>
           <p style={styles.desc}>
-            نظّم كل أفكار المحتوى بتاعتك في لوحة واحدة واضحة، وتابع كل فكرة من أول ما تتولد لحد ما تتنشر.
+            {t("نظّم كل أفكار المحتوى بتاعتك في لوحة واحدة واضحة، وتابع كل فكرة من أول ما تتولد لحد ما تتنشر.")}
           </p>
           <ul style={styles.list}>
             {POINTS.map((p) => (
               <li key={p} style={styles.listItem}>
                 <span style={styles.checkWrap}><Check size={12} color="#fff" /></span>
-                {p}
+                {t(p)}
               </li>
             ))}
           </ul>

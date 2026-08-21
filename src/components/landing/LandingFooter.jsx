@@ -1,6 +1,7 @@
 import React from "react";
 import { Logo } from "../Logo";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const COLUMNS = [
   { title: "المنتج", links: [{ label: "المميزات", href: "#features" }, { label: "كيف يعمل؟", href: "#how-it-works" }, { label: "الأسعار", href: "#pricing" }] },
@@ -9,21 +10,22 @@ const COLUMNS = [
 ];
 
 export default function LandingFooter() {
+  const { t } = useLanguage();
   return (
     <footer style={styles.footer}>
       <div style={styles.inner}>
         <div style={styles.top}>
           <div style={styles.brandCol}>
             <Logo height={22} variant="dark" />
-            <p style={styles.tagline}>خطط، أنشئ، حلّل، وطوّر محتواك من مكان واحد.</p>
+            <p style={styles.tagline}>{t("خطط، أنشئ، حلّل، وطوّر محتواك من مكان واحد.")}</p>
           </div>
           <div style={styles.linksGrid}>
             {COLUMNS.map((col) => (
               <div key={col.title}>
-                <div style={styles.colTitle}>{col.title}</div>
+                <div style={styles.colTitle}>{t(col.title)}</div>
                 <div style={styles.colLinks}>
                   {col.links.map((l) => (
-                    <a key={l.label} href={l.href} style={styles.link}>{l.label}</a>
+                    <a key={l.label} href={l.href} style={styles.link}>{t(l.label)}</a>
                   ))}
                 </div>
               </div>
@@ -31,7 +33,7 @@ export default function LandingFooter() {
           </div>
         </div>
         <div style={styles.bottom}>
-          <span>© {new Date().getFullYear()} ContentST — كل الحقوق محفوظة.</span>
+          <span>© {new Date().getFullYear()} ContentST — {t("كل الحقوق محفوظة.")}</span>
         </div>
       </div>
     </footer>

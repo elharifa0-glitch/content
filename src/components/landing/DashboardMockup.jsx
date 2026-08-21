@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { LogoIcon } from "../Logo";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 // Deliberately mirrors the real app's Sidebar/Kanban/Analyzer/Insights
 // structure and copy (see src/ContentStudio.jsx) rather than an unrelated
@@ -55,6 +56,7 @@ function Frame({ children }) {
 }
 
 function MiniSidebar({ activeIndex = 0 }) {
+  const { t } = useLanguage();
   return (
     <div style={styles.sidebar} className="cs-mockup-sidebar">
       <div style={styles.sidebarBrand}>
@@ -65,7 +67,7 @@ function MiniSidebar({ activeIndex = 0 }) {
         {NAV_ITEMS.map((it, i) => (
           <div key={it.label} style={{ ...styles.navItem, ...(i === activeIndex ? styles.navItemActive : {}) }}>
             <it.icon size={13} />
-            <span>{it.label}</span>
+            <span>{t(it.label)}</span>
           </div>
         ))}
       </div>
@@ -86,18 +88,19 @@ const KANBAN_COLUMNS = [
 ];
 
 export function KanbanMockup() {
+  const { t } = useLanguage();
   return (
     <Frame>
       <div style={styles.dashRow} className="cs-mockup-row">
         <MiniSidebar activeIndex={0} />
         <div style={styles.mainArea} className="cs-mockup-main">
-          <div style={styles.mainHead}>لوحة أفكار — Nova Studio</div>
+          <div style={styles.mainHead}>{t("لوحة أفكار — Nova Studio")}</div>
           <div style={styles.kanbanRow} className="cs-mockup-kanban-row">
             {KANBAN_COLUMNS.map((col) => (
               <div key={col.key} style={styles.kanbanCol}>
                 <div style={styles.kanbanColHead}>
                   <span style={{ ...styles.dotSm, background: col.color }} />
-                  <span>{col.label}</span>
+                  <span>{t(col.label)}</span>
                 </div>
                 {col.items.map((title) => (
                   <div key={title} style={styles.kanbanCard}>{title}</div>
@@ -112,17 +115,18 @@ export function KanbanMockup() {
 }
 
 export function AnalyzerMockup() {
+  const { t } = useLanguage();
   return (
     <Frame>
       <div style={styles.dashRow} className="cs-mockup-row">
         <MiniSidebar activeIndex={-1} />
         <div style={styles.mainArea} className="cs-mockup-main">
-          <div style={styles.mainHead}>تحليل البراند — Nova Studio</div>
+          <div style={styles.mainHead}>{t("تحليل البراند — Nova Studio")}</div>
           <div style={styles.analyzerCard}>
-            <div style={styles.analyzerTitle}>تحليل محتوى جديد</div>
+            <div style={styles.analyzerTitle}>{t("تحليل محتوى جديد")}</div>
             <div style={styles.analyzerInputRow}>
-              <div style={styles.analyzerInput}>الصق رابط المحتوى هنا...</div>
-              <div style={styles.analyzerBtn}>تحليل المحتوى</div>
+              <div style={styles.analyzerInput}>{t("الصق رابط المحتوى هنا...")}</div>
+              <div style={styles.analyzerBtn}>{t("تحليل المحتوى")}</div>
             </div>
             <div style={styles.platformRow}>
               <span style={styles.platformChip}><Instagram size={11} /> Instagram</span>
@@ -147,16 +151,17 @@ export function AnalyzerMockup() {
 }
 
 export function InsightsMockup() {
+  const { t } = useLanguage();
   return (
     <Frame>
       <div style={styles.dashRow} className="cs-mockup-row">
         <MiniSidebar activeIndex={-1} />
         <div style={styles.mainArea} className="cs-mockup-main">
-          <div style={styles.mainHead}>تحليل البراند — Nova Studio</div>
+          <div style={styles.mainHead}>{t("تحليل البراند — Nova Studio")}</div>
           <div style={styles.statRow}>
-            <div style={styles.statCard}><div style={styles.statValue}>24</div><div style={styles.statLabel}>محتوى تم تحليله</div></div>
-            <div style={styles.statCard}><div style={{ ...styles.statValue, color: "#7FB8FF" }}>248.6K</div><div style={styles.statLabel}>إجمالي المشاهدات</div></div>
-            <div style={styles.statCard}><div style={{ ...styles.statValue, color: "#7FE0B0" }}>12.4K</div><div style={styles.statLabel}>إجمالي التفاعل</div></div>
+            <div style={styles.statCard}><div style={styles.statValue}>24</div><div style={styles.statLabel}>{t("محتوى تم تحليله")}</div></div>
+            <div style={styles.statCard}><div style={{ ...styles.statValue, color: "#7FB8FF" }}>248.6K</div><div style={styles.statLabel}>{t("إجمالي المشاهدات")}</div></div>
+            <div style={styles.statCard}><div style={{ ...styles.statValue, color: "#7FE0B0" }}>12.4K</div><div style={styles.statLabel}>{t("إجمالي التفاعل")}</div></div>
           </div>
           <div style={styles.platformBreakdown}>
             {[

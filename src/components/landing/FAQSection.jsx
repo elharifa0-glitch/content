@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const FAQS = [
   { q: "هل أحتاج بطاقة ائتمانية؟", a: "لأ، تقدر تبدأ تجربتك المجانية وتستخدم ContentST بالكامل من غير ما تدخل أي بيانات دفع." },
@@ -13,11 +14,12 @@ const FAQS = [
 
 export default function FAQSection() {
   const [openIndex, setOpenIndex] = useState(0);
+  const { t } = useLanguage();
 
   return (
     <section id="faq" style={styles.section}>
       <div style={styles.head}>
-        <h2 style={styles.title}>أسئلة شائعة</h2>
+        <h2 style={styles.title}>{t("أسئلة شائعة")}</h2>
       </div>
 
       <div style={styles.list}>
@@ -30,10 +32,10 @@ export default function FAQSection() {
                 style={styles.question}
                 aria-expanded={isOpen}
               >
-                <span>{f.q}</span>
+                <span>{t(f.q)}</span>
                 <ChevronDown size={16} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 200ms ease", flexShrink: 0 }} />
               </button>
-              {isOpen && <p style={styles.answer}>{f.a}</p>}
+              {isOpen && <p style={styles.answer}>{t(f.a)}</p>}
             </div>
           );
         })}

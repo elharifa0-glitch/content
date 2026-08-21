@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { supabase } from "./supabaseClient";
 import { Check } from "lucide-react";
+import { useLanguage } from "./LanguageContext";
 
 export const PLANS = [
   { key: "starter", name: "Starter", brands: "لحد 2 براند", price: "199 جنيه/شهر", annual: "1,990 جنيه/سنة" },
@@ -22,6 +23,7 @@ const PAYMENT_NUMBER = "01273122625";
 
 // مكوّن مشترك لاختيار/تغيير باقة، مستخدم في شاشة الاشتراك (Paywall) وفي صفحة "الاشتراك" جوا الحساب.
 export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(defaultPlan);
 
@@ -32,7 +34,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
 
   const plan = PLANS.find((p) => p.key === selectedPlan) || PLANS.find((p) => p.recommended) || PLANS[0];
   const whatsappMsg = encodeURIComponent(
-    `أهلاً، عايز أشترك في باقة ${plan.name} في ContentST. ده إثبات الدفع:`
+    `${t("أهلاً، عايز أشترك في باقة")} ${plan.name} ${t("في ContentST. ده إثبات الدفع:")}`
   );
 
   async function copyNumber() {
@@ -52,13 +54,13 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
       const { data, error } = await supabase.rpc("redeem_subscription_code", { p_code: code });
       if (error) throw error;
       setRedeemOk(!!data?.ok);
-      setRedeemMsg(data?.message || "حصلت مشكلة، جرب تاني.");
+      setRedeemMsg(data?.message || t("حصلت مشكلة، جرب تاني."));
       if (data?.ok && onRecheck) {
         setTimeout(() => onRecheck(), 1200);
       }
     } catch (e) {
       setRedeemOk(false);
-      setRedeemMsg("حصلت مشكلة في الاتصال، جرب تاني.");
+      setRedeemMsg(t("حصلت مشكلة في الاتصال، جرب تاني."));
     } finally {
       setRedeemLoading(false);
     }
@@ -76,39 +78,39 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
               ...(selectedPlan === p.key ? styles.planCardActive : {}),
             }}
           >
-            {p.recommended && <div style={styles.recommendedBadge}>الأكتر اختيارًا</div>}
+            {p.recommended && <div style={styles.recommendedBadge}>{t("الأكتر اختيارًا")}</div>}
             <div style={styles.planName}>{p.name}</div>
-            <div style={styles.planBrands}>{p.brands}</div>
-            <div style={styles.planPrice}>{p.price}</div>
-            <div style={styles.planAnnual}>أو {p.annual} (وفّر شهرين)</div>
+            <div style={styles.planBrands}>{t(p.brands)}</div>
+            <div style={styles.planPrice}>{t(p.price)}</div>
+            <div style={styles.planAnnual}>{t("أو")} {t(p.annual)} {t("(وفّر شهرين)")}</div>
           </button>
         ))}
       </div>
 
       <div style={styles.featuresBox}>
-        <div style={styles.featuresTitle}>كل الباقات بتديك بالظبط نفس الميزات — الفرق بس في عدد البراندات:</div>
+        <div style={styles.featuresTitle}>{t("كل الباقات بتديك بالظبط نفس الميزات — الفرق بس في عدد البراندات:")}</div>
         <div style={styles.featuresGrid}>
           {INCLUDED_FEATURES.map((f) => (
             <div key={f} style={styles.featureRow}>
               <Check size={13} style={{ color: "#4FB286", flexShrink: 0 }} />
-              <span>{f}</span>
+              <span>{t(f)}</span>
             </div>
           ))}
         </div>
       </div>
 
       <div style={styles.paySection}>
-        <div style={styles.payLabel}>للدفع من مصر (فودافون كاش / InstaPay):</div>
+        <div style={styles.payLabel}>{t("للدفع من مصر (فودافون كاش / InstaPay):")}</div>
         <div style={styles.payRow}>
           <div style={styles.payValue}>{PAYMENT_NUMBER}</div>
-          <button onClick={copyNumber} style={styles.copyBtn}>{copied ? "اتنسخ" : "نسخ"}</button>
+          <button onClick={copyNumber} style={styles.copyBtn}>{copied ? t("اتنسخ") : t("نسخ")}</button>
         </div>
       </div>
       <div style={styles.paySection}>
-        <div style={styles.payLabel}>للدفع من بره مصر:</div>
+        <div style={styles.payLabel}>{t("للدفع من بره مصر:")}</div>
         <div style={{ ...styles.payValue, color: "#8FA0A8", display: "flex", alignItems: "center", gap: 6 }}>
           <span style={styles.comingSoonDot} />
-          الدفع الدولي تحت الإنشاء حاليًا — قريبًا
+          {t("الدفع الدولي تحت الإنشاء حاليًا — قريبًا")}
         </div>
       </div>
 
@@ -118,24 +120,24 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
         rel="noopener noreferrer"
         style={styles.whatsappBtn}
       >
-        ابعت إثبات الدفع على واتساب (باقة {plan.name})
+        {t("ابعت إثبات الدفع على واتساب (باقة")} {plan.name})
       </a>
 
-      <p style={styles.hint}>بعد ما تبعت الإثبات، بنفعّل الترقية خلال يوم عمل.</p>
+      <p style={styles.hint}>{t("بعد ما تبعت الإثبات، بنفعّل الترقية خلال يوم عمل.")}</p>
 
       <div style={styles.divider} />
 
-      <div style={styles.redeemLabel}>عندك كود تفعيل أو خصم؟</div>
+      <div style={styles.redeemLabel}>{t("عندك كود تفعيل أو خصم؟")}</div>
       <div style={styles.redeemRow}>
         <input
           style={styles.redeemInput}
           value={redeemCode}
           onChange={(e) => setRedeemCode(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleRedeem(); }}
-          placeholder="اكتب الكود هنا"
+          placeholder={t("اكتب الكود هنا")}
         />
         <button onClick={handleRedeem} disabled={redeemLoading || !redeemCode.trim()} style={styles.redeemBtn}>
-          {redeemLoading ? "بيتحقق..." : "فعّل"}
+          {redeemLoading ? t("بيتحقق...") : t("فعّل")}
         </button>
       </div>
       {redeemMsg && <p style={{ ...styles.redeemMsg, color: redeemOk ? "#4FB286" : "#F0997B" }}>{redeemMsg}</p>}

@@ -2,34 +2,36 @@ import React from "react";
 import { ArrowLeft, PlayCircle, ShieldCheck } from "lucide-react";
 import { KanbanMockup } from "./DashboardMockup";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 export default function HeroSection() {
+  const { t } = useLanguage();
   return (
     <section style={styles.section} className="cs-animate-fade-up">
       <div style={styles.inner}>
         <div style={styles.eyebrow}>Plan. Create. Analyze. Improve.</div>
         <h1 style={styles.headline} className="landing-hero-headline">
-          كل محتواك.
+          {t("كل محتواك.")}
           <br />
-          <span style={styles.headlineAccent}>من الفكرة للأداء.</span>
+          <span style={styles.headlineAccent}>{t("من الفكرة للأداء.")}</span>
           <br />
-          في مكان واحد.
+          {t("في مكان واحد.")}
         </h1>
         <p style={styles.sub}>
-          خطط، أنشئ، تابع، وحلل أداء محتواك على منصات السوشيال من Dashboard واحد.
+          {t("خطط، أنشئ، تابع، وحلل أداء محتواك على منصات السوشيال من Dashboard واحد.")}
         </p>
 
         <div style={styles.ctaRow}>
           <a href="/signup" style={styles.primaryCta}>
-            ابدأ مجانًا <ArrowLeft size={16} />
+            {t("ابدأ مجانًا")} <ArrowLeft size={16} />
           </a>
           <a href="#how-it-works" style={styles.secondaryCta}>
-            <PlayCircle size={16} /> شاهد كيف يعمل
+            <PlayCircle size={16} /> {t("شاهد كيف يعمل")}
           </a>
         </div>
 
         <div style={styles.reassure}>
-          <ShieldCheck size={13} /> بدون بطاقة ائتمانية
+          <ShieldCheck size={13} /> {t("بدون بطاقة ائتمانية")}
         </div>
       </div>
 

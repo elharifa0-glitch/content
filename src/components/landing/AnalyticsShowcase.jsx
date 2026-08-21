@@ -1,8 +1,10 @@
 import React from "react";
 import { InsightsMockup } from "./DashboardMockup";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 export default function AnalyticsShowcase() {
+  const { t } = useLanguage();
   return (
     <section style={styles.section}>
       <div style={styles.grid} className="landing-split-grid landing-split-grid-reverse">
@@ -12,19 +14,19 @@ export default function AnalyticsShowcase() {
         <div style={styles.textCol}>
           <div style={styles.eyebrow}>Brand Insights</div>
           <h2 style={styles.title}>
-            مش بس تعرف المحتوى جاب كام.
+            {t("مش بس تعرف المحتوى جاب كام.")}
             <br />
-            <span style={styles.accent}>اعرف ليه نجح.</span>
+            <span style={styles.accent}>{t("اعرف ليه نجح.")}</span>
           </h2>
           <p style={styles.desc}>
-            ContentST يجمع أداء محتواك ويعرضه بطريقة تساعدك على اتخاذ قرارات أفضل.
+            {t("ContentST يجمع أداء محتواك ويعرضه بطريقة تساعدك على اتخاذ قرارات أفضل.")}
           </p>
           <div style={styles.statsRow}>
-            <div><div style={styles.statValue}>24</div><div style={styles.statLabel}>محتوى تم تحليله</div></div>
-            <div><div style={styles.statValue}>248.6K</div><div style={styles.statLabel}>إجمالي المشاهدات</div></div>
-            <div><div style={styles.statValue}>12.4K</div><div style={styles.statLabel}>إجمالي التفاعل</div></div>
+            <div><div style={styles.statValue}>24</div><div style={styles.statLabel}>{t("محتوى تم تحليله")}</div></div>
+            <div><div style={styles.statValue}>248.6K</div><div style={styles.statLabel}>{t("إجمالي المشاهدات")}</div></div>
+            <div><div style={styles.statValue}>12.4K</div><div style={styles.statLabel}>{t("إجمالي التفاعل")}</div></div>
           </div>
-          <p style={styles.demoNote}>* بيانات براند تجريبي (Nova Studio) للتوضيح فقط</p>
+          <p style={styles.demoNote}>{t("* بيانات براند تجريبي (Nova Studio) للتوضيح فقط")}</p>
         </div>
       </div>
     </section>
