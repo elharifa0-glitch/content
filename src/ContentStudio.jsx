@@ -37,6 +37,58 @@ const ANALYZER_PLATFORMS = [
   { key: "youtube", label: "YouTube", Icon: Youtube },
 ];
 
+// خلفية شارة كل منصة — عشان أيقونة المنصة تبقى معروفة من أول نظرة بلونها
+// المميز بدل أيقونة رمادية واحدة لكل المنصات.
+const PLATFORM_BADGE_BG = {
+  instagram: "linear-gradient(45deg, #f9ce34 0%, #ee2a7b 55%, #6228d7 100%)",
+  facebook: "#1877F2",
+  tiktok: "#111111",
+  youtube: "#FF0000",
+};
+
+function PlatformBadgeIcon({ platform, size = 20 }) {
+  const bg = (platform && PLATFORM_BADGE_BG[platform.key]) || "#8FA0A8";
+  return (
+    <span
+      style={{
+        width: size, height: size, borderRadius: Math.round(size * 0.28), background: bg,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+      }}
+    >
+      {platform && <platform.Icon size={Math.round(size * 0.6)} color="#fff" />}
+    </span>
+  );
+}
+
+// شكل موحّد لعرض المقاييس الخمسة (مشاهدات/لايكات/تعليقات/مشاركات/حفظ) —
+// أيقونة + رقم + تسمية تحتها لكل مقياس، عشان الأرقام تبقى واضحة ومعروفة من
+// غير ما المستخدم يحتاج يخمن أي رقم لأي حاجة. مستخدم في كارت التحليل
+// (المرتبط جوا كارت الفكرة والغير مرتبط) — مصدر واحد لشكل المقاييس.
+const ANALYSIS_METRIC_DEFS = [
+  { key: "views", label: "مشاهدات", Icon: Eye },
+  { key: "likes", label: "لايكات", Icon: ThumbsUp },
+  { key: "comments", label: "تعليقات", Icon: MessageCircle },
+  { key: "shares", label: "مشاركات", Icon: Share2 },
+  { key: "saves", label: "حفظ", Icon: BookOpen },
+];
+
+function AnalysisMetricsGrid({ a }) {
+  return (
+    <div style={S.analyzerMetricsGrid}>
+      {ANALYSIS_METRIC_DEFS.map(({ key, label, Icon }) => {
+        const v = a[key];
+        const has = v !== null && v !== undefined;
+        return (
+          <div key={key} style={S.analyzerMetricCell}>
+            <span style={S.analyzerMetricValue}><Icon size={11} /> {has ? fmtMoney(v) : "—"}</span>
+            <span style={S.analyzerMetricLabel}>{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // منصات تتبع الصفحة: كل براند ممكن يتابع أكتر من منصة، كل واحدة بسجل نمو
 // مستقل. القايمة دي مبنية عشان إضافة منصة جديدة بعدين تبقى سطر واحد هنا.
 const PAGE_TRACKING_PLATFORMS = [
@@ -2872,7 +2924,10 @@ function IdeaAnalysisCard({
       <div style={S.analyzerIdeaHead}>
         <div style={S.analyzerIdeaTitleCol}>
           <div style={S.analyzerIdeaTitle} title={title}>{title}</div>
-          {idea?.date && <div style={S.analyzerIdeaMeta}>{fmtDate(idea.date)}</div>}
+          <div style={S.analyzerIdeaMetaRow}>
+            {idea?.date && <span style={S.analyzerIdeaMeta}>{fmtDate(idea.date)}</span>}
+            <span style={S.analyzerIdeaPlatformCount}>{analyses.length} منصات</span>
+          </div>
         </div>
         <div style={S.analyzerIdeaHeadActions}>
           <button
@@ -2948,57 +3003,52 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
     <div style={S.analyzerIdeaSection} className="cs-card-interactive" onClick={onOpenDetails}>
       <div style={S.analyzerIdeaSectionHead}>
         <span style={S.analyzerCardPlatform}>
-          {platform && <platform.Icon size={13} />}
+          <PlatformBadgeIcon platform={platform} />
           {platform?.label || "غير معروفة"}
         </span>
-        <div style={{ position: "relative" }}>
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
-            style={S.analyzerKebabBtn}
-            aria-label="خيارات التحليل"
-          >
-            <MoreVertical size={15} />
-          </button>
-          {menuOpen && (
-            <>
-              <div onClick={(e) => { e.stopPropagation(); onCloseMenu(); }} style={S.menuBackdrop} />
-              <div style={S.analyzerKebabMenu} onClick={(e) => e.stopPropagation()}>
-                <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
-                  <Pencil size={13} /> تعديل البيانات
-                </button>
-                <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onLink(); }}>
-                  <Link2 size={13} /> {a.ideaId ? "تغيير الفكرة" : "ربط بفكرة"}
-                </button>
-                {a.ideaId && (
-                  <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onUnlink(); }}>
-                    <X size={13} /> إزالة الربط
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={S.analyzerCardDateInline}>{fmtAnalysisDate(a.analyzedAt)}</span>
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleMenu(); }}
+              style={S.analyzerKebabBtn}
+              aria-label="خيارات التحليل"
+            >
+              <MoreVertical size={15} />
+            </button>
+            {menuOpen && (
+              <>
+                <div onClick={(e) => { e.stopPropagation(); onCloseMenu(); }} style={S.menuBackdrop} />
+                <div style={S.analyzerKebabMenu} onClick={(e) => e.stopPropagation()}>
+                  <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onEdit(); }}>
+                    <Pencil size={13} /> تعديل البيانات
                   </button>
-                )}
-                <a
-                  href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
-                  style={S.kebabMenuItem} onClick={(e) => { e.stopPropagation(); onCloseMenu(); }}
-                >
-                  <ExternalLink size={13} /> فتح المحتوى
-                </a>
-                <button type="button" style={{ ...S.kebabMenuItem, color: colors.danger }} onClick={() => { onCloseMenu(); onDelete(); }}>
-                  <Trash2 size={13} /> حذف التحليل
-                </button>
-              </div>
-            </>
-          )}
+                  <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onLink(); }}>
+                    <Link2 size={13} /> {a.ideaId ? "تغيير الفكرة" : "ربط بفكرة"}
+                  </button>
+                  {a.ideaId && (
+                    <button type="button" style={S.kebabMenuItem} onClick={() => { onCloseMenu(); onUnlink(); }}>
+                      <X size={13} /> إزالة الربط
+                    </button>
+                  )}
+                  <a
+                    href={normalizeUrl(a.url)} target="_blank" rel="noopener noreferrer"
+                    style={S.kebabMenuItem} onClick={(e) => { e.stopPropagation(); onCloseMenu(); }}
+                  >
+                    <ExternalLink size={13} /> فتح المحتوى
+                  </a>
+                  <button type="button" style={{ ...S.kebabMenuItem, color: colors.danger }} onClick={() => { onCloseMenu(); onDelete(); }}>
+                    <Trash2 size={13} /> حذف التحليل
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <div style={S.analyzerCardDate}>آخر تحديث: {fmtAnalysisDate(a.analyzedAt)}</div>
-
-      <div style={S.analyzerCardMetrics}>
-        {a.views !== null && a.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
-        {a.likes !== null && a.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(a.likes)}</span>}
-        {a.comments !== null && a.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(a.comments)}</span>}
-        {a.shares !== null && a.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(a.shares)}</span>}
-        {a.saves !== null && a.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(a.saves)}</span>}
-      </div>
+      <AnalysisMetricsGrid a={a} />
 
       <div style={S.analyzerCardFooter}>
         <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
@@ -3020,7 +3070,7 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
     <div style={S.analyzerGridCard} className="cs-card-interactive analyzerGridCard" onClick={onOpenDetails}>
       <div style={S.analyzerCardHead}>
         <span style={S.analyzerCardPlatform}>
-          {platform && <platform.Icon size={13} />}
+          <PlatformBadgeIcon platform={platform} />
           {platform?.label || "غير معروفة"}
         </span>
         <div style={{ position: "relative" }}>
@@ -3088,13 +3138,7 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
         </div>
       )}
 
-      <div style={S.analyzerCardMetrics}>
-        {a.views !== null && a.views !== undefined && <span style={S.analyzerMetric}><Eye size={12} /> {fmtMoney(a.views)}</span>}
-        {a.likes !== null && a.likes !== undefined && <span style={S.analyzerMetric}><ThumbsUp size={12} /> {fmtMoney(a.likes)}</span>}
-        {a.comments !== null && a.comments !== undefined && <span style={S.analyzerMetric}><MessageCircle size={12} /> {fmtMoney(a.comments)}</span>}
-        {a.shares !== null && a.shares !== undefined && <span style={S.analyzerMetric}><Share2 size={12} /> {fmtMoney(a.shares)}</span>}
-        {a.saves !== null && a.saves !== undefined && <span style={S.analyzerMetric}><BookOpen size={12} /> {fmtMoney(a.saves)}</span>}
-      </div>
+      <AnalysisMetricsGrid a={a} />
 
       <div style={S.analyzerCardFooter}>
         <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
@@ -5052,10 +5096,10 @@ const S = {
   analyzerPaginationInfo: { textAlign: "center", fontSize: 11.5, color: colors.textFaint, margin: "14px 0 10px" },
 
   /* Analyzer — compact grid cards */
-  analyzerGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 },
-  analyzerGridCard: { position: "relative", background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column" },
-  analyzerCardHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 8 },
-  analyzerCardPlatform: { display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: colors.textDim },
+  analyzerGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 },
+  analyzerGridCard: { position: "relative", background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "10px 12px", cursor: "pointer", display: "flex", flexDirection: "column" },
+  analyzerCardHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 },
+  analyzerCardPlatform: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: colors.text },
   analyzerKebabBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", flexShrink: 0 },
   menuBackdrop: { position: "fixed", inset: 0, zIndex: 39 },
   analyzerKebabMenu: {
@@ -5070,32 +5114,42 @@ const S = {
   },
   analyzerCardTitle: { fontSize: 13, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   analyzerCardDate: { fontSize: 10.5, color: colors.textFaint, marginTop: 2 },
+  analyzerCardDateInline: { fontSize: 10, color: colors.textFaint, whiteSpace: "nowrap" },
   analyzerCardMetrics: { display: "flex", flexWrap: "wrap", gap: "5px 12px", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${colors.border}` },
-  analyzerCardFooter: { display: "flex", gap: 8, marginTop: 12 },
+  analyzerMetricsGrid: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 4, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}` },
+  analyzerMetricCell: { display: "flex", flexDirection: "column", alignItems: "center", gap: 1, textAlign: "center", minWidth: 0 },
+  analyzerMetricValue: { display: "flex", alignItems: "center", gap: 3, fontSize: 11.5, fontWeight: 800, color: colors.text, whiteSpace: "nowrap" },
+  analyzerMetricLabel: { fontSize: 9, color: colors.textFaint, fontWeight: 600 },
+  analyzerCardFooter: { display: "flex", gap: 6, marginTop: 10 },
   analyzerCardFooterBtn: {
     flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: colors.surface,
-    border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11.5, fontWeight: 700, borderRadius: 8,
-    padding: "7px 8px", cursor: "pointer", fontFamily: "inherit",
+    border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11, fontWeight: 700, borderRadius: 8,
+    padding: "6px 8px", cursor: "pointer", fontFamily: "inherit",
   },
 
   /* Analyzer — Idea-grouped cards (one Idea = one card, platforms grouped inside) */
-  analyzerIdeaList: { display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 },
-  analyzerIdeaCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 14, padding: "14px 16px" },
+  analyzerIdeaList: { display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 },
+  analyzerIdeaCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 14, padding: "12px 14px" },
   analyzerIdeaHead: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
   analyzerIdeaTitleCol: { minWidth: 0, flex: "1 1 160px" },
   analyzerIdeaTitle: { fontSize: 14.5, fontWeight: 800, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  analyzerIdeaMeta: { fontSize: 11, color: colors.textFaint, marginTop: 2 },
+  analyzerIdeaMetaRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 3, flexWrap: "wrap" },
+  analyzerIdeaMeta: { fontSize: 11, color: colors.textFaint },
+  analyzerIdeaPlatformCount: {
+    fontSize: 10, fontWeight: 700, color: colors.textDim, background: colors.surface,
+    border: `1px solid ${colors.border}`, borderRadius: 999, padding: "2px 8px",
+  },
   analyzerIdeaHeadActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
   analyzerIdeaRefreshBtn: {
     display: "flex", alignItems: "center", gap: 6, background: colors.surface, border: `1px solid ${colors.border}`,
     color: colors.text, fontSize: 12, fontWeight: 700, borderRadius: 8, padding: "7px 12px", fontFamily: "inherit", whiteSpace: "nowrap",
   },
-  analyzerIdeaBody: { marginTop: 14, paddingTop: 14, borderTop: `1px solid ${colors.border}` },
+  analyzerIdeaBody: { marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` },
   analyzerIdeaSection: {
     position: "relative", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12,
-    padding: "12px 14px", cursor: "pointer", display: "flex", flexDirection: "column",
+    padding: "10px 12px", cursor: "pointer", display: "flex", flexDirection: "column",
   },
-  analyzerIdeaSectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 8 },
+  analyzerIdeaSectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4 },
   analyzerUnlinkedHeading: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: colors.textDim, margin: "22px 0 12px" },
 
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
