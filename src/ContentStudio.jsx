@@ -46,7 +46,7 @@ const PLATFORM_BADGE_BG = {
   youtube: "#FF0000",
 };
 
-function PlatformBadgeIcon({ platform, size = 20 }) {
+function PlatformBadgeIcon({ platform, size = 16 }) {
   const bg = (platform && PLATFORM_BADGE_BG[platform.key]) || "#8FA0A8";
   return (
     <span
@@ -80,7 +80,7 @@ function AnalysisMetricsGrid({ a }) {
         const has = v !== null && v !== undefined;
         return (
           <div key={key} style={S.analyzerMetricCell}>
-            <span style={S.analyzerMetricValue}><Icon size={11} /> {has ? fmtMoney(v) : "—"}</span>
+            <span style={S.analyzerMetricValue}><Icon size={9.5} /> {has ? fmtMoney(v) : "—"}</span>
             <span style={S.analyzerMetricLabel}>{label}</span>
           </div>
         );
@@ -2936,16 +2936,16 @@ function IdeaAnalysisCard({
             onClick={onRefresh}
             style={{ ...S.analyzerIdeaRefreshBtn, opacity: refreshDisabled ? 0.6 : 1, cursor: refreshDisabled ? "not-allowed" : "pointer" }}
           >
-            {refreshing ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={13} />}
+            {refreshing ? <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={12} />}
             {refreshing ? "جاري تحديث البيانات..." : "تحديث البيانات"}
           </button>
           <button
             type="button"
             onClick={onToggleCollapse}
-            style={S.iconBtnSm}
+            style={S.analyzerIdeaCollapseBtn}
             aria-label={collapsed ? "توسيع الفكرة" : "طي الفكرة"}
           >
-            {collapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+            {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
           </button>
         </div>
       </div>
@@ -2953,7 +2953,7 @@ function IdeaAnalysisCard({
       {(refreshing || refreshStatus) && (
         <div
           style={{
-            fontSize: 11.5, fontWeight: 700, marginTop: 8,
+            fontSize: 10.5, fontWeight: 700, marginTop: 6,
             display: "flex", alignItems: "center", gap: 4,
             color: refreshing ? colors.textFaint
               : refreshStatus?.type === "success" ? colors.good
@@ -3015,7 +3015,7 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
               style={S.analyzerKebabBtn}
               aria-label="خيارات التحليل"
             >
-              <MoreVertical size={15} />
+              <MoreVertical size={13} />
             </button>
             {menuOpen && (
               <>
@@ -3052,7 +3052,7 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
 
       <div style={S.analyzerCardFooter}>
         <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
-          <Pencil size={11} /> تعديل
+          <Pencil size={10} /> تعديل
         </button>
         <button type="button" onClick={(e) => { e.stopPropagation(); onOpenDetails(); }} style={S.analyzerCardFooterBtn}>
           التفاصيل
@@ -3080,7 +3080,7 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
             style={S.analyzerKebabBtn}
             aria-label="خيارات التحليل"
           >
-            <MoreVertical size={15} />
+            <MoreVertical size={13} />
           </button>
           {menuOpen && (
             <>
@@ -3142,7 +3142,7 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
 
       <div style={S.analyzerCardFooter}>
         <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
-          <Pencil size={11} /> تعديل
+          <Pencil size={10} /> تعديل
         </button>
         <button type="button" onClick={(e) => { e.stopPropagation(); onOpenDetails(); }} style={S.analyzerCardFooterBtn}>
           التفاصيل
@@ -4130,6 +4130,30 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
     onPatch({ snapshots: snapshots.filter((s) => s.id !== id) });
   }
 
+  const [editingSnapshotId, setEditingSnapshotId] = useState(null);
+  const [editFollowers, setEditFollowers] = useState("");
+  const [editPosts, setEditPosts] = useState("");
+  const [editDate, setEditDate] = useState("");
+
+  function startEditSnapshot(s) {
+    setEditingSnapshotId(s.id);
+    setEditFollowers(s.followers ?? "");
+    setEditPosts(s.posts ?? "");
+    setEditDate(s.date);
+  }
+  function cancelEditSnapshot() { setEditingSnapshotId(null); }
+  function saveEditedSnapshot() {
+    onPatch({
+      snapshots: snapshots.map((s) => (s.id === editingSnapshotId ? {
+        ...s,
+        followers: editFollowers === "" ? null : Number(editFollowers),
+        posts: editPosts === "" ? null : Number(editPosts),
+        date: editDate || s.date,
+      } : s)),
+    });
+    setEditingSnapshotId(null);
+  }
+
   const growthSummary = useMemo(() => {
     if (snapshots.length < 2) return null;
     const latest = snapshots[0];
@@ -4173,6 +4197,30 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
             {snapshots.map((s, i) => {
               const prev = snapshots[i + 1];
               const fDiff = prev && s.followers != null && prev.followers != null ? s.followers - prev.followers : null;
+              if (editingSnapshotId === s.id) {
+                return (
+                  <div key={s.id} style={S.refCard}>
+                    <div style={S.rowTwo} className="rowTwo">
+                      <div style={S.formGroup}>
+                        <label style={S.label}>عدد المتابعين</label>
+                        <input type="number" min="0" style={S.input} value={editFollowers} onChange={(e) => setEditFollowers(e.target.value)} />
+                      </div>
+                      <div style={S.formGroup}>
+                        <label style={S.label}>عدد البوستات</label>
+                        <input type="number" min="0" style={S.input} value={editPosts} onChange={(e) => setEditPosts(e.target.value)} />
+                      </div>
+                    </div>
+                    <div style={S.formGroup}>
+                      <label style={S.label}>التاريخ</label>
+                      <input type="date" style={S.input} value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={cancelEditSnapshot} style={S.secondaryBtn}>إلغاء</button>
+                      <button onClick={saveEditedSnapshot} style={S.primaryBtn(brand.color)}><Save size={13} /> احفظ</button>
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div key={s.id} style={S.upcomingRow}>
                   <span style={{ ...S.dot, background: brand.color }} />
@@ -4184,6 +4232,7 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
                     </div>
                     <div style={S.upcomingMeta}>{fmtDate(s.date)}</div>
                   </div>
+                  <button onClick={() => startEditSnapshot(s)} style={S.ticketIconBtn}><Pencil size={12} /></button>
                   <button onClick={() => removeSnapshot(s.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
                 </div>
               );
@@ -5096,14 +5145,14 @@ const S = {
   analyzerPaginationInfo: { textAlign: "center", fontSize: 11.5, color: colors.textFaint, margin: "14px 0 10px" },
 
   /* Analyzer — compact grid cards */
-  analyzerGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 },
-  analyzerGridCard: { position: "relative", background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "10px 12px", cursor: "pointer", display: "flex", flexDirection: "column" },
-  analyzerCardHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 },
-  analyzerCardPlatform: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: colors.text },
-  analyzerKebabBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: 7, background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", flexShrink: 0 },
+  analyzerGrid: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 },
+  analyzerGridCard: { position: "relative", background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "8px 10px", cursor: "pointer", display: "flex", flexDirection: "column" },
+  analyzerCardHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, marginBottom: 4 },
+  analyzerCardPlatform: { display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: colors.text },
+  analyzerKebabBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", flexShrink: 0 },
   menuBackdrop: { position: "fixed", inset: 0, zIndex: 39 },
   analyzerKebabMenu: {
-    position: "absolute", top: 28, left: 0, zIndex: 40, minWidth: 168, background: colors.surface,
+    position: "absolute", top: 24, left: 0, zIndex: 40, minWidth: 168, background: colors.surface,
     border: `1px solid ${colors.borderStrong}`, borderRadius: 10, padding: 6, boxShadow: shadows.lg,
     display: "flex", flexDirection: "column", gap: 1,
   },
@@ -5114,43 +5163,47 @@ const S = {
   },
   analyzerCardTitle: { fontSize: 13, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   analyzerCardDate: { fontSize: 10.5, color: colors.textFaint, marginTop: 2 },
-  analyzerCardDateInline: { fontSize: 10, color: colors.textFaint, whiteSpace: "nowrap" },
+  analyzerCardDateInline: { fontSize: 9.5, color: colors.textFaint, whiteSpace: "nowrap" },
   analyzerCardMetrics: { display: "flex", flexWrap: "wrap", gap: "5px 12px", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${colors.border}` },
-  analyzerMetricsGrid: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 4, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${colors.border}` },
-  analyzerMetricCell: { display: "flex", flexDirection: "column", alignItems: "center", gap: 1, textAlign: "center", minWidth: 0 },
-  analyzerMetricValue: { display: "flex", alignItems: "center", gap: 3, fontSize: 11.5, fontWeight: 800, color: colors.text, whiteSpace: "nowrap" },
-  analyzerMetricLabel: { fontSize: 9, color: colors.textFaint, fontWeight: 600 },
-  analyzerCardFooter: { display: "flex", gap: 6, marginTop: 10 },
+  analyzerMetricsGrid: { display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 2, marginTop: 5, paddingTop: 5, borderTop: `1px solid ${colors.border}` },
+  analyzerMetricCell: { display: "flex", flexDirection: "column", alignItems: "center", gap: 0, textAlign: "center", minWidth: 0 },
+  analyzerMetricValue: { display: "flex", alignItems: "center", gap: 2, fontSize: 10.5, fontWeight: 800, color: colors.text, whiteSpace: "nowrap" },
+  analyzerMetricLabel: { fontSize: 8, color: colors.textFaint, fontWeight: 600 },
+  analyzerCardFooter: { display: "flex", gap: 5, marginTop: 7 },
   analyzerCardFooterBtn: {
-    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, background: colors.surface,
-    border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 11, fontWeight: 700, borderRadius: 8,
-    padding: "6px 8px", cursor: "pointer", fontFamily: "inherit",
+    flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 4, background: colors.surface,
+    border: `1px solid ${colors.border}`, color: colors.textDim, fontSize: 10.5, fontWeight: 700, borderRadius: 7,
+    padding: "5px 6px", cursor: "pointer", fontFamily: "inherit",
   },
 
   /* Analyzer — Idea-grouped cards (one Idea = one card, platforms grouped inside) */
-  analyzerIdeaList: { display: "flex", flexDirection: "column", gap: 12, marginBottom: 20 },
-  analyzerIdeaCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 14, padding: "12px 14px" },
+  analyzerIdeaList: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 },
+  analyzerIdeaCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "9px 12px" },
   analyzerIdeaHead: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, flexWrap: "wrap" },
   analyzerIdeaTitleCol: { minWidth: 0, flex: "1 1 160px" },
-  analyzerIdeaTitle: { fontSize: 14.5, fontWeight: 800, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  analyzerIdeaMetaRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 3, flexWrap: "wrap" },
-  analyzerIdeaMeta: { fontSize: 11, color: colors.textFaint },
+  analyzerIdeaTitle: { fontSize: 13.5, fontWeight: 800, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  analyzerIdeaMetaRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 2, flexWrap: "wrap" },
+  analyzerIdeaMeta: { fontSize: 10.5, color: colors.textFaint },
   analyzerIdeaPlatformCount: {
-    fontSize: 10, fontWeight: 700, color: colors.textDim, background: colors.surface,
-    border: `1px solid ${colors.border}`, borderRadius: 999, padding: "2px 8px",
+    fontSize: 9.5, fontWeight: 700, color: colors.textDim, background: colors.surface,
+    border: `1px solid ${colors.border}`, borderRadius: 999, padding: "1px 7px",
   },
-  analyzerIdeaHeadActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
+  analyzerIdeaHeadActions: { display: "flex", alignItems: "center", gap: 6, flexShrink: 0 },
   analyzerIdeaRefreshBtn: {
-    display: "flex", alignItems: "center", gap: 6, background: colors.surface, border: `1px solid ${colors.border}`,
-    color: colors.text, fontSize: 12, fontWeight: 700, borderRadius: 8, padding: "7px 12px", fontFamily: "inherit", whiteSpace: "nowrap",
+    display: "flex", alignItems: "center", gap: 5, background: colors.surface, border: `1px solid ${colors.border}`,
+    color: colors.text, fontSize: 11, fontWeight: 700, borderRadius: 7, padding: "5px 10px", fontFamily: "inherit", whiteSpace: "nowrap",
   },
-  analyzerIdeaBody: { marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.border}` },
+  analyzerIdeaCollapseBtn: {
+    width: 24, height: 24, borderRadius: 7, background: colors.card, border: `1px solid ${colors.border}`,
+    color: colors.textDim, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  analyzerIdeaBody: { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${colors.border}` },
   analyzerIdeaSection: {
-    position: "relative", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12,
-    padding: "10px 12px", cursor: "pointer", display: "flex", flexDirection: "column",
+    position: "relative", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10,
+    padding: "8px 10px", cursor: "pointer", display: "flex", flexDirection: "column",
   },
-  analyzerIdeaSectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4 },
-  analyzerUnlinkedHeading: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: colors.textDim, margin: "22px 0 12px" },
+  analyzerIdeaSectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, marginBottom: 2 },
+  analyzerUnlinkedHeading: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: colors.textDim, margin: "18px 0 10px" },
 
   dot: { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
   upcomingTitle: { fontSize: 12.5, fontWeight: 600, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
