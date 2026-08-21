@@ -1,6 +1,8 @@
 import React, { useState } from "react";
+import { Globe } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { Logo } from "./components";
+import { useLanguage } from "./LanguageContext";
 
 // حروف إنجليزي صغيرة/أرقام/_ بس، من 3 لـ 30 حرف — بيتطبّع lowercase قبل
 // الفحص عشان "Ahmed" و"ahmed" يتحسبوا نفس اسم المستخدم.
@@ -12,6 +14,7 @@ function isValidUsername(u) {
 }
 
 export default function Auth({ initialMode = "login" }) {
+  const { dir, lang, toggleLang, t } = useLanguage();
   const [mode, setMode] = useState(initialMode); // login | signup | forgot
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -29,11 +32,11 @@ export default function Auth({ initialMode = "login" }) {
     const normalizedUsername = normalizeUsername(username);
     if (mode === "signup") {
       if (!isValidUsername(normalizedUsername)) {
-        setError("اسم المستخدم لازم يكون من 3 لـ 30 حرف، وحروف إنجليزي صغيرة أو أرقام أو _ بس (من غير مسافات).");
+        setError(t("اسم المستخدم لازم يكون من 3 لـ 30 حرف، وحروف إنجليزي صغيرة أو أرقام أو _ بس (من غير مسافات)."));
         return;
       }
       if (password !== confirmPassword) {
-        setError("كلمة المرور وتأكيدها مش متطابقين.");
+        setError(t("كلمة المرور وتأكيدها مش متطابقين."));
         return;
       }
     }
@@ -47,7 +50,7 @@ export default function Auth({ initialMode = "login" }) {
 
         if (err) throw err;
 
-        setMessage("تم إرسال رابط تغيير كلمة المرور على الإيميل. افتح أحدث رسالة واضغط على الرابط.");
+        setMessage(t("تم إرسال رابط تغيير كلمة المرور على الإيميل. افتح أحدث رسالة واضغط على الرابط."));
         return;
       }
 
@@ -69,11 +72,11 @@ export default function Auth({ initialMode = "login" }) {
         if (err) throw err;
 
         setMessage(
-          "اتسجل حسابك. لو الإيميل محتاج تأكيد هتلاقي رسالة في بريدك — افتحها وبعدين رجع سجّل دخول."
+          t("اتسجل حسابك. لو الإيميل محتاج تأكيد هتلاقي رسالة في بريدك — افتحها وبعدين رجع سجّل دخول.")
         );
       }
     } catch (err) {
-      setError(err.message || "حصلت مشكلة، جرب تاني.");
+      setError(err.message || t("حصلت مشكلة، جرب تاني."));
     } finally {
       setLoading(false);
     }
@@ -88,42 +91,47 @@ export default function Auth({ initialMode = "login" }) {
   }
 
   return (
-    <div style={styles.wrap} dir="rtl">
+    <div style={styles.wrap} dir={dir}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
         * { box-sizing: border-box; font-family: 'Tajawal', sans-serif; }
       `}</style>
 
       <form onSubmit={handleSubmit} style={styles.card}>
-        <Logo height={26} variant="light" style={{ marginBottom: 14 }} />
+        <div style={styles.topRow}>
+          <Logo height={26} variant="light" />
+          <button type="button" onClick={toggleLang} style={styles.langBtn} aria-label={t("تبديل اللغة")}>
+            <Globe size={13} /> {lang === "ar" ? "EN" : "AR"}
+          </button>
+        </div>
 
         <h1 style={styles.title}>ContentST</h1>
 
         <p style={styles.subtitle}>
           {mode === "login"
-            ? "سجّل دخول عشان تكمّل شغلك"
+            ? t("سجّل دخول عشان تكمّل شغلك")
             : mode === "signup"
-            ? "اعمل حساب جديد"
-            : "استرجع حسابك"}
+            ? t("اعمل حساب جديد")
+            : t("استرجع حسابك")}
         </p>
 
         {mode === "signup" && (
           <>
-            <label style={styles.label}>اسم المستخدم</label>
+            <label style={styles.label}>{t("اسم المستخدم")}</label>
             <input
               style={styles.input}
               type="text"
               required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="اسم مستخدم فريد (حروف إنجليزي وأرقام و_)"
+              placeholder={t("اسم مستخدم فريد (حروف إنجليزي وأرقام و_)")}
               autoComplete="username"
               dir="ltr"
             />
           </>
         )}
 
-        <label style={styles.label}>الإيميل</label>
+        <label style={styles.label}>{t("الإيميل")}</label>
         <input
           style={styles.input}
           type="email"
@@ -136,7 +144,7 @@ export default function Auth({ initialMode = "login" }) {
 
         {mode !== "forgot" && (
           <>
-            <label style={styles.label}>الباسورد</label>
+            <label style={styles.label}>{t("الباسورد")}</label>
             <input
               style={styles.input}
               type="password"
@@ -144,7 +152,7 @@ export default function Auth({ initialMode = "login" }) {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="على الأقل 6 حروف/أرقام"
+              placeholder={t("على الأقل 6 حروف/أرقام")}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
             />
           </>
@@ -152,7 +160,7 @@ export default function Auth({ initialMode = "login" }) {
 
         {mode === "signup" && (
           <>
-            <label style={styles.label}>تأكيد الباسورد</label>
+            <label style={styles.label}>{t("تأكيد الباسورد")}</label>
             <input
               style={styles.input}
               type="password"
@@ -160,7 +168,7 @@ export default function Auth({ initialMode = "login" }) {
               minLength={6}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="اكتب الباسورد تاني"
+              placeholder={t("اكتب الباسورد تاني")}
               autoComplete="new-password"
             />
           </>
@@ -171,12 +179,12 @@ export default function Auth({ initialMode = "login" }) {
 
         <button type="submit" disabled={loading} style={styles.submitBtn}>
           {loading
-            ? "بيحمّل..."
+            ? t("بيحمّل...")
             : mode === "login"
-            ? "سجّل دخول"
+            ? t("سجّل دخول")
             : mode === "signup"
-            ? "اعمل حساب"
-            : "ابعت رابط تغيير الباسورد"}
+            ? t("اعمل حساب")
+            : t("ابعت رابط تغيير الباسورد")}
         </button>
 
         {mode === "login" && (
@@ -185,7 +193,7 @@ export default function Auth({ initialMode = "login" }) {
             onClick={() => switchMode("forgot")}
             style={styles.forgotBtn}
           >
-            نسيت كلمة المرور؟
+            {t("نسيت كلمة المرور؟")}
           </button>
         )}
 
@@ -195,7 +203,7 @@ export default function Auth({ initialMode = "login" }) {
             onClick={() => switchMode("login")}
             style={styles.switchBtn}
           >
-            رجوع لتسجيل الدخول
+            {t("رجوع لتسجيل الدخول")}
           </button>
         )}
 
@@ -206,8 +214,8 @@ export default function Auth({ initialMode = "login" }) {
             style={styles.switchBtn}
           >
             {mode === "login"
-              ? "لسه معملتش حساب؟ اعمل واحد"
-              : "عندك حساب بالفعل؟ سجّل دخول"}
+              ? t("لسه معملتش حساب؟ اعمل واحد")
+              : t("عندك حساب بالفعل؟ سجّل دخول")}
           </button>
         )}
       </form>
@@ -234,6 +242,26 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 4,
+  },
+  topRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  langBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    background: "#1B2328",
+    border: "1px solid #2C383F",
+    color: "#C7CDD1",
+    fontSize: 11.5,
+    fontWeight: 800,
+    borderRadius: 999,
+    padding: "5px 10px",
+    cursor: "pointer",
+    fontFamily: "inherit",
   },
   title: {
     color: "#F2EEE4",

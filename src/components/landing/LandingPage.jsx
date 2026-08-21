@@ -12,14 +12,16 @@ import FAQSection from "./FAQSection";
 import FinalCTA from "./FinalCTA";
 import LandingFooter from "./LandingFooter";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 // Public marketing site — deliberately independent of ThemeContext (always
 // light) and of ContentStudio.jsx (no auth/session required). Reachable at
 // "/" for signed-out visitors; App.jsx renders the real dashboard instead
 // once a session exists, so this never intercepts logged-in users.
 export default function LandingPage() {
+  const { dir } = useLanguage();
   return (
-    <div dir="rtl" style={{ background: landing.bg, minHeight: "100dvh" }}>
+    <div dir={dir} style={{ background: landing.bg, minHeight: "100dvh" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
         .landing-root, .landing-root * { box-sizing: border-box; font-family: 'Tajawal', sans-serif; }

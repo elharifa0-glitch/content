@@ -7,8 +7,10 @@ import Paywall from "./Paywall";
 import AccountConfirmed from "./AccountConfirmed";
 import SharedBrandView from "./SharedBrandView";
 import LandingPage from "./components/landing/LandingPage";
+import { useLanguage } from "./LanguageContext";
 
 export default function App() {
+  const { dir, t } = useLanguage();
   const pathname = window.location.pathname;
   const shareMatch = pathname.match(/^\/share\/([a-zA-Z0-9]+)/);
   const isSignupPath = pathname === "/signup";
@@ -139,7 +141,7 @@ export default function App() {
         justifyContent: "center", background: "#11171B",
         color: "#8FA0A8", fontFamily: "sans-serif"
       }}>
-        بيحمّل...
+        {t("بيحمّل...")}
       </div>
     );
   }
@@ -157,7 +159,7 @@ export default function App() {
         justifyContent: "center", background: "#11171B",
         color: "#8FA0A8", fontFamily: "sans-serif"
       }}>
-        بيحمّل...
+        {t("بيحمّل...")}
       </div>
     );
   }
@@ -178,9 +180,11 @@ export default function App() {
         <div style={{
           maxWidth: 1400, margin: "0 auto 10px", background: "#1B2328", border: "1px solid #E7A33E55",
           borderRadius: 10, padding: "8px 14px", color: "#E7A33E", fontSize: 12.5, fontWeight: 700,
-          textAlign: "center", fontFamily: "'Tajawal', sans-serif", direction: "rtl",
+          textAlign: "center", fontFamily: "'Tajawal', sans-serif", direction: dir,
         }}>
-          {trialDaysLeft === 0 ? "آخر يوم في فترة التجربة المجانية" : `باقي ${trialDaysLeft} يوم على انتهاء فترة التجربة المجانية`}
+          {trialDaysLeft === 0
+            ? t("آخر يوم في فترة التجربة المجانية")
+            : (dir === "rtl" ? `باقي ${trialDaysLeft} يوم على انتهاء فترة التجربة المجانية` : `${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left in your free trial`)}
         </div>
       )}
       <ContentStudio

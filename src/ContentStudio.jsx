@@ -14,11 +14,12 @@ import {
   Users, TrendingUp, ThumbsUp, Search, Target, MessageCircle,
   ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
   ArrowUpRight, ArrowDownRight, ListChecks, CalendarClock, Menu, LogOut, Crown, Sun, Moon,
-  Instagram, Facebook, Youtube, MoreVertical, RefreshCw,
+  Instagram, Facebook, Youtube, MoreVertical, RefreshCw, Globe,
 } from "lucide-react";
 import { colors, radius, spacing, shadows, transitions, softBg, borderTint } from "./theme";
 import { Button, Badge, EmptyState, LogoIcon } from "./components";
 import { useTheme } from "./ThemeContext";
+import { useLanguage } from "./LanguageContext";
 
 /* ---------- Platform icons ---------- */
 
@@ -479,6 +480,7 @@ export default function ContentStudio({
   session, onSignOut, plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRow, onSubscriptionRecheck,
 }) {
   const userId = session.user.id;
+  const { dir, t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [brands, setBrands] = useState([]);
@@ -855,14 +857,14 @@ export default function ContentStudio({
     return (
       <div style={S.loadingWrap}>
         <Loader2 size={22} style={{ animation: "spin 1s linear infinite" }} />
-        <span style={{ marginRight: 10 }}>بيحمّل الاستوديو...</span>
+        <span style={{ marginRight: 10 }}>{t("بيحمّل الاستوديو...")}</span>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     );
   }
 
   return (
-    <div dir="rtl" style={S.app} className="studio-app">
+    <div dir={dir} style={S.app} className="studio-app">
       <style>{`
         /* Font import, theme variables, focus rings, keyframes and scrollbar
            styling are injected once, app-wide, by ThemeProvider — see
@@ -1340,6 +1342,7 @@ function Sidebar({
   brands, view, setView, onAddBrand, saving, userEmail, onSignOut, plan, isTrialing, brandLimit,
   notifPermission, onRequestNotifPermission, onDeleteBrand, mobileOpen, onCloseMobile,
 }) {
+  const { t } = useLanguage();
   return (
     <aside
       style={S.sidebar}
@@ -1352,32 +1355,32 @@ function Sidebar({
             <div style={S.brandMarkTitle}>ContentST</div>
             <div style={S.brandMarkSub}>
               <span style={{ ...S.syncDot, background: saving ? colors.warning : colors.good }} />
-              {saving ? "بيحفظ..." : "متزامن"}
+              {saving ? t("بيحفظ...") : t("متزامن")}
             </div>
           </div>
         </div>
-        <button onClick={onCloseMobile} className="cs-icon-btn cs-sidebar-close-btn" style={S.sidebarCloseBtn} aria-label="اقفل القائمة">
+        <button onClick={onCloseMobile} className="cs-icon-btn cs-sidebar-close-btn" style={S.sidebarCloseBtn} aria-label={t("اقفل القائمة")}>
           <X size={16} />
         </button>
       </div>
 
       {notifPermission !== "unsupported" && notifPermission !== "granted" && (
         <button onClick={onRequestNotifPermission} style={S.notifBtn}>
-          <Bell size={13} /> فعّل تنبيهات الديدلاين
+          <Bell size={13} /> {t("فعّل تنبيهات الديدلاين")}
         </button>
       )}
 
       <nav className="studio-nav" style={{ marginTop: 22, display: "flex", flexDirection: "column", gap: 2 }}>
-        <NavItem icon={<Home size={17} />} label="الرئيسية" active={view === "dashboard"} onClick={() => setView("dashboard")} />
-        <NavItem icon={<CalendarIcon size={17} />} label="التقويم العام" active={view === "calendar"} onClick={() => setView("calendar")} />
-        <NavItem icon={<Search size={17} />} label="بحث في كل الأفكار" active={view === "search"} onClick={() => setView("search")} />
-        <NavItem icon={<BarChart3 size={17} />} label="مقارنة البراندات" active={view === "compare"} onClick={() => setView("compare")} />
-        <NavItem icon={<Wallet size={17} />} label="الاشتراك والباقة" active={view === "account"} onClick={() => setView("account")} />
+        <NavItem icon={<Home size={17} />} label={t("الرئيسية")} active={view === "dashboard"} onClick={() => setView("dashboard")} />
+        <NavItem icon={<CalendarIcon size={17} />} label={t("التقويم العام")} active={view === "calendar"} onClick={() => setView("calendar")} />
+        <NavItem icon={<Search size={17} />} label={t("بحث في كل الأفكار")} active={view === "search"} onClick={() => setView("search")} />
+        <NavItem icon={<BarChart3 size={17} />} label={t("مقارنة البراندات")} active={view === "compare"} onClick={() => setView("compare")} />
+        <NavItem icon={<Wallet size={17} />} label={t("الاشتراك والباقة")} active={view === "account"} onClick={() => setView("account")} />
       </nav>
 
       {view !== "account" && (
         <Button variant="primary" fullWidth style={{ marginTop: 12 }} icon={<Crown size={14} />} onClick={() => setView("account")}>
-          {isTrialing || !plan ? "اشترك دلوقتي" : "رقّي باقتك"}
+          {isTrialing || !plan ? t("اشترك دلوقتي") : t("رقّي باقتك")}
         </Button>
       )}
 
@@ -1385,18 +1388,18 @@ function Sidebar({
 
       <div style={S.sidebarLabelRow}>
         <span style={S.sidebarLabel}>
-          البراندات
+          {t("البراندات")}
           {!isTrialing && brandLimit !== Infinity && ` (${brands.length}/${brandLimit})`}
           {plan && !isTrialing && (
             <> · <span style={{ color: planColor(plan), fontWeight: 800 }}>{planLabel(plan) || plan}</span></>
           )}
-          {!plan && !isTrialing && <span style={{ color: colors.danger }}> · مفيش باقة مسجلة</span>}
+          {!plan && !isTrialing && <span style={{ color: colors.danger }}> · {t("مفيش باقة مسجلة")}</span>}
         </span>
-        <button onClick={onAddBrand} className="cs-icon-btn" style={S.iconBtnSm} title="ضيف براند"><Plus size={15} /></button>
+        <button onClick={onAddBrand} className="cs-icon-btn" style={S.iconBtnSm} title={t("ضيف براند")}><Plus size={15} /></button>
       </div>
 
       <div className="studio-brand-list">
-        {brands.length === 0 && <div style={S.emptyBrands}>لسه مفيش براندات. دوس + عشان تضيف أول واحد.</div>}
+        {brands.length === 0 && <div style={S.emptyBrands}>{t("لسه مفيش براندات. دوس + عشان تضيف أول واحد.")}</div>}
         {brands.map((b) => (
           <div key={b.id} style={S.brandTabRow}>
             <button
@@ -1407,7 +1410,7 @@ function Sidebar({
               <span style={S.brandTabEmoji}>{b.emoji}</span>
               <span style={S.brandTabName}>{b.name}</span>
             </button>
-            <button onClick={() => onDeleteBrand(b)} className="cs-icon-btn" style={S.brandDeleteBtn} title="امسح البراند">
+            <button onClick={() => onDeleteBrand(b)} className="cs-icon-btn" style={S.brandDeleteBtn} title={t("امسح البراند")}>
               <Trash2 size={13} />
             </button>
           </div>
@@ -1417,7 +1420,7 @@ function Sidebar({
       <div style={S.sidebarDivider} />
       <div style={S.sidebarAccount} className="studio-account">
         <span style={S.sidebarAccountEmail}>{userEmail}</span>
-        <Button variant="ghost" size="sm" icon={<LogOut size={13} />} onClick={onSignOut}>تسجيل خروج</Button>
+        <Button variant="ghost" size="sm" icon={<LogOut size={13} />} onClick={onSignOut}>{t("تسجيل خروج")}</Button>
       </div>
     </aside>
   );
@@ -1438,6 +1441,7 @@ function NavItem({ icon, label, active, onClick }) {
 function TopHeader({ session, plan, isTrialing, items, onOpenSearch, onOpenSidebar }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const { mode, toggleTheme } = useTheme();
+  const { lang, toggleLang, t } = useLanguage();
   const today = todayISO();
 
   const overdueItems = useMemo(
@@ -1448,48 +1452,58 @@ function TopHeader({ session, plan, isTrialing, items, onOpenSearch, onOpenSideb
   const attentionList = useMemo(() => [...overdueItems, ...todaysReminders].slice(0, 6), [overdueItems, todaysReminders]);
   const attentionCount = overdueItems.length + todaysReminders.length;
 
-  const emailName = (session?.user?.email || "").split("@")[0] || "مستخدم";
+  const emailName = (session?.user?.email || "").split("@")[0] || t("مستخدم");
   const initial = emailName.charAt(0).toUpperCase();
 
   return (
     <div style={S.topHeader} className="topHeader">
       <div style={S.topHeaderUser}>
-        <button onClick={onOpenSidebar} className="cs-icon-btn cs-topbar-menu-btn" style={S.topHeaderIconBtn} aria-label="افتح القائمة الجانبية">
+        <button onClick={onOpenSidebar} className="cs-icon-btn cs-topbar-menu-btn" style={S.topHeaderIconBtn} aria-label={t("افتح القائمة الجانبية")}>
           <Menu size={17} />
         </button>
         <div style={S.topHeaderAvatar}>{initial}</div>
         <div>
           <div style={S.topHeaderName}>{emailName}</div>
           {isTrialing ? (
-            <Badge tone="warning" style={{ marginTop: 2 }}>تجربة مجانية</Badge>
+            <Badge tone="warning" style={{ marginTop: 2 }}>{t("تجربة مجانية")}</Badge>
           ) : plan ? (
-            <Badge color={planColor(plan)} style={{ marginTop: 2 }}>باقة {planLabel(plan)}</Badge>
+            <Badge color={planColor(plan)} style={{ marginTop: 2 }}>{t("باقة")} {planLabel(plan)}</Badge>
           ) : null}
         </div>
       </div>
 
       <div style={S.topHeaderActions}>
         <button
+          onClick={toggleLang}
+          className="cs-icon-btn"
+          style={{ ...S.topHeaderIconBtn, width: "auto", gap: 4, padding: "0 10px" }}
+          aria-label={t("تبديل اللغة")}
+          title={t("تبديل اللغة")}
+        >
+          <Globe size={16} />
+          <span style={{ fontSize: 10, fontWeight: 800 }}>{lang === "ar" ? "EN" : "AR"}</span>
+        </button>
+        <button
           onClick={toggleTheme}
           className="cs-icon-btn"
           style={S.topHeaderIconBtn}
-          aria-label="تبديل المظهر"
-          title="تبديل المظهر"
+          aria-label={t("تبديل المظهر")}
+          title={t("تبديل المظهر")}
         >
           {mode === "dark" ? <Moon size={16} /> : <Sun size={16} />}
         </button>
-        <button onClick={onOpenSearch} className="cs-icon-btn" style={S.topHeaderIconBtn} title="بحث في كل الأفكار">
+        <button onClick={onOpenSearch} className="cs-icon-btn" style={S.topHeaderIconBtn} title={t("بحث في كل الأفكار")}>
           <Search size={16} />
         </button>
         <div style={{ position: "relative" }}>
-          <button onClick={() => setNotifOpen((o) => !o)} className="cs-icon-btn" style={S.topHeaderIconBtn} title="يحتاج انتباهك">
+          <button onClick={() => setNotifOpen((o) => !o)} className="cs-icon-btn" style={S.topHeaderIconBtn} title={t("يحتاج انتباهك")}>
             <Bell size={16} />
             {attentionCount > 0 && <span style={S.topHeaderBadge}>{attentionCount}</span>}
           </button>
           {notifOpen && (
             <div style={S.notifDropdown} className="cs-animate-fade">
-              <div style={S.notifDropdownTitle}>يحتاج انتباهك</div>
-              {attentionList.length === 0 && <p style={S.aiHint}>مفيش حاجة مستعجلة دلوقتي 👍</p>}
+              <div style={S.notifDropdownTitle}>{t("يحتاج انتباهك")}</div>
+              {attentionList.length === 0 && <p style={S.aiHint}>{t("مفيش حاجة مستعجلة دلوقتي 👍")}</p>}
               {attentionList.map((it) => (
                 <div key={it.id} style={S.notifRow}>
                   <span style={{ ...S.dot, background: colors.danger, flexShrink: 0 }} />
@@ -3049,15 +3063,6 @@ function IdeaPlatformSection({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDet
       </div>
 
       <AnalysisMetricsGrid a={a} />
-
-      <div style={S.analyzerCardFooter}>
-        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
-          <Pencil size={10} /> تعديل
-        </button>
-        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenDetails(); }} style={S.analyzerCardFooterBtn}>
-          التفاصيل
-        </button>
-      </div>
     </div>
   );
 }
@@ -3139,15 +3144,6 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
       )}
 
       <AnalysisMetricsGrid a={a} />
-
-      <div style={S.analyzerCardFooter}>
-        <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.analyzerCardFooterBtn}>
-          <Pencil size={10} /> تعديل
-        </button>
-        <button type="button" onClick={(e) => { e.stopPropagation(); onOpenDetails(); }} style={S.analyzerCardFooterBtn}>
-          التفاصيل
-        </button>
-      </div>
     </div>
   );
 }
@@ -4699,9 +4695,10 @@ function normMonth(y, m) {
 /* ---------- Modals ---------- */
 
 function ModalShell({ onClose, children, wide }) {
+  const { dir } = useLanguage();
   return (
     <div style={S.overlay} className="overlay" onClick={onClose}>
-      <div style={{ ...S.modal, ...(wide ? { maxWidth: 520 } : {}) }} className="scrollbar modal" onClick={(e) => e.stopPropagation()}>
+      <div style={{ ...S.modal, direction: dir, ...(wide ? { maxWidth: 520 } : {}) }} className="scrollbar modal" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -5197,10 +5194,10 @@ const S = {
     width: 24, height: 24, borderRadius: 7, background: colors.card, border: `1px solid ${colors.border}`,
     color: colors.textDim, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  analyzerIdeaBody: { marginTop: 9, paddingTop: 9, borderTop: `1px solid ${colors.border}` },
+  analyzerIdeaBody: { marginTop: 7, paddingTop: 7, borderTop: `1px solid ${colors.border}` },
   analyzerIdeaSection: {
-    position: "relative", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 10,
-    padding: "8px 10px", cursor: "pointer", display: "flex", flexDirection: "column",
+    position: "relative", background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 9,
+    padding: "6px 9px", cursor: "pointer", display: "flex", flexDirection: "column",
   },
   analyzerIdeaSectionHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, marginBottom: 2 },
   analyzerUnlinkedHeading: { display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, color: colors.textDim, margin: "18px 0 10px" },

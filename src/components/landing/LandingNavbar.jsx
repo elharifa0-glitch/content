@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Globe } from "lucide-react";
 import { Logo } from "../Logo";
 import { landing } from "./tokens";
+import { useLanguage } from "../../LanguageContext";
 
 const LINKS = [
   { href: "#product", label: "المنتج" },
@@ -12,6 +13,7 @@ const LINKS = [
 
 export default function LandingNavbar() {
   const [open, setOpen] = useState(false);
+  const { lang, toggleLang, t } = useLanguage();
 
   return (
     <header style={styles.header}>
@@ -22,20 +24,23 @@ export default function LandingNavbar() {
 
         <nav style={styles.nav} className="landing-nav-desktop">
           {LINKS.map((l) => (
-            <a key={l.href} href={l.href} style={styles.navLink}>{l.label}</a>
+            <a key={l.href} href={l.href} style={styles.navLink}>{t(l.label)}</a>
           ))}
         </nav>
 
         <div style={styles.actions} className="landing-nav-desktop">
-          <a href="/login" style={styles.loginLink}>تسجيل الدخول</a>
-          <a href="/signup" style={styles.ctaBtn}>ابدأ مجانًا</a>
+          <button type="button" onClick={toggleLang} style={styles.langBtn} aria-label={t("تبديل اللغة")}>
+            <Globe size={13} /> {lang === "ar" ? "EN" : "AR"}
+          </button>
+          <a href="/login" style={styles.loginLink}>{t("تسجيل الدخول")}</a>
+          <a href="/signup" style={styles.ctaBtn}>{t("ابدأ مجانًا")}</a>
         </div>
 
         <button
           onClick={() => setOpen((o) => !o)}
           style={styles.menuBtn}
           className="landing-nav-mobile-btn"
-          aria-label={open ? "اقفل القائمة" : "افتح القائمة"}
+          aria-label={open ? t("اقفل القائمة") : t("افتح القائمة")}
         >
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -44,11 +49,14 @@ export default function LandingNavbar() {
       {open && (
         <div style={styles.mobilePanel} className="landing-nav-mobile-panel">
           {LINKS.map((l) => (
-            <a key={l.href} href={l.href} style={styles.mobileLink} onClick={() => setOpen(false)}>{l.label}</a>
+            <a key={l.href} href={l.href} style={styles.mobileLink} onClick={() => setOpen(false)}>{t(l.label)}</a>
           ))}
           <div style={styles.mobileDivider} />
-          <a href="/login" style={styles.mobileLink}>تسجيل الدخول</a>
-          <a href="/signup" style={{ ...styles.ctaBtn, textAlign: "center", marginTop: 4 }}>ابدأ مجانًا</a>
+          <button type="button" onClick={toggleLang} style={{ ...styles.langBtn, alignSelf: "flex-start" }}>
+            <Globe size={13} /> {lang === "ar" ? "EN" : "AR"}
+          </button>
+          <a href="/login" style={styles.mobileLink}>{t("تسجيل الدخول")}</a>
+          <a href="/signup" style={{ ...styles.ctaBtn, textAlign: "center", marginTop: 4 }}>{t("ابدأ مجانًا")}</a>
         </div>
       )}
     </header>
@@ -69,6 +77,11 @@ const styles = {
   nav: { display: "flex", alignItems: "center", gap: 28 },
   navLink: { color: landing.textDim, fontSize: 13.5, fontWeight: 700, textDecoration: "none" },
   actions: { display: "flex", alignItems: "center", gap: 14 },
+  langBtn: {
+    display: "flex", alignItems: "center", gap: 5, background: landing.surface,
+    border: `1px solid ${landing.border}`, color: landing.text, fontSize: 12, fontWeight: 800,
+    borderRadius: 999, padding: "6px 11px", cursor: "pointer", fontFamily: "inherit",
+  },
   loginLink: { color: landing.text, fontSize: 13.5, fontWeight: 700, textDecoration: "none" },
   ctaBtn: {
     background: landing.gradient, color: "#fff", fontSize: 13.5, fontWeight: 800,
