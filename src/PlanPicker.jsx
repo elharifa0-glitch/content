@@ -6,7 +6,7 @@ import { useLanguage } from "./LanguageContext";
 export const PLANS = [
   { key: "starter", name: "Starter", brands: "لحد 2 براند", price: "199 جنيه/شهر", annual: "1,990 جنيه/سنة" },
   { key: "pro", name: "Pro", brands: "لحد 5 براندات", price: "399 جنيه/شهر", annual: "3,990 جنيه/سنة", recommended: true },
-  { key: "unlimited", name: "Unlimited", brands: "براندات غير محدودة", price: "699 جنيه/شهر", annual: "6,990 جنيه/سنة" },
+  { key: "unlimited", name: "Unlimited", brands: "براندات غير محدودة", price: "1200 جنيه/شهر", annual: "12,000 جنيه/سنة" },
 ];
 
 export const INCLUDED_FEATURES = [

@@ -275,8 +275,8 @@ export const translations = {
     "1,990 جنيه/سنة": "EGP 1,990/year",
     "399 جنيه/شهر": "EGP 399/month",
     "3,990 جنيه/سنة": "EGP 3,990/year",
-    "699 جنيه/شهر": "EGP 699/month",
-    "6,990 جنيه/سنة": "EGP 6,990/year",
+    "1200 جنيه/شهر": "EGP 1,200/month",
+    "12,000 جنيه/سنة": "EGP 12,000/year",
 
     // ===== Brand page (tabs, board) =====
     "بدون بيانات تواصل": "No contact info",
