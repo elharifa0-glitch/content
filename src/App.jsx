@@ -6,6 +6,7 @@ import ResetPassword from "./ResetPassword";
 import Paywall from "./Paywall";
 import AccountConfirmed from "./AccountConfirmed";
 import SharedBrandView from "./SharedBrandView";
+import AdminPage from "./AdminPage";
 import LandingPage from "./components/landing/LandingPage";
 import { useLanguage } from "./LanguageContext";
 
@@ -15,6 +16,7 @@ export default function App() {
   const shareMatch = pathname.match(/^\/share\/([a-zA-Z0-9]+)/);
   const isSignupPath = pathname === "/signup";
   const isLandingPath = pathname === "/" || pathname === "/landing";
+  const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
 
   const [session, setSession] = useState(undefined);
   const [isRecovery, setIsRecovery] = useState(false);
@@ -150,6 +152,14 @@ export default function App() {
     if (isLandingPath) return <LandingPage />;
     if (isSignupPath) return <Auth initialMode="signup" />;
     return <Auth initialMode="login" />;
+  }
+
+  // صفحة الأدمن بتتفتح بمجرد ما فيه جلسة حقيقية، من غير ما تستنى فحص
+  // الاشتراك أو تتقفل بالـ Paywall — التحقق الحقيقي إن الشخص أدمن فعلاً
+  // بيحصل جوا AdminPage نفسها (عن طريق admin_get_overview اللي بترفض أي
+  // حد مش مدرج في admin_users على مستوى قاعدة البيانات).
+  if (isAdminPath) {
+    return <AdminPage />;
   }
 
   if (subStatus === undefined) {
