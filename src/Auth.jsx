@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { Globe } from "lucide-react";
 import { supabase } from "./supabaseClient";
-import { Logo } from "./components";
+import { Logo, Button, Input } from "./components";
 import { useLanguage } from "./LanguageContext";
+import { useTheme } from "./ThemeContext";
+import { colors, radius, spacing } from "./theme";
 
 // حروف إنجليزي صغيرة/أرقام/_ بس، من 3 لـ 30 حرف — بيتطبّع lowercase قبل
 // الفحص عشان "Ahmed" و"ahmed" يتحسبوا نفس اسم المستخدم.
@@ -15,6 +17,7 @@ function isValidUsername(u) {
 
 export default function Auth({ initialMode = "login" }) {
   const { dir, lang, toggleLang, t } = useLanguage();
+  const { mode: themeMode } = useTheme();
   const [mode, setMode] = useState(initialMode); // login | signup | forgot
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -92,14 +95,9 @@ export default function Auth({ initialMode = "login" }) {
 
   return (
     <div style={styles.wrap} dir={dir}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap');
-        * { box-sizing: border-box; font-family: 'Tajawal', sans-serif; }
-      `}</style>
-
       <form onSubmit={handleSubmit} style={styles.card}>
         <div style={styles.topRow}>
-          <Logo height={26} variant="light" />
+          <Logo height={26} variant={themeMode === "light" ? "dark" : "light"} />
           <button type="button" onClick={toggleLang} style={styles.langBtn} aria-label={t("تبديل اللغة")}>
             <Globe size={13} /> {lang === "ar" ? "EN" : "AR"}
           </button>
@@ -116,10 +114,9 @@ export default function Auth({ initialMode = "login" }) {
         </p>
 
         {mode === "signup" && (
-          <>
-            <label style={styles.label}>{t("اسم المستخدم")}</label>
-            <input
-              style={styles.input}
+          <div style={styles.field}>
+            <Input
+              label={t("اسم المستخدم")}
               type="text"
               required
               value={username}
@@ -128,25 +125,25 @@ export default function Auth({ initialMode = "login" }) {
               autoComplete="username"
               dir="ltr"
             />
-          </>
+          </div>
         )}
 
-        <label style={styles.label}>{t("الإيميل")}</label>
-        <input
-          style={styles.input}
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          autoComplete="email"
-        />
+        <div style={styles.field}>
+          <Input
+            label={t("الإيميل")}
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+        </div>
 
         {mode !== "forgot" && (
-          <>
-            <label style={styles.label}>{t("الباسورد")}</label>
-            <input
-              style={styles.input}
+          <div style={styles.field}>
+            <Input
+              label={t("الباسورد")}
               type="password"
               required
               minLength={6}
@@ -155,14 +152,13 @@ export default function Auth({ initialMode = "login" }) {
               placeholder={t("على الأقل 6 حروف/أرقام")}
               autoComplete={mode === "login" ? "current-password" : "new-password"}
             />
-          </>
+          </div>
         )}
 
         {mode === "signup" && (
-          <>
-            <label style={styles.label}>{t("تأكيد الباسورد")}</label>
-            <input
-              style={styles.input}
+          <div style={styles.field}>
+            <Input
+              label={t("تأكيد الباسورد")}
               type="password"
               required
               minLength={6}
@@ -171,13 +167,13 @@ export default function Auth({ initialMode = "login" }) {
               placeholder={t("اكتب الباسورد تاني")}
               autoComplete="new-password"
             />
-          </>
+          </div>
         )}
 
         {error && <p style={styles.error}>{error}</p>}
         {message && <p style={styles.message}>{message}</p>}
 
-        <button type="submit" disabled={loading} style={styles.submitBtn}>
+        <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ marginTop: spacing.lg }}>
           {loading
             ? t("بيحمّل...")
             : mode === "login"
@@ -185,7 +181,7 @@ export default function Auth({ initialMode = "login" }) {
             : mode === "signup"
             ? t("اعمل حساب")
             : t("ابعت رابط تغيير الباسورد")}
-        </button>
+        </Button>
 
         {mode === "login" && (
           <button
@@ -229,15 +225,15 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#11171B",
+    background: colors.bg,
     padding: 20,
   },
   card: {
     width: "100%",
     maxWidth: 380,
-    background: "#161E23",
-    border: "1px solid #2C383F",
-    borderRadius: 16,
+    background: colors.card,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radius.lg,
     padding: 28,
     display: "flex",
     flexDirection: "column",
@@ -253,9 +249,9 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 5,
-    background: "#1B2328",
-    border: "1px solid #2C383F",
-    color: "#C7CDD1",
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    color: colors.textDim,
     fontSize: 11.5,
     fontWeight: 800,
     borderRadius: 999,
@@ -264,62 +260,35 @@ const styles = {
     fontFamily: "inherit",
   },
   title: {
-    color: "#F2EEE4",
+    color: colors.text,
     fontSize: 20,
     fontWeight: 800,
     margin: 0,
   },
   subtitle: {
-    color: "#8FA0A8",
+    color: colors.textDim,
     fontSize: 13,
     margin: "4px 0 18px",
   },
-  label: {
-    fontSize: 12,
-    color: "#8FA0A8",
-    fontWeight: 600,
-    marginBottom: 6,
+  field: {
     marginTop: 10,
-  },
-  input: {
-    width: "100%",
-    background: "#1B2328",
-    border: "1px solid #2C383F",
-    borderRadius: 9,
-    color: "#F2EEE4",
-    padding: "10px 12px",
-    fontSize: 14,
-    fontFamily: "inherit",
-    outline: "none",
   },
   error: {
     fontSize: 12.5,
-    color: "#F0997B",
+    color: colors.danger,
     margin: "10px 0 0",
   },
   message: {
     fontSize: 12.5,
-    color: "#4FB286",
+    color: colors.good,
     margin: "10px 0 0",
     lineHeight: 1.6,
-  },
-  submitBtn: {
-    marginTop: 18,
-    background: "#E7A33E",
-    border: "none",
-    color: "#161E23",
-    padding: "11px",
-    borderRadius: 9,
-    fontSize: 14,
-    fontWeight: 800,
-    cursor: "pointer",
-    fontFamily: "inherit",
   },
   forgotBtn: {
     marginTop: 12,
     background: "transparent",
     border: "none",
-    color: "#E7A33E",
+    color: colors.accentBlue,
     fontSize: 12.5,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -328,7 +297,7 @@ const styles = {
     marginTop: 12,
     background: "transparent",
     border: "none",
-    color: "#8FA0A8",
+    color: colors.textDim,
     fontSize: 12.5,
     cursor: "pointer",
     fontFamily: "inherit",

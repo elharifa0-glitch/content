@@ -9,6 +9,7 @@ import SharedBrandView from "./SharedBrandView";
 import AdminPage from "./AdminPage";
 import LandingPage from "./components/landing/LandingPage";
 import { useLanguage } from "./LanguageContext";
+import { colors, radius, softBg } from "./theme";
 
 export default function App() {
   const { dir, t } = useLanguage();
@@ -140,8 +141,8 @@ export default function App() {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", background: "#11171B",
-        color: "#8FA0A8", fontFamily: "sans-serif"
+        justifyContent: "center", background: colors.bg,
+        color: colors.textDim, fontFamily: "inherit"
       }}>
         {t("بيحمّل...")}
       </div>
@@ -166,8 +167,8 @@ export default function App() {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", background: "#11171B",
-        color: "#8FA0A8", fontFamily: "sans-serif"
+        justifyContent: "center", background: colors.bg,
+        color: colors.textDim, fontFamily: "inherit"
       }}>
         {t("بيحمّل...")}
       </div>
@@ -185,12 +186,12 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100dvh", background: "#11171B", padding: 16, display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100dvh", background: colors.bg, padding: 16, display: "flex", flexDirection: "column" }}>
       {trialDaysLeft !== null && (
         <div style={{
-          maxWidth: 1400, margin: "0 auto 10px", background: "#1B2328", border: "1px solid #E7A33E55",
-          borderRadius: 10, padding: "8px 14px", color: "#E7A33E", fontSize: 12.5, fontWeight: 700,
-          textAlign: "center", fontFamily: "'Tajawal', sans-serif", direction: dir,
+          maxWidth: 1400, margin: "0 auto 10px", background: softBg.accentBlue, border: `1px solid ${colors.accentBlue}`,
+          borderRadius: radius.sm, padding: "8px 14px", color: colors.accentBlue, fontSize: 12.5, fontWeight: 700,
+          textAlign: "center", fontFamily: "inherit", direction: dir,
         }}>
           {trialDaysLeft === 0
             ? t("آخر يوم في فترة التجربة المجانية")

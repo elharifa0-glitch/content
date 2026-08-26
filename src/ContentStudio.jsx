@@ -286,6 +286,17 @@ function isoFromDate(d) {
 
 function todayISO() { return isoFromDate(new Date()); }
 
+// "2026-08-31T23:10:00.000Z" -> "2026-09" لو المستخدم في توقيت محلي متقدم
+// عن UTC (زي مصر UTC+2) — بنحول لتاريخ محلي الأول (زي isoFromDate بالظبط)
+// مش بناخد أول 7 حروف من نص الـ UTC مباشرة، عشان تحليل بعد نص الليل بتوقيت
+// المستخدم بس لسه اليوم اللي فات بتوقيت UTC ميتحسبش غلط في الشهر اللي فات.
+function monthKeyFromISO(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function fmtDate(d) {
   const dt = new Date(d + "T00:00:00");
   const months = currentLang === "en" ? MONTHS_EN : MONTHS_AR;
@@ -378,7 +389,7 @@ function computeAnalysisTotals(analyses) {
     acc.comments += c;
     acc.shares += s;
     acc.saves += sv;
-    const monthKey = a.analyzedAt ? a.analyzedAt.slice(0, 7) : null;
+    const monthKey = monthKeyFromISO(a.analyzedAt);
     if (monthKey === monthPrefix) {
       acc.monthViews += v;
       acc.monthLikes += l;
@@ -482,7 +493,7 @@ function getAnalysisMonthKey(a, itemsById) {
     const idea = itemsById.get(a.ideaId);
     if (idea?.date) return idea.date.slice(0, 7);
   }
-  return a.analyzedAt ? a.analyzedAt.slice(0, 7) : null;
+  return monthKeyFromISO(a.analyzedAt);
 }
 
 export default function ContentStudio({
@@ -491,11 +502,26 @@ export default function ContentStudio({
   const userId = session.user.id;
   const { dir, t } = useLanguage();
   const [loading, setLoading] = useState(true);
+  // لو تحميل البيانات فشل (نت مقطوع، السيرفر رافض...) لازم نعرض ده صراحة
+  // بدل ما نسيب brands/items فاضية — لأن ده كان بيتلبس بحساب مستخدم جديد
+  // فعليًا (نفس شاشة "ابدأ بأول براند" بتظهر لمستخدم قديم بياناته موجودة).
+  const [loadError, setLoadError] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const [saving, setSaving] = useState(false);
   const [brands, setBrands] = useState([]);
   const [items, setItems] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [socialAnalyses, setSocialAnalyses] = useState([]);
+  // persist() بيقرا من الـ refs دي بس (مش من state جوه closure) عشان لو
+  // اتنادى مرتين قريبين من بعض (مثلاً سحب كارت في الـ Kanban وبعده تعديل
+  // براند قبل ما أول upsert يخلص)، كل نداء يبعت أحدث نسخة فعلية من الأربع
+  // مصفوفات مع بعض — مش نسخة قديمة اتلقطت وقت الـ render اللي فات. ده
+  // بيمنع سباق فعلي كان ممكن يخلي upsert قديم يوصل بعد الجديد ويمسح تعديل
+  // حقيقي (لأن كل upsert بيكتب الـ blob كله من غير merge).
+  const brandsRef = useRef([]);
+  const itemsRef = useRef([]);
+  const tasksRef = useRef([]);
+  const socialAnalysesRef = useRef([]);
   const [view, setView] = useState(() => parseRoutePath(window.location.pathname).view);
   const [brandTab, setBrandTab] = useState(() => parseRoutePath(window.location.pathname).brandTab);
   const [brandModal, setBrandModal] = useState(null);
@@ -565,6 +591,7 @@ export default function ContentStudio({
 
   useEffect(() => {
     (async () => {
+      setLoadError(false);
       try {
         const { data: row, error } = await supabase
           .from("user_data")
@@ -602,6 +629,10 @@ export default function ContentStudio({
             base.instagram = { link: b.pageLink || "", snapshots: b.pageSnapshots || [] };
             return { ...b, pageTracking: base };
           });
+          brandsRef.current = fixedBrands;
+          itemsRef.current = fixedItems;
+          tasksRef.current = parsed.tasks || [];
+          socialAnalysesRef.current = parsed.socialAnalyses || [];
           setBrands(fixedBrands);
           setItems(fixedItems);
           setTasks(parsed.tasks || []);
@@ -613,24 +644,20 @@ export default function ContentStudio({
           marketingSourceRef.current = parsed.marketingSource || null;
           setMarketingSource(parsed.marketingSource || null);
           if (repaired) {
-            try {
-              await supabase.from("user_data").upsert({
-                user_id: userId,
-                data: { brands: fixedBrands, items: fixedItems, tasks: parsed.tasks || [], socialAnalyses: parsed.socialAnalyses || [] },
-                updated_at: new Date().toISOString(),
-              });
-            } catch (e2) {
-              // best effort repair, will retry on next edit anyway
-            }
+            // persist() هنا بيتعرّف تحت بعدين في نفس الكومبوننت — ده آمن لأن
+            // الـ effect ده بيتنفذ بعد ما الرندر يخلص، ووقتها الـ const يبقى
+            // متعرّف بالفعل. best effort: لو فشل، هيتكرر تلقائي مع أي تعديل جاي.
+            persist();
           }
         }
       } catch (e) {
         console.error("تعذر تحميل البيانات", e);
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     })();
-  }, [userId]);
+  }, [userId, reloadTick]);
 
   // مسار الرابط هو مصدر الحقيقة للتنقل (براند/صفحة/تاب) عشان يستحمل الـ
   // refresh والـ back/forward. أول مرة الـ effect ده يشتغل بعد ما البراندات
@@ -678,13 +705,30 @@ export default function ContentStudio({
     return () => window.removeEventListener("popstate", onPopState);
   }, [brands]);
 
-  const persist = useCallback(async (nextBrands, nextItems, nextTasks, nextSocialAnalyses) => {
+  // Single-flight + trailing queue: يضمن إن فيه upsert واحد بس شغال في أي
+  // وقت. لو persist() اتنادت وفيه واحد شغال بالفعل، بنسجل إن فيه نداء لسه
+  // مستني (isPendingRef) بدل ما نبعت upsert تاني يتزاحم مع اللي شغال — لأن
+  // لو اتبعتوا الاتنين مع بعض، مفيش ضمان إن الردود ترجع بنفس ترتيب الإرسال،
+  // فممكن upsert أقدم (لسه شايل بيانات أقل حداثة) يوصل بعد الأحدث ويمسحه —
+  // ده كان بيسبب فقدان تعديلات حقيقية (مثلاً سحب كارت في نفس اللحظة اللي
+  // تعديل تاني بيتحفظ فيها). لما الـ upsert الشغال يخلص، لو فيه نداء مستني
+  // بنبعت واحد جديد فورًا بأحدث نسخة من الـ refs تحت — مش بالقيم اللي كانت
+  // وقت أول نداء.
+  const isPersistingRef = useRef(false);
+  const isPersistPendingRef = useRef(false);
+
+  const persist = useCallback(async () => {
+    if (isPersistingRef.current) {
+      isPersistPendingRef.current = true;
+      return;
+    }
+    isPersistingRef.current = true;
     setSaving(true);
     try {
       const { error } = await supabase.from("user_data").upsert({
         user_id: userId,
         data: {
-          brands: nextBrands, items: nextItems, tasks: nextTasks, socialAnalyses: nextSocialAnalyses,
+          brands: brandsRef.current, items: itemsRef.current, tasks: tasksRef.current, socialAnalyses: socialAnalysesRef.current,
           onboardingDismissed: onboardingDismissedRef.current,
           userType: userTypeRef.current,
           marketingSource: marketingSourceRef.current,
@@ -695,14 +739,19 @@ export default function ContentStudio({
     } catch (e) {
       console.error("تعذر الحفظ", e);
     } finally {
+      isPersistingRef.current = false;
       setSaving(false);
+      if (isPersistPendingRef.current) {
+        isPersistPendingRef.current = false;
+        persist();
+      }
     }
   }, [userId]);
 
-  const updateBrands = (next) => { setBrands(next); persist(next, items, tasks, socialAnalyses); };
-  const updateItems = (next) => { setItems(next); persist(brands, next, tasks, socialAnalyses); };
-  const updateTasks = (next) => { setTasks(next); persist(brands, items, next, socialAnalyses); };
-  const updateSocialAnalyses = (next) => { setSocialAnalyses(next); persist(brands, items, tasks, next); };
+  const updateBrands = (next) => { brandsRef.current = next; setBrands(next); persist(); };
+  const updateItems = (next) => { itemsRef.current = next; setItems(next); persist(); };
+  const updateTasks = (next) => { tasksRef.current = next; setTasks(next); persist(); };
+  const updateSocialAnalyses = (next) => { socialAnalysesRef.current = next; setSocialAnalyses(next); persist(); };
 
   // مجرد UI state محلي متزامن مع نفس صف user_data الموجود — مفيش جدول جديد.
   // العرض نفسه مبني على بيانات المستخدم الحقيقية (براندات/أفكار/تحليلات)،
@@ -710,7 +759,7 @@ export default function ContentStudio({
   function dismissOnboarding() {
     onboardingDismissedRef.current = true;
     setOnboardingDismissed(true);
-    persist(brands, items, tasks, socialAnalyses);
+    persist();
   }
 
   // value بيكون إما مفتاح الاختيار أو "skipped" — الاتنين بيعتبروا السؤال
@@ -718,12 +767,12 @@ export default function ContentStudio({
   function chooseUserType(value) {
     userTypeRef.current = value;
     setUserType(value);
-    persist(brands, items, tasks, socialAnalyses);
+    persist();
   }
   function chooseMarketingSource(value) {
     marketingSourceRef.current = value;
     setMarketingSource(value);
-    persist(brands, items, tasks, socialAnalyses);
+    persist();
   }
 
   const activeBrandId = view.startsWith("brand:") ? view.slice(6) : null;
@@ -752,16 +801,23 @@ export default function ContentStudio({
     return items.filter((it) => it.date && it.date < t && it.status !== "done").length;
   }, [items]);
 
+  // كل الدوال دي بتقرا من الـ refs (brandsRef/itemsRef/...) مش من الـ state
+  // (brands/items/...) عشان تحسب "القيمة الجاية" — لو قرات من الـ state
+  // كانت هتقرا نسخة ممكن تبقى قديمة لو أكتر من تحديث حصل بسرعة قبل ما رندر
+  // جديد يحصل (زي تحديث كذا تحليل منصة لنفس الفكرة بالتوازي في
+  // refreshIdeaAnalyses تحت — كل واحد كان ممكن يمسح تحديث التاني من الـ
+  // state نفسه، مش بس من قاعدة البيانات). الـ ref دايمًا أحدث حاجة فعلية
+  // لأنه بيتحدّث Synchronously جوه updateBrands/updateItems/... نفسها.
   function saveBrand(data) {
     if (data.id) {
-      updateBrands(brands.map((b) => (b.id === data.id ? { ...b, ...data } : b)));
+      updateBrands(brandsRef.current.map((b) => (b.id === data.id ? { ...b, ...data } : b)));
     } else {
       const nb = {
         id: uid(), name: data.name, emoji: data.emoji, color: data.color, handle: data.handle || "",
         hashtags: "", captionTemplates: {}, evergreenIdeas: [], paymentTotal: 0, payments: [],
         referenceSources: [], pageLink: "", pageSnapshots: [], pageTracking: emptyPageTracking(),
       };
-      updateBrands([...brands, nb]);
+      updateBrands([...brandsRef.current, nb]);
       setView(`brand:${nb.id}`);
       setBrandTab("board");
     }
@@ -769,49 +825,49 @@ export default function ContentStudio({
   }
 
   function patchBrand(id, patch) {
-    updateBrands(brands.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    updateBrands(brandsRef.current.map((b) => (b.id === id ? { ...b, ...patch } : b)));
   }
 
   function deleteBrand(id) {
-    updateBrands(brands.filter((b) => b.id !== id));
-    updateItems(items.filter((it) => it.brandId !== id));
+    updateBrands(brandsRef.current.filter((b) => b.id !== id));
+    updateItems(itemsRef.current.filter((it) => it.brandId !== id));
     if (activeBrandId === id) setView("dashboard");
     setConfirmDelete(null);
   }
 
   function saveItem(data) {
     if (data.id) {
-      updateItems(items.map((it) => (it.id === data.id ? { ...it, ...data } : it)));
+      updateItems(itemsRef.current.map((it) => (it.id === data.id ? { ...it, ...data } : it)));
     } else {
       const { id: _drop, ...rest } = data;
-      updateItems([...items, { id: uid(), ...rest }]);
+      updateItems([...itemsRef.current, { id: uid(), ...rest }]);
     }
     setItemModal(null);
   }
 
   function deleteItem(id) {
-    updateItems(items.filter((it) => it.id !== id));
+    updateItems(itemsRef.current.filter((it) => it.id !== id));
     setConfirmDelete(null);
   }
 
   function setItemStatus(id, status) {
-    updateItems(items.map((it) => (it.id === id ? { ...it, status } : it)));
+    updateItems(itemsRef.current.map((it) => (it.id === id ? { ...it, status } : it)));
   }
 
   function patchItem(id, patch) {
-    updateItems(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+    updateItems(itemsRef.current.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }
 
   function addTask(text) {
     const t = text.trim();
     if (!t) return;
-    updateTasks([{ id: uid(), text: t, done: false }, ...tasks]);
+    updateTasks([{ id: uid(), text: t, done: false }, ...tasksRef.current]);
   }
   function toggleTask(id) {
-    updateTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    updateTasks(tasksRef.current.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
   }
   function deleteTask(id) {
-    updateTasks(tasks.filter((t) => t.id !== id));
+    updateTasks(tasksRef.current.filter((t) => t.id !== id));
   }
 
   function bulkAddItems(brandId, titles, type, status) {
@@ -819,7 +875,7 @@ export default function ContentStudio({
       .map((t) => t.trim())
       .filter(Boolean)
       .map((title) => ({ id: uid(), brandId, title, notes: "", link: "", referenceLink: "", type, status, date: "" }));
-    if (newItems.length) updateItems([...items, ...newItems]);
+    if (newItems.length) updateItems([...itemsRef.current, ...newItems]);
     setBulkAddOpen(false);
   }
 
@@ -829,20 +885,20 @@ export default function ContentStudio({
 
   function saveSocialAnalysis(data) {
     const record = { id: uid(), analyzedAt: new Date().toISOString(), ideaId: null, ...data };
-    updateSocialAnalyses([record, ...socialAnalyses]);
+    updateSocialAnalyses([record, ...socialAnalysesRef.current]);
     return record;
   }
 
   function setAnalysisIdea(analysisId, ideaId) {
-    updateSocialAnalyses(socialAnalyses.map((a) => (a.id === analysisId ? { ...a, ideaId } : a)));
+    updateSocialAnalyses(socialAnalysesRef.current.map((a) => (a.id === analysisId ? { ...a, ideaId } : a)));
   }
 
   function patchAnalysisMetrics(analysisId, metricsPatch) {
-    updateSocialAnalyses(socialAnalyses.map((a) => (a.id === analysisId ? { ...a, ...metricsPatch } : a)));
+    updateSocialAnalyses(socialAnalysesRef.current.map((a) => (a.id === analysisId ? { ...a, ...metricsPatch } : a)));
   }
 
   function deleteSocialAnalysis(id) {
-    updateSocialAnalyses(socialAnalyses.filter((a) => a.id !== id));
+    updateSocialAnalyses(socialAnalysesRef.current.filter((a) => a.id !== id));
     setConfirmDelete(null);
   }
 
@@ -868,6 +924,18 @@ export default function ContentStudio({
         <Loader2 size={22} style={{ animation: "spin 1s linear infinite" }} />
         <span style={{ marginRight: 10 }}>{t("بيحمّل الاستوديو...")}</span>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ ...S.loadingWrap, flexDirection: "column", gap: 12 }}>
+        <AlertTriangle size={22} style={{ color: colors.danger }} />
+        <span>{t("معرفناش نجيب بياناتك — تأكد إن النت شغال وجرب تاني.")}</span>
+        <Button variant="primary" onClick={() => { setLoading(true); setReloadTick((n) => n + 1); }}>
+          {t("جرب تاني")}
+        </Button>
       </div>
     );
   }
@@ -1759,6 +1827,9 @@ function Dashboard({
   const perfChartData = useMemo(() => {
     const map = {};
     const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0); // منتصف الليل محليًا — لو سبناها بتوقيت دلوقتي، أي محتوى
+    // تاريخه بالظبط قبل 30 يوم كان بيتشال من الرسم بمجرد ما أي وقت يعدي
+    // النهاردة، فعمليًا كان بيعرض 29 يوم بس مش 30.
     cutoff.setDate(cutoff.getDate() - 30);
     items.forEach((it) => {
       if (!it.date || it.views === undefined || it.views === null || it.views === "") return;
@@ -1996,7 +2067,7 @@ function Dashboard({
                       <div style={S.upcomingTitle}>{it.title}</div>
                       <div style={S.upcomingMeta}>{b?.name} · {t(it.type)}</div>
                     </div>
-                    <span style={{ ...S.miniBadge, color: near ? colors.danger : colors.warning, background: near ? "rgba(217,112,122,0.16)" : "rgba(231,163,62,0.16)" }}>
+                    <span style={{ ...S.miniBadge, color: near ? colors.danger : colors.warning, background: near ? softBg.danger : softBg.warning }}>
                       {near && <AlertTriangle size={10} style={{ verticalAlign: -1 }} />} {fmtDate(it.date)}
                     </span>
                   </div>
@@ -3436,25 +3507,62 @@ function BrandPage({
 
 function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
   const { t } = useLanguage();
+  // dragOverStatus بس بيتحكم في الهايلايت البصري للعمود اللي الماوس فوقه دلوقتي —
+  // النقل الفعلي بيحصل في onDrop تحت، مش هنا.
+  const [dragOverStatus, setDragOverStatus] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+
   return (
     <div style={S.board} className="scrollbar board">
       {STATUS_DEFS.map((sd, colIdx) => {
         const colItems = items.filter((it) => it.status === sd.key);
+        const isDragOver = dragOverStatus === sd.key;
         return (
-          <div key={sd.key} style={S.column} className="column">
+          <div
+            key={sd.key}
+            style={{
+              ...S.column,
+              ...(isDragOver ? { borderColor: colors.accentBlue, background: softBg.accentBlue } : {}),
+            }}
+            className="column"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              if (dragOverStatus !== sd.key) setDragOverStatus(sd.key);
+            }}
+            onDragLeave={(e) => {
+              // dragleave بيتفعّل كل ما الماوس يعدي بين عناصر جوه نفس العمود (الكروت)
+              // برضه، مش بس لما يسيب العمود فعلاً — من غير الفحص ده الهايلايت كان
+              // هيرمش. relatedTarget هو العنصر اللي الماوس داخل عليه دلوقتي.
+              if (!e.currentTarget.contains(e.relatedTarget)) {
+                setDragOverStatus((s) => (s === sd.key ? null : s));
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOverStatus(null);
+              const id = e.dataTransfer.getData("text/plain");
+              if (id) onSetStatus(id, sd.key);
+            }}
+          >
             <div style={S.columnHead}>
               <span style={{ ...S.dot, background: sd.color }} />
               <span style={S.columnTitle}>{t(sd.label)}</span>
               <span style={S.columnCount}>{colItems.length}</span>
             </div>
             <div style={S.columnBody} className="scrollbar columnBody">
-              {colItems.length === 0 && <div style={S.columnEmpty}>{t("مفيش أفكار هنا")}</div>}
+              {colItems.length === 0 && (
+                <div style={S.columnEmpty}>{isDragOver ? t("سيب هنا عشان تنقلها") : t("مفيش أفكار هنا")}</div>
+              )}
               {colItems.map((it) => (
                 <TicketCard
                   key={it.id}
                   item={it}
                   statusColor={sd.color}
                   nextStatus={STATUS_DEFS[colIdx + 1]}
+                  isDragging={draggingId === it.id}
+                  onDragStart={() => setDraggingId(it.id)}
+                  onDragEnd={() => setDraggingId(null)}
                   onEdit={() => onEdit(it)}
                   onDelete={() => onDelete(it)}
                   onMove={(newStatus) => onSetStatus(it.id, newStatus)}
@@ -3469,7 +3577,7 @@ function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
   );
 }
 
-function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, onSavePerf }) {
+function TicketCard({ item, statusColor, nextStatus, isDragging, onDragStart, onDragEnd, onEdit, onDelete, onMove, onSavePerf }) {
   const { t } = useLanguage();
   const dLeft = item.date ? daysUntil(item.date) : null;
   const isOverdue = dLeft !== null && dLeft < 0 && item.status !== "done";
@@ -3528,7 +3636,21 @@ function TicketCard({ item, statusColor, nextStatus, onEdit, onDelete, onMove, o
   const hasPerf = (item.views !== undefined && item.views !== null && item.views !== "") || (item.likes !== undefined && item.likes !== null && item.likes !== "");
 
   return (
-    <div style={{ ...S.ticket, borderTopColor: statusColor }}>
+    <div
+      style={{
+        ...S.ticket,
+        borderTopColor: statusColor,
+        cursor: "grab",
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", String(item.id));
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart?.();
+      }}
+      onDragEnd={onDragEnd}
+    >
       <div style={S.ticketHead}>
         <span style={S.ticketType}>{t(item.type)}</span>
         <div style={{ display: "flex", gap: 4 }}>
@@ -5080,7 +5202,7 @@ const S = {
   dashGreeting: { fontSize: 20, fontWeight: 800, margin: 0, color: colors.text },
   dashGreetingSub: { fontSize: 12.5, color: colors.textDim, margin: "4px 0 0" },
   kpiRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 24 },
-  kpiCard: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "12px 14px" },
+  kpiCard: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: "12px 14px" },
   kpiIcon: { width: 30, height: 30, borderRadius: 9, background: colors.surface, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   kpiValue: { fontSize: 18, fontWeight: 800, lineHeight: 1.2 },
   kpiLabel: { fontSize: 10.5, color: colors.textDim, marginTop: 1 },
@@ -5089,7 +5211,7 @@ const S = {
 
   onboardingCard: {
     background: colors.accentGradientSoft, border: `1px solid ${colors.border}`,
-    borderRadius: 16, padding: "16px 18px", marginBottom: 24,
+    borderRadius: radius.md, padding: "16px 18px", marginBottom: 24,
   },
   onboardingStepsRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 },
   onboardingSteps: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
@@ -5116,7 +5238,7 @@ const S = {
   onboardingOptionBtnActive: { background: softBg.accentBlue, border: `1px solid ${colors.accentBlue}`, color: colors.accentBlue },
   onboardingChoiceFooter: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" },
   financeRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 },
-  financeCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 12, padding: "14px 16px" },
+  financeCard: { background: colors.card, border: `1px solid ${colors.border}`, borderRadius: radius.md, padding: "14px 16px" },
   financeLabel: { fontSize: 11, color: colors.textDim },
   financeValue: { fontSize: 19, fontWeight: 800, marginTop: 4, color: colors.text },
   financeTrend: { display: "flex", alignItems: "center", gap: 3, fontSize: 10.5, fontWeight: 700, marginTop: 6 },
@@ -5126,7 +5248,7 @@ const S = {
   compactRow: { display: "flex", alignItems: "center", gap: 9, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 9, padding: "8px 11px" },
   attentionRow: { display: "flex", alignItems: "center", gap: 9, background: colors.card, border: `1px solid ${borderTint.danger}`, borderRadius: 9, padding: "8px 11px" },
   attentionIcon: { color: colors.danger, display: "flex", flexShrink: 0 },
-  attentionTag: { fontSize: 10, fontWeight: 700, color: colors.danger, background: "rgba(217,112,122,0.14)", padding: "3px 8px", borderRadius: 999, flexShrink: 0, whiteSpace: "nowrap" },
+  attentionTag: { fontSize: 10, fontWeight: 700, color: colors.danger, background: softBg.danger, padding: "3px 8px", borderRadius: 999, flexShrink: 0, whiteSpace: "nowrap" },
   brandMiniList: { display: "flex", flexDirection: "column", gap: 7 },
   brandMiniCard: { display: "flex", alignItems: "center", gap: 10, background: colors.card, border: `1px solid ${colors.border}`, borderRadius: 10, padding: "9px 10px", cursor: "pointer", fontFamily: "inherit", width: "100%", textAlign: "right" },
   brandMiniName: { fontSize: 12.5, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -5277,14 +5399,14 @@ const S = {
   tabBtn: { display: "flex", alignItems: "center", gap: 7, background: "transparent", border: `1px solid ${colors.border}`, color: colors.textDim, padding: "8px 14px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
   tabBtnActive: { background: colors.card, color: colors.text, borderColor: colors.borderStrong, fontWeight: 700 },
 
-  board: { display: "grid", gridTemplateColumns: "repeat(4,minmax(220px,1fr))", gap: 12, overflowX: "auto" },
-  column: { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 12, display: "flex", flexDirection: "column", maxHeight: 560, transition: "border-color .12s" },
-  columnHead: { display: "flex", alignItems: "center", gap: 8, padding: "12px 12px 10px" },
+  board: { display: "grid", gridTemplateColumns: "repeat(4,minmax(220px,1fr))", gap: 16, overflowX: "auto" },
+  column: { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 18, display: "flex", flexDirection: "column", maxHeight: 560, transition: "border-color .12s" },
+  columnHead: { display: "flex", alignItems: "center", gap: 8, padding: "14px 14px 12px" },
   columnTitle: { fontSize: 12.5, fontWeight: 700, flex: 1 },
   columnCount: { fontSize: 11, color: colors.textFaint, background: colors.card, padding: "1px 7px", borderRadius: 999 },
-  columnBody: { padding: "0 10px 10px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, flex: 1 },
+  columnBody: { padding: "0 12px 12px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, flex: 1 },
   columnEmpty: { fontSize: 11.5, color: colors.textFaint, textAlign: "center", padding: "18px 0" },
-  ticket: { background: colors.card, border: `1px solid ${colors.border}`, borderTop: "2.5px solid", borderRadius: 10, padding: "10px 11px 9px" },
+  ticket: { background: colors.card, border: `1px solid ${colors.border}`, borderTop: "2.5px solid", borderRadius: 14, padding: "13px 14px 12px" },
   ticketHead: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 },
   ticketType: { fontSize: 10, fontWeight: 700, color: colors.textDim, background: colors.surface, padding: "2px 7px", borderRadius: 5, flex: 1 },
   ticketIconBtn: { background: "transparent", border: "none", color: colors.textFaint, cursor: "pointer", padding: 3, display: "flex" },
@@ -5292,8 +5414,8 @@ const S = {
   ticketTitle: { fontSize: 13, fontWeight: 600, lineHeight: 1.5, marginBottom: 4 },
   ticketNotes: { fontSize: 11.5, color: colors.textDim, lineHeight: 1.6, marginBottom: 6 },
   ticketBadgesRow: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 6 },
-  badgeDanger: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.danger, background: "rgba(217,112,122,0.16)", padding: "2px 6px", borderRadius: 5 },
-  badgeWarning: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.warning, background: "rgba(231,163,62,0.16)", padding: "2px 6px", borderRadius: 5 },
+  badgeDanger: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.danger, background: softBg.danger, padding: "2px 6px", borderRadius: 5 },
+  badgeWarning: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.warning, background: softBg.warning, padding: "2px 6px", borderRadius: 5 },
   badgeGeneric: { display: "flex", alignItems: "center", gap: 3, fontSize: 9.5, fontWeight: 700, color: colors.textDim, background: colors.surface, padding: "2px 6px", borderRadius: 5 },
   ticketFooter: { display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: `1px dashed ${colors.borderStrong}`, paddingTop: 7, marginTop: 4 },
   ticketDate: { fontSize: 10.5, color: colors.textFaint },

@@ -29,10 +29,16 @@ export const darkPalette = {
   textDim: "#9AA3BF",
   textFaint: "#6B7494",
 
-  accentBlue: "#6C8CFF",
-  accentPurple: "#8B6CF0",
-  accentMagenta: "#C65FC9",
-  accentPink: "#EE73B4",
+  // Warm orange -> red ramp — the same brand gradient the landing page uses
+  // (components/landing/tokens.js `gradient`), so the identity carries
+  // through from the marketing site into the product instead of switching
+  // to an unrelated blue/purple family. Names kept as accentBlue/Purple/
+  // Magenta/Pink since they're read positionally by the gradient stops in
+  // globalStyles.js (0% / 45% / 75% / 100%), not literally blue or purple.
+  accentBlue: "#FF9F2D",
+  accentPurple: "#FF7A34",
+  accentMagenta: "#FF6239",
+  accentPink: "#FF4D3D",
   onAccent: "#0B0E17",
 
   status: { idea: "#9AA3BF", ready: "#5FA8D3", scheduled: "#E7A33E", done: "#4FB286" },
@@ -60,11 +66,11 @@ export const lightPalette = {
   textFaint: "#8A93A1",
 
   // Deepened relative to the dark-mode accents so they stay legible on a
-  // white surface — same blue → purple → pink identity, more saturated.
-  accentBlue: "#3D5FE0",
-  accentPurple: "#6B46C8",
-  accentMagenta: "#A83FAE",
-  accentPink: "#D94F9A",
+  // white surface — same orange → red identity as the landing page, more saturated.
+  accentBlue: "#F2811A",
+  accentPurple: "#F2631F",
+  accentMagenta: "#F24A24",
+  accentPink: "#E63929",
   onAccent: "#FFFFFF",
 
   status: { idea: "#5B6472", ready: "#2E7DAE", scheduled: "#B5790A", done: "#1F9D63" },
@@ -147,9 +153,9 @@ export const borderTint = {
 };
 
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  sm: 10,
+  md: 16,
+  lg: 20,
   pill: 999,
 };
 
