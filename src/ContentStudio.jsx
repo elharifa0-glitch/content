@@ -1272,6 +1272,7 @@ export default function ContentStudio({
               setMonth={setCalMonth}
               onDayClick={(date) => setItemModal({ date })}
               onItemClick={(it) => setItemModal(it)}
+              onMoveItemDate={(id, date) => patchItem(id, { date })}
               showBrandColor
             />
           </div>
@@ -3481,6 +3482,7 @@ function BrandPage({
           setMonth={setCalMonth}
           onDayClick={(date) => onEditItem({ brandId: brand.id, date })}
           onItemClick={onEditItem}
+          onMoveItemDate={(id, date) => onPatchItem(id, { date })}
         />
       )}
       {tab === "insights" && (
@@ -3541,6 +3543,12 @@ function Board({ items, onEdit, onDelete, onSetStatus, onPatchItem }) {
             onDrop={(e) => {
               e.preventDefault();
               setDragOverStatus(null);
+              // بنصفّر draggingId هنا فورًا، مش نستنى onDragEnd — لو الكارت
+              // اتنقل لعمود تاني، الـ DOM element بتاعه بيتشال ويتحط عنصر
+              // جديد مكانه (React مش بيقدر يحافظ عليه بين عمودين مختلفين)،
+              // فحدث dragend بتاع المتصفح ممكن ميتفعّلش على عنصر اتشال من
+              // الصفحة، وكان بيسيب الكارت شفاف (opacity 0.5) للأبد.
+              setDraggingId(null);
               const id = e.dataTransfer.getData("text/plain");
               if (id) onSetStatus(id, sd.key);
             }}
@@ -4789,8 +4797,10 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
 
 /* ---------- Calendar ---------- */
 
-function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick, showBrandColor }) {
+function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick, showBrandColor, onMoveItemDate }) {
   const { lang } = useLanguage();
+  const [dragOverDate, setDragOverDate] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
   const { y, m } = month;
   const first = new Date(y, m, 1);
   const startWeekday = first.getDay();
@@ -4834,8 +4844,40 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
           const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
           const dayItems = itemsByDate[dateStr] || [];
           const isToday = dateStr === today;
+          const isDragOver = dragOverDate === dateStr;
           return (
-            <div key={i} style={{ ...S.calCell, ...(isToday ? S.calCellToday : {}) }} className="calCell" onClick={() => onDayClick(dateStr)}>
+            <div
+              key={i}
+              style={{
+                ...S.calCell,
+                ...(isToday ? S.calCellToday : {}),
+                ...(isDragOver ? { borderColor: colors.accentBlue, background: softBg.accentBlue } : {}),
+              }}
+              className="calCell"
+              onClick={() => onDayClick(dateStr)}
+              onDragOver={onMoveItemDate ? (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (dragOverDate !== dateStr) setDragOverDate(dateStr);
+              } : undefined}
+              onDragLeave={onMoveItemDate ? (e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setDragOverDate((s) => (s === dateStr ? null : s));
+                }
+              } : undefined}
+              onDrop={onMoveItemDate ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverDate(null);
+                // نصفّر draggingId هنا فورًا مش لما onDragEnd يتفعّل — الفكرة
+                // بتتنقل ليوم تاني فبتتشال من الخانة القديمة، وحدث dragend
+                // بتاع المتصفح ممكن ميوصلش لعنصر اتشال من الصفحة بالفعل،
+                // فكانت بتفضل شفافة (opacity 0.5) حتى بعد ما تتسيب.
+                setDraggingId(null);
+                const id = e.dataTransfer.getData("text/plain");
+                if (id) onMoveItemDate(id, dateStr);
+              } : undefined}
+            >
               <div style={S.calDayNum} className="calDayNum">{d}</div>
               <div style={S.calItems}>
                 {dayItems.slice(0, 3).map((it) => (
@@ -4847,8 +4889,18 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
                       ...S.calChip,
                       background: showBrandColor ? brandColor(it.brandId) + "24" : (STATUS_DEFS.find((s) => s.key === it.status)?.bg),
                       color: showBrandColor ? brandColor(it.brandId) : (STATUS_DEFS.find((s) => s.key === it.status)?.color),
+                      cursor: onMoveItemDate ? "grab" : undefined,
+                      opacity: draggingId === it.id ? 0.5 : 1,
                     }}
                     title={it.title}
+                    draggable={!!onMoveItemDate}
+                    onDragStart={onMoveItemDate ? (e) => {
+                      e.stopPropagation();
+                      e.dataTransfer.setData("text/plain", String(it.id));
+                      e.dataTransfer.effectAllowed = "move";
+                      setDraggingId(it.id);
+                    } : undefined}
+                    onDragEnd={onMoveItemDate ? () => setDraggingId(null) : undefined}
                   >
                     {it.title}
                   </div>
