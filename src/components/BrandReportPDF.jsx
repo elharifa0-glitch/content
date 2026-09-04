@@ -43,7 +43,7 @@ function Section({ title, children }) {
 
 function StatBox({ label, value }) {
   return (
-    <div style={s.statBox}>
+    <div style={s.statBox} data-pdf-block="1">
       <div style={s.statValue}>{value}</div>
       <div style={s.statLabel}>{label}</div>
     </div>
@@ -95,7 +95,7 @@ export default function BrandReportPDF({
             <table style={s.table}>
               <tbody>
                 {byType.map(([t, c]) => (
-                  <tr key={t}>
+                  <tr key={t} data-pdf-block="1">
                     <td style={s.tdLabel}>{t}</td>
                     <td style={s.tdValue}>{c}{mixTargets[t] !== undefined ? ` (مستهدف ${mixTargets[t]}%)` : ""}</td>
                   </tr>
@@ -125,7 +125,7 @@ export default function BrandReportPDF({
           ) : (
             <div style={s.top5List}>
               {top5.map((it, idx) => (
-                <div key={it.id} style={s.top5Row}>
+                <div key={it.id} style={s.top5Row} data-pdf-block="1">
                   <div style={s.top5Rank}>{idx + 1}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={s.top5Title}>{it.title}</div>
@@ -177,7 +177,7 @@ export default function BrandReportPDF({
               {pageTracking.pageGrowth.map((g) => {
                 const Icon = PLATFORM_ICON[g.key];
                 return (
-                  <p key={g.key} style={s.p}>
+                  <p key={g.key} style={s.p} data-pdf-block="1">
                     {Icon && <Icon size={12} color="#5B6472" style={{ verticalAlign: -2 }} />} {g.label}:{" "}
                     {g.hasGrowth
                       ? `زيادة المتابعين ${g.diff >= 0 ? "+" : ""}${g.diff} متابع (من ${g.first.followers ?? "؟"} بتاريخ ${g.first.date} لحد ${g.latest.followers ?? "؟"} بتاريخ ${g.latest.date})`
@@ -186,7 +186,7 @@ export default function BrandReportPDF({
                 );
               })}
               {pageTracking.pageGrowth.filter((g) => g.diff != null).length >= 2 && (
-                <p style={{ ...s.p, fontWeight: 800 }}>إجمالي زيادة المتابعين: {pageTracking.totalGrowth >= 0 ? "+" : ""}{pageTracking.totalGrowth}</p>
+                <p style={{ ...s.p, fontWeight: 800 }} data-pdf-block="1">إجمالي زيادة المتابعين: {pageTracking.totalGrowth >= 0 ? "+" : ""}{pageTracking.totalGrowth}</p>
               )}
             </>
           )}

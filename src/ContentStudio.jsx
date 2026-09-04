@@ -3982,25 +3982,60 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
       }
 
       const target = container.firstElementChild;
+
+      // Elements marked data-pdf-block must never be sliced in half across
+      // a page boundary (a top-5 row, a stat box, a table row, ...). Their
+      // vertical extents are captured here, in target's own CSS-pixel
+      // coordinate space, before the DOM is torn down.
+      const targetRect = target.getBoundingClientRect();
+      const blockRects = Array.from(target.querySelectorAll("[data-pdf-block]")).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top - targetRect.top, bottom: r.bottom - targetRect.top };
+      });
+
       const canvas = await Promise.race([
         html2canvas(target, { scale: 2, backgroundColor: "#ffffff", useCORS: true }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("انتهت مهلة تجهيز الـ PDF")), 20000)),
       ]);
-      const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+      const mmPerCanvasPx = imgWidth / canvas.width;
+      const pxPerCssPx = canvas.width / targetRect.width;
+      const pageHeightPx = pdfHeight / mmPerCanvasPx;
+
+      // Convert the recorded block extents into the same canvas-pixel space
+      // used for slicing below.
+      const blockRangesPx = blockRects.map((b) => ({ top: b.top * pxPerCssPx, bottom: b.bottom * pxPerCssPx }));
+
+      let currentTopPx = 0;
+      while (currentTopPx < canvas.height) {
+        let sliceBottomPx = Math.min(currentTopPx + pageHeightPx, canvas.height);
+        // If this break would land inside a block, pull it back to the
+        // start of that block so the whole block moves to the next page.
+        // Skip the adjustment if the block itself doesn't fit on a page
+        // (would loop forever) — better to cut an oversized block than
+        // to get stuck.
+        const straddling = blockRangesPx.find(
+          (b) => b.top < sliceBottomPx && b.bottom > sliceBottomPx && b.top > currentTopPx
+        );
+        if (straddling && straddling.bottom - straddling.top <= pageHeightPx) {
+          sliceBottomPx = straddling.top;
+        }
+
+        const sliceHeightPx = Math.max(1, Math.round(sliceBottomPx - currentTopPx));
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceHeightPx;
+        sliceCanvas
+          .getContext("2d")
+          .drawImage(canvas, 0, currentTopPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+        if (currentTopPx > 0) pdf.addPage();
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, imgWidth, sliceHeightPx * mmPerCanvasPx);
+
+        currentTopPx += sliceHeightPx;
       }
       pdf.save(`تقرير-${brand.name}-${reportMonth}.pdf`);
     } catch (e) {
