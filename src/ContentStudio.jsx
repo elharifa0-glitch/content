@@ -2242,7 +2242,7 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
   const filtered = q ? items.filter((it) => it.title.toLowerCase().includes(q)) : items;
 
   return (
-    <ModalShell onClose={onClose}>
+    <ModalShell onClose={onClose} onSubmit={() => selected && onConfirm(selected)}>
       <div style={S.modalHead}>
         <span style={S.modalTitle}>{t("ربط التحليل بفكرة")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
@@ -2287,6 +2287,69 @@ function LinkIdeaModal({ items, currentIdeaId, onClose, onConfirm }) {
   );
 }
 
+// بيتفتح قبل ما أي تحليل (واحد أو دفعة روابط) يشتغل فعليًا — بيسأل "تحب
+// تربطهم بفكرة موجودة؟" بدل ما المستخدم يحلل الأول وبعدين يرجع يربط كل
+// واحد لوحده من قايمة النتايج. الربط اختياري: تأكيد من غير اختيار فكرة
+// معناه "حلّل من غير ربط"، زي ما كان يحصل قبل كده بالظبط.
+function AnalyzeLinkPromptModal({ urlCount, items, onClose, onConfirm }) {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState(null);
+  const q = query.trim().toLowerCase();
+  const filtered = q ? items.filter((it) => it.title.toLowerCase().includes(q)) : items;
+
+  return (
+    <ModalShell onClose={onClose} onSubmit={() => onConfirm(selected)}>
+      <div style={S.modalHead}>
+        <span style={S.modalTitle}>
+          {urlCount > 1 ? `${t("تحليل")} ${urlCount} ${t("روابط")}` : t("تحليل رابط")}
+        </span>
+        <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
+      </div>
+      <p style={S.aiHint}>
+        {urlCount > 1
+          ? t("تحب تربط كل الروابط دي بفكرة موجودة عندك؟ لو مش عايز، سيب الاختيار فاضي وكمّل.")
+          : t("تحب تربط التحليل ده بفكرة موجودة عندك؟ لو مش عايز، سيب الاختيار فاضي وكمّل.")}
+      </p>
+
+      <input
+        style={{ ...S.input, marginTop: 10 }}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={t("ابحث في أفكار البراند...")}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12, maxHeight: 280, overflowY: "auto" }} className="scrollbar">
+        {items.length === 0 && <div style={S.emptyBrands}>{t("مفيش أفكار في البراند ده لسه.")}</div>}
+        {items.length > 0 && filtered.length === 0 && <div style={S.emptyBrands}>{t("مفيش أفكار تطابق البحث.")}</div>}
+        {filtered.map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            onClick={() => setSelected((cur) => (cur === it.id ? null : it.id))}
+            style={{ ...S.searchResultRow, ...(selected === it.id ? { border: `1px solid ${colors.accentBlue}`, background: softBg.info } : {}) }}
+          >
+            <div style={{ flex: 1, minWidth: 0, textAlign: "right" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</div>
+              <div style={{ fontSize: 11, color: colors.textFaint, marginTop: 2 }}>
+                {t(it.type)}{it.date ? ` · ${fmtDate(it.date)}` : ""}
+              </div>
+            </div>
+            {selected === it.id && <Check size={15} color={colors.good} />}
+          </button>
+        ))}
+      </div>
+
+      <div style={S.modalFooter} className="modalFooter">
+        <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
+        <button onClick={() => onConfirm(selected)} style={S.primaryBtn(colors.accentBlue)}>
+          <Search size={14} /> {selected ? t("اربط وحلّل") : t("تحليل من غير ربط")}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
   const { t } = useLanguage();
   const [views, setViews] = useState(analysis.views ?? "");
@@ -2306,7 +2369,7 @@ function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
   }
 
   return (
-    <ModalShell onClose={onClose}>
+    <ModalShell onClose={onClose} onSubmit={handleSave}>
       <div style={S.modalHead}>
         <span style={S.modalTitle}>{t("تعديل بيانات التحليل")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
@@ -2503,6 +2566,13 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
   const [visibleCount, setVisibleCount] = useState(ANALYZER_PAGE_SIZE);
   const [listCollapsed, setListCollapsed] = useState(false);
   const [duplicateOf, setDuplicateOf] = useState(null); // existing analysis record | null
+  // تدفق "اربط قبل التحليل": pendingUrls بيحمل الروابط اللي المستخدم لسه
+  // مأكدهاش (واحد أو أكتر، ملزوقين مرة واحدة)، وshowLinkPrompt بيفتح مودال
+  // بيسأل "تحب تربطهم بفكرة موجودة؟" قبل ما التحليل الفعلي يشتغل — بدل ما
+  // المستخدم يحلل كل لينك لوحده وبعدين يرجع يربطه يدوي واحد واحد.
+  const [pendingUrls, setPendingUrls] = useState([]);
+  const [showLinkPrompt, setShowLinkPrompt] = useState(false);
+  const [batchSummary, setBatchSummary] = useState(null); // { total, created, duplicates, failed } | null
   // زرار "تحديث البيانات" لكل تحليل: refreshingIds بيمنع طلب تاني لنفس
   // التحليل وهو لسه شغال، refreshCooldownIds بتفضل الزرار متعطل لثواني
   // بعد نجاح التحديث (تبريد بسيط ضد الضغط بالغلط أكتر من مرة)، و
@@ -2521,14 +2591,28 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
 
   const trimmedUrl = url.trim();
   const urlValid = isLikelyUrl(trimmedUrl);
-  const canAnalyze = urlValid && !analyzing;
+  // بيقبل رابط واحد أو أكتر ملزوقين مع بعض (كل رابط في سطر، أو مفصولين
+  // بفاصلة) — عشان المستخدم يقدر يحلل كذا لينك مرة واحدة بدل ما يحلل كل
+  // واحد لوحده. بيتفلتر ع الروابط الشكلها صح بس، وبيتشال منها التكرار.
+  const parsedUrls = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const raw of url.split(/[\n,]+/)) {
+      const v = raw.trim();
+      if (!v || !isLikelyUrl(v) || seen.has(v)) continue;
+      seen.add(v);
+      out.push(v);
+    }
+    return out;
+  }, [url]);
+  const canAnalyze = parsedUrls.length > 0 && !analyzing;
   const prefillIdea = prefillIdeaId ? items.find((it) => it.id === prefillIdeaId) : null;
 
   // بيشغّل نفس /api/analyze-video الموجود سواء الحالة "إنشاء تحليل جديد" أو
   // "تحديث تحليل موجود من نفس الرابط" — والحالة التانية بتستخدم نفس
   // refreshAnalysisMetrics اللي بيستخدمها زرار "تحديث البيانات" على الكارت،
   // فمفيش غير آلية تحديث واحدة معتمدة في التطبيق كله.
-  async function runAnalysis(urlToAnalyze, existingAnalysis) {
+  async function runAnalysis(urlToAnalyze, existingAnalysis, ideaIdOverride) {
     setAnalyzing(true);
     setErrorMsg("");
     try {
@@ -2547,7 +2631,7 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
         }
         onSaveAnalysis({
           brandId: brand.id,
-          ideaId: prefillIdeaId || null,
+          ideaId: ideaIdOverride ?? (prefillIdeaId || null),
           platform: detectPlatform(urlToAnalyze)?.key || null,
           url: urlToAnalyze,
           views: data.views ?? null,
@@ -2566,15 +2650,74 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
     }
   }
 
+  // بيحلل مجموعة روابط مرة واحدة، وبيربطهم كلهم بنفس الفكرة (لو اتحددت) في
+  // عملية واحدة — بديل عن "حلل واحد، اقفل، افتح تاني، اربطه يدوي" القديمة.
+  // الدبلكيت بيتشال بهدوء (بيتحسب بس في الملخص) لأن عرض N مودال "تحب تحدّث؟"
+  // ورا بعض مش عملي لدفعة روابط.
+  async function runBatchAnalysis(urls, ideaId, { consumePrefill = false } = {}) {
+    setShowLinkPrompt(false);
+    setPendingUrls([]);
+    setAnalyzing(true);
+    setErrorMsg("");
+    let created = 0, duplicates = 0, failed = 0;
+    const seenInBatch = new Set();
+    for (const u of urls) {
+      const key = `${detectPlatform(u)?.key || ""}|${normalizeAnalysisUrl(u)}`;
+      if (seenInBatch.has(key) || findDuplicateAnalysis(analyses, brand.id, u)) {
+        duplicates++;
+        seenInBatch.add(key);
+        continue;
+      }
+      seenInBatch.add(key);
+      try {
+        const data = await fetchAnalysisMetrics(u);
+        if (!data.ok) { failed++; continue; }
+        onSaveAnalysis({
+          brandId: brand.id,
+          ideaId: ideaId || null,
+          platform: detectPlatform(u)?.key || null,
+          url: u,
+          views: data.views ?? null,
+          likes: data.likes ?? null,
+          comments: data.comments ?? null,
+          shares: data.shares ?? null,
+          saves: data.saves ?? null,
+        });
+        created++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    setAnalyzing(false);
+    setUrl("");
+    if (consumePrefill) onConsumePrefill?.();
+    setBatchSummary({ total: urls.length, created, duplicates, failed });
+    setTimeout(() => setBatchSummary(null), 6000);
+  }
+
   function analyze() {
     if (!canAnalyze) return;
-    const existing = findDuplicateAnalysis(analyses, brand.id, trimmedUrl);
-    if (existing) {
-      setErrorMsg("");
-      setDuplicateOf(existing);
+
+    // رابط واحد بس ومفيش فكرة متحددة مسبقًا: نسيب فحص الدبلكيت القديم زي ما
+    // هو (بيعرض اختيار "تحديث الأرقام؟" بدل ما يتجاهل اللينك بصمت).
+    if (parsedUrls.length === 1) {
+      const existing = findDuplicateAnalysis(analyses, brand.id, parsedUrls[0]);
+      if (existing) {
+        setErrorMsg("");
+        setDuplicateOf(existing);
+        return;
+      }
+    }
+
+    if (prefillIdeaId) {
+      // جاي من زرار "تحليل الأداء" بتاع فكرة معينة — الربط محدد سلفًا،
+      // مفيش داعي نسأل.
+      runBatchAnalysis(parsedUrls, prefillIdeaId, { consumePrefill: true });
       return;
     }
-    runAnalysis(trimmedUrl, null);
+
+    setPendingUrls(parsedUrls);
+    setShowLinkPrompt(true);
   }
 
   // زرار "تحديث البيانات" — تحديث يدوي بالكامل، بيطلبه المستخدم بنفسه لتحليل
@@ -2789,13 +2932,13 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
         )}
 
         <div style={S.analyzerInputRow}>
-          <input
+          <textarea
             ref={urlInputRef}
-            style={S.input}
+            style={{ ...S.input, minHeight: 42, resize: "vertical" }}
             value={url}
             onChange={(e) => { setUrl(e.target.value); setErrorMsg(""); }}
-            onKeyDown={(e) => { if (e.key === "Enter") analyze(); }}
-            placeholder={t("الصق رابط المحتوى هنا...")}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); analyze(); } }}
+            placeholder={t("الصق رابط أو أكتر (رابط في كل سطر)...")}
             dir="ltr"
           />
           <button
@@ -2805,14 +2948,22 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
             style={{ ...S.primaryBtn(colors.accentBlue), opacity: canAnalyze ? 1 : 0.5, cursor: canAnalyze ? "pointer" : "not-allowed" }}
           >
             {analyzing ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={15} />}
-            {analyzing ? t("بيحلل...") : t("تحليل المحتوى")}
+            {analyzing ? t("بيحلل...") : parsedUrls.length > 1 ? `${t("تحليل")} ${parsedUrls.length} ${t("روابط")}` : t("تحليل المحتوى")}
           </button>
         </div>
+        <p style={S.aiHint}>{t("تقدر تلزق كذا رابط مرة واحدة (رابط في كل سطر) وتربطهم كلهم بفكرة في خطوة واحدة.")}</p>
 
-        {!urlValid && trimmedUrl.length > 0 && (
+        {parsedUrls.length === 0 && trimmedUrl.length > 0 && (
           <p style={{ ...S.aiHint, color: colors.danger }}>{t("الرابط ده مش شكله صح، تأكد منه وجرب تاني.")}</p>
         )}
         {errorMsg && <p style={{ ...S.aiHint, color: colors.danger }}>{errorMsg}</p>}
+        {batchSummary && (
+          <p style={{ ...S.aiHint, color: batchSummary.failed > 0 ? colors.danger : colors.good }}>
+            {t("تم تحليل")} {batchSummary.created} {t("من أصل")} {batchSummary.total}
+            {batchSummary.duplicates > 0 ? ` — ${batchSummary.duplicates} ${t("متحلل قبل كده (اتجاهل)")}` : ""}
+            {batchSummary.failed > 0 ? ` — ${batchSummary.failed} ${t("فشل")}` : ""}
+          </p>
+        )}
 
         <div style={S.analyzerPlatformsRow}>
           {ANALYZER_PLATFORMS.map(({ key, label, Icon }) => (
@@ -3004,6 +3155,15 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
           loading={analyzing}
           onCancel={() => setDuplicateOf(null)}
           onConfirm={() => runAnalysis(trimmedUrl, duplicateOf)}
+        />
+      )}
+
+      {showLinkPrompt && (
+        <AnalyzeLinkPromptModal
+          urlCount={pendingUrls.length}
+          items={items}
+          onClose={() => { setShowLinkPrompt(false); setPendingUrls([]); }}
+          onConfirm={(ideaId) => runBatchAnalysis(pendingUrls, ideaId)}
         />
       )}
     </div>
@@ -3993,8 +4153,13 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
         return { top: r.top - targetRect.top, bottom: r.bottom - targetRect.top };
       });
 
+      // scale: 1.5 (not 2) keeps text crisp on an A4 print without doubling
+      // pixel count for nothing — combined with JPEG output below (PNG was
+      // producing ~19MB files for a multi-page report; flat report content
+      // has none of the gradients/photos PNG's lossless compression is
+      // actually for).
       const canvas = await Promise.race([
-        html2canvas(target, { scale: 2, backgroundColor: "#ffffff", useCORS: true }),
+        html2canvas(target, { scale: 1.5, backgroundColor: "#ffffff", useCORS: true }),
         new Promise((_, reject) => setTimeout(() => reject(new Error("انتهت مهلة تجهيز الـ PDF")), 20000)),
       ]);
       const pdf = new jsPDF("p", "mm", "a4");
@@ -4033,7 +4198,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
           .drawImage(canvas, 0, currentTopPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
 
         if (currentTopPx > 0) pdf.addPage();
-        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, imgWidth, sliceHeightPx * mmPerCanvasPx);
+        pdf.addImage(sliceCanvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, imgWidth, sliceHeightPx * mmPerCanvasPx);
 
         currentTopPx += sliceHeightPx;
       }
@@ -4958,11 +5123,27 @@ function normMonth(y, m) {
 
 /* ---------- Modals ---------- */
 
-function ModalShell({ onClose, children, wide }) {
+// onSubmit (لو اتبعت) بيتفّذ لما المستخدم يدوس Enter وهو واقف في input
+// عادي جوا المودال — زي فورم حقيقي، من غير ما نلمس أي زرار موجود. بنستثني
+// TEXTAREA (Enter لازم يعمل سطر جديد فيها) وBUTTON/SELECT (Enter عليهم
+// بالفعل بيعمل سلوكهم الطبيعي).
+function ModalShell({ onClose, children, wide, onSubmit }) {
   const { dir } = useLanguage();
+  function handleKeyDown(e) {
+    if (e.key !== "Enter" || !onSubmit) return;
+    const tag = e.target.tagName;
+    if (tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT") return;
+    e.preventDefault();
+    onSubmit();
+  }
   return (
     <div style={S.overlay} className="overlay" onClick={onClose}>
-      <div style={{ ...S.modal, direction: dir, ...(wide ? { maxWidth: 520 } : {}) }} className="scrollbar modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        style={{ ...S.modal, direction: dir, ...(wide ? { maxWidth: 520 } : {}) }}
+        className="scrollbar modal"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
         {children}
       </div>
     </div>
@@ -4976,8 +5157,13 @@ function BrandModal({ brand, onClose, onSave }) {
   const [emoji, setEmoji] = useState(brand?.emoji || EMOJI_OPTIONS[0]);
   const [color, setColor] = useState(brand?.color || PALETTE[0]);
 
+  function handleSave() {
+    if (!name.trim()) return;
+    onSave({ id: brand?.id, name: name.trim(), handle: handle.trim(), emoji, color });
+  }
+
   return (
-    <ModalShell onClose={onClose}>
+    <ModalShell onClose={onClose} onSubmit={handleSave}>
       <div style={S.modalHead}>
         <span style={S.modalTitle}>{brand ? t("عدّل البراند") : t("براند جديد")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
@@ -5008,7 +5194,7 @@ function BrandModal({ brand, onClose, onSave }) {
       </div>
       <div style={S.modalFooter} className="modalFooter">
         <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
-        <button disabled={!name.trim()} onClick={() => onSave({ id: brand?.id, name: name.trim(), handle: handle.trim(), emoji, color })} style={S.primaryBtn(color)}>
+        <button disabled={!name.trim()} onClick={handleSave} style={S.primaryBtn(color)}>
           <Check size={15} /> {t("حفظ")}
         </button>
       </div>
@@ -5087,8 +5273,23 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
 
   const brand = brands.find((b) => b.id === brandId);
 
+  function handleSave() {
+    if (!title.trim() || !brandId) return;
+    onSave({
+      id: item?.id, brandId, title: title.trim(), notes: notes.trim(), link: link.trim(), referenceLink: referenceLink.trim(),
+      type, status, date,
+      reminderDays: reminderDays === "" ? null : Number(reminderDays),
+      views: views === "" ? null : Number(views),
+      likes: likes === "" ? null : Number(likes),
+      comments: comments === "" ? null : Number(comments),
+      shares: shares === "" ? null : Number(shares),
+      saves: saves === "" ? null : Number(saves),
+      successNote: successNote.trim(),
+    });
+  }
+
   return (
-    <ModalShell onClose={onClose} wide>
+    <ModalShell onClose={onClose} wide onSubmit={handleSave}>
       <div style={S.modalHead}>
         <span style={S.modalTitle}>{item ? t("عدّل الفكرة") : t("فكرة جديدة")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
@@ -5192,17 +5393,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
         <button onClick={onClose} style={S.secondaryBtn}>{t("إلغاء")}</button>
         <button
           disabled={!title.trim() || !brandId}
-          onClick={() => onSave({
-            id: item?.id, brandId, title: title.trim(), notes: notes.trim(), link: link.trim(), referenceLink: referenceLink.trim(),
-            type, status, date,
-            reminderDays: reminderDays === "" ? null : Number(reminderDays),
-            views: views === "" ? null : Number(views),
-            likes: likes === "" ? null : Number(likes),
-            comments: comments === "" ? null : Number(comments),
-            shares: shares === "" ? null : Number(shares),
-            saves: saves === "" ? null : Number(saves),
-            successNote: successNote.trim(),
-          })}
+          onClick={handleSave}
           style={S.primaryBtn(brand?.color || PALETTE[0])}
         >
           <Save size={15} /> {t("حفظ")}

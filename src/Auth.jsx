@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Globe } from "lucide-react";
+import { Globe, ArrowRight, ArrowLeft } from "lucide-react";
 import { supabase } from "./supabaseClient";
 import { Logo, Button, Input } from "./components";
 import { useLanguage } from "./LanguageContext";
@@ -96,6 +96,15 @@ export default function Auth({ initialMode = "login" }) {
   return (
     <div style={styles.wrap} dir={dir}>
       <form onSubmit={handleSubmit} style={styles.card}>
+        {mode === "signup" && (
+          <button
+            type="button"
+            onClick={() => { window.location.href = "/"; }}
+            style={styles.backBtn}
+          >
+            {dir === "rtl" ? <ArrowRight size={13} /> : <ArrowLeft size={13} />} {t("رجوع للصفحة الرئيسية")}
+          </button>
+        )}
         <div style={styles.topRow}>
           <Logo height={26} variant={themeMode === "light" ? "dark" : "light"} />
           <button type="button" onClick={toggleLang} style={styles.langBtn} aria-label={t("تبديل اللغة")}>
@@ -243,6 +252,20 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  backBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    background: "transparent",
+    border: "none",
+    color: colors.textDim,
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    padding: 0,
     marginBottom: 14,
   },
   langBtn: {

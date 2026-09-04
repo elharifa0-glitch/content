@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { colors, radius, transitions } from "../theme";
 
 export const fieldBaseStyle = {
@@ -19,8 +20,11 @@ export const fieldBaseStyle = {
  * Select and Textarea reuse the same visual language via `fieldBaseStyle`
  * rather than being separate components.
  */
-export default function Input({ label, hint, error, style, id, ...rest }) {
+export default function Input({ label, hint, error, style, id, type, ...rest }) {
   const inputId = id || rest.name;
+  const isPassword = type === "password";
+  const [reveal, setReveal] = useState(false);
+
   return (
     <div>
       {label && (
@@ -28,12 +32,36 @@ export default function Input({ label, hint, error, style, id, ...rest }) {
           {label}
         </label>
       )}
-      <input
-        id={inputId}
-        className="cs-input"
-        style={{ ...fieldBaseStyle, ...(error ? { borderColor: colors.danger } : {}), ...style }}
-        {...rest}
-      />
+      <div style={{ position: "relative" }}>
+        <input
+          id={inputId}
+          type={isPassword && reveal ? "text" : type}
+          className="cs-input"
+          style={{
+            ...fieldBaseStyle,
+            ...(isPassword ? { paddingInlineEnd: 38 } : {}),
+            ...(error ? { borderColor: colors.danger } : {}),
+            ...style,
+          }}
+          {...rest}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setReveal((r) => !r)}
+            tabIndex={-1}
+            aria-label={reveal ? "إخفاء الباسورد" : "إظهار الباسورد"}
+            style={{
+              position: "absolute", insetInlineEnd: 6, top: "50%", transform: "translateY(-50%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: 26, height: 26, background: "transparent", border: "none",
+              color: colors.textFaint, cursor: "pointer", padding: 0,
+            }}
+          >
+            {reveal ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        )}
+      </div>
       {error && <p style={{ fontSize: 11.5, color: colors.danger, margin: "6px 0 0" }}>{error}</p>}
       {!error && hint && <p style={{ fontSize: 11.5, color: colors.textFaint, margin: "6px 0 0" }}>{hint}</p>}
     </div>

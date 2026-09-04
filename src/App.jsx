@@ -112,6 +112,10 @@ export default function App() {
   }, [session?.user?.id]);
 
   async function handleSignOut() {
+    // بنغيّر المسار لـ "/" الأول قبل الـ signOut عشان لما session تبقى null
+    // وال component يعمل re-render، isLandingPath يبقى true ويوديه على
+    // اللاندينج بيدج مباشرة بدل ما يرجع على شاشة تسجيل الدخول.
+    window.history.replaceState(null, "", "/");
     await supabase.auth.signOut();
     setIsRecovery(false);
   }
