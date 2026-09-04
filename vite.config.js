@@ -3,6 +3,24 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  build: {
+    // vendor-pdf وvendor-charts فوق الـ 500kb الافتراضي، لكن الاتنين
+    // lazy-loaded (بيتحمّلوا بس لما ContentStudio نفسه يتفتح بعد تسجيل
+    // دخول حقيقي) مش جزء من أول تحميل لأي زائر جديد أو اللاندينج بيدج.
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        // مكتبات التصدير/الرسم البياني (jsPDF, html2canvas, recharts) بتتحمّل
+        // بس مع ContentStudio نفسه (lazy-loaded من App.jsx)، فمفيش داعي
+        // نخلطها مع vendor chunk عام هيتحمّل حتى لصفحة اللاندينج.
+        manualChunks: {
+          "vendor-supabase": ["@supabase/supabase-js"],
+          "vendor-pdf": ["jspdf", "html2canvas"],
+          "vendor-charts": ["recharts"],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({

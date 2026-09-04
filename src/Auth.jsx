@@ -96,7 +96,7 @@ export default function Auth({ initialMode = "login" }) {
   return (
     <div style={styles.wrap} dir={dir}>
       <form onSubmit={handleSubmit} style={styles.card}>
-        {mode === "signup" && (
+        {mode !== "forgot" && (
           <button
             type="button"
             onClick={() => { window.location.href = "/"; }}
@@ -181,6 +181,15 @@ export default function Auth({ initialMode = "login" }) {
 
         {error && <p style={styles.error}>{error}</p>}
         {message && <p style={styles.message}>{message}</p>}
+
+        {mode === "signup" && (
+          <p style={styles.consent}>
+            {t("بعمل الحساب، إنت موافق على")}{" "}
+            <a href="/terms" style={styles.consentLink}>{t("الشروط والأحكام")}</a>{" "}
+            {t("و")}{" "}
+            <a href="/privacy" style={styles.consentLink}>{t("سياسة الخصوصية")}</a>.
+          </p>
+        )}
 
         <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ marginTop: spacing.lg }}>
           {loading
@@ -306,6 +315,16 @@ const styles = {
     color: colors.good,
     margin: "10px 0 0",
     lineHeight: 1.6,
+  },
+  consent: {
+    fontSize: 11.5,
+    color: colors.textFaint,
+    margin: "10px 0 0",
+    lineHeight: 1.6,
+  },
+  consentLink: {
+    color: colors.textDim,
+    textDecoration: "underline",
   },
   forgotBtn: {
     marginTop: 12,

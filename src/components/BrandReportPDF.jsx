@@ -156,14 +156,20 @@ export default function BrandReportPDF({
 
       {sections.financial && (
         <Section title="الوضع المالي">
+          <div style={s.statRow}>
+            <StatBox label="مستلم الشهر ده" value={fmt(financial.receivedThisMonth)} />
+          </div>
           {financial.paymentTotal ? (
-            <div style={s.statRow}>
-              <StatBox label="الإجمالي المتفق عليه" value={fmt(financial.paymentTotal)} />
-              <StatBox label="المستلم" value={fmt(financial.receivedTotal)} />
-              <StatBox label="المتبقي" value={fmt(financial.remainingTotal)} />
-            </div>
+            <>
+              <p style={{ ...s.pMuted, margin: "14px 0 8px", fontWeight: 700, color: "#151A24" }}>من بداية التعامل</p>
+              <div style={s.statRow}>
+                <StatBox label="الإجمالي المتفق عليه" value={fmt(financial.paymentTotal)} />
+                <StatBox label="إجمالي المستلم" value={fmt(financial.receivedTotal)} />
+                <StatBox label="المتبقي" value={fmt(financial.remainingTotal)} />
+              </div>
+            </>
           ) : (
-            <p style={s.pMuted}>مفيش إجمالي متفق عليه مسجل.</p>
+            <p style={{ ...s.pMuted, marginTop: 10 }}>مفيش إجمالي متفق عليه مسجل.</p>
           )}
         </Section>
       )}

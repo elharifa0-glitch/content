@@ -920,10 +920,24 @@ export default function ContentStudio({
 
   if (loading) {
     return (
-      <div style={S.loadingWrap}>
-        <Loader2 size={22} style={{ animation: "spin 1s linear infinite" }} />
-        <span style={{ marginRight: 10 }}>{t("بيحمّل الاستوديو...")}</span>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ ...S.loadingWrap, flexDirection: "column", gap: 18 }}>
+        <div style={S.loadingMark}>
+          <div style={S.loadingGlow} />
+          <div style={S.loadingRing} />
+          <LogoIcon size={40} style={{ position: "relative", zIndex: 1, animation: "cs-loading-breathe 2.2s ease-in-out infinite" }} />
+        </div>
+        <span style={S.loadingText}>
+          {t("الاستوديو بيتجهزلك")}
+          <span style={S.loadingDot}>.</span>
+          <span style={{ ...S.loadingDot, animationDelay: "0.2s" }}>.</span>
+          <span style={{ ...S.loadingDot, animationDelay: "0.4s" }}>.</span>
+        </span>
+        <style>{`
+          @keyframes cs-loading-glow { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: .7; transform: scale(1.2); } }
+          @keyframes cs-loading-spin { to { transform: rotate(360deg); } }
+          @keyframes cs-loading-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+          @keyframes cs-loading-dot { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+        `}</style>
       </div>
     );
   }
@@ -3995,7 +4009,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     { key: "byType", label: "حسب نوع المحتوى" },
     { key: "performance", label: "الأداء (مشاهدات ولايكات)" },
     { key: "top5", label: "أفضل 5 محتوى" },
-    { key: "financial", label: "الوضع المالي (الإجمالي والمستلم فقط)" },
+    { key: "financial", label: "الوضع المالي (مستلم الشهر + الإجمالي التراكمي)" },
     { key: "pageTracking", label: "تتبع ونمو الصفحات" },
   ];
 
@@ -4004,19 +4018,29 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
   }
 
   const reportData = useMemo(() => {
+    // receivedTotal/remainingTotal فضلوا تراكميين (من أول التعامل مع
+    // البراند) لأن paymentTotal نفسه رقم إجمالي واحد مش شهري — لكن التقرير
+    // بتاع شهر معين لازم كمان يوريك حركة الشهر ده بالذات (المستلم) عشان
+    // تقرير الشهر الجديد ميفضلش "قاري" فلوس الشهر اللي فات وكأنها هي نفسها
+    // حركة الشهر الحالي. المصاريف والربح الصافي عمدًا مش بيتحسبوا هنا خالص
+    // (زي ما موضّح في هينت اختيار أقسام التقرير) — دي بيانات داخلية للوكالة
+    // ومفروض متتحطش في تقرير ممكن يتبعت للبراند نفسه.
     const receivedTotal = (brand.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
     const remainingTotal = (Number(brand.paymentTotal) || 0) - receivedTotal;
+    const receivedThisMonth = (brand.payments || [])
+      .filter((p) => (p.date || "").slice(0, 7) === reportMonth)
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
     const pageTracking = brand.pageTracking || emptyPageTracking();
     const pageGrowth = PAGE_TRACKING_PLATFORMS
       .map((p) => ({ key: p.key, label: p.label, Icon: p.Icon, ...computePlatformMonthlyGrowth(pageTracking[p.key]?.snapshots, reportMonth) }))
       .filter((g) => g.latest);
     const growthValues = pageGrowth.filter((g) => g.diff != null).map((g) => g.diff);
     const totalGrowth = growthValues.length ? growthValues.reduce((s, v) => s + v, 0) : null;
-    return { receivedTotal, remainingTotal, pageGrowth, totalGrowth, top5Items: reportTop5 };
+    return { receivedTotal, remainingTotal, receivedThisMonth, pageGrowth, totalGrowth, top5Items: reportTop5 };
   }, [brand, reportTop5, reportMonth]);
 
   function buildReportText() {
-    const { receivedTotal, remainingTotal, pageGrowth, totalGrowth, top5Items } = reportData;
+    const { receivedTotal, remainingTotal, receivedThisMonth, pageGrowth, totalGrowth, top5Items } = reportData;
     const lines = [];
     lines.push(`تقرير براند: ${brand.name}`);
     lines.push(`بتاريخ: ${fmtMonthKey(reportMonth)}`);
@@ -4048,8 +4072,9 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     }
     if (sections.financial) {
       lines.push("", "== الوضع المالي ==");
+      lines.push(`مستلم الشهر ده: ${fmtMoney(receivedThisMonth)}`);
       if (brand.paymentTotal) {
-        lines.push(`الإجمالي المتفق عليه: ${fmtMoney(brand.paymentTotal)} | المستلم: ${fmtMoney(receivedTotal)} | المتبقي: ${fmtMoney(remainingTotal)}`);
+        lines.push(`من بداية التعامل: الإجمالي المتفق عليه ${fmtMoney(brand.paymentTotal)} | إجمالي المستلم ${fmtMoney(receivedTotal)} | المتبقي ${fmtMoney(remainingTotal)}`);
       } else {
         lines.push("مفيش إجمالي متفق عليه مسجل.");
       }
@@ -4124,7 +4149,12 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
           mixTargets={mixTargets}
           perfTotals={reportPerfTotals}
           top5={reportTop5}
-          financial={{ paymentTotal: brand.paymentTotal, receivedTotal: reportData.receivedTotal, remainingTotal: reportData.remainingTotal }}
+          financial={{
+            paymentTotal: brand.paymentTotal,
+            receivedTotal: reportData.receivedTotal,
+            remainingTotal: reportData.remainingTotal,
+            receivedThisMonth: reportData.receivedThisMonth,
+          }}
           pageTracking={{ pageGrowth: reportData.pageGrowth, totalGrowth: reportData.totalGrowth }}
         />
       );
@@ -4405,8 +4435,11 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             {sections.financial && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>{t("الوضع المالي")}</h4>
+                <p style={S.reportP}>{t("مستلم الشهر ده")}: {fmtMoney(reportData.receivedThisMonth)}</p>
                 {brand.paymentTotal ? (
-                  <p style={S.reportP}>{t("الإجمالي المتفق عليه")}: {fmtMoney(brand.paymentTotal)} | {t("المستلم")}: {fmtMoney(reportData.receivedTotal)} | {t("المتبقي")}: {fmtMoney(reportData.remainingTotal)}</p>
+                  <p style={S.reportP}>
+                    {t("من بداية التعامل")}: {t("الإجمالي المتفق عليه")} {fmtMoney(brand.paymentTotal)} | {t("إجمالي المستلم")} {fmtMoney(reportData.receivedTotal)} | {t("المتبقي")} {fmtMoney(reportData.remainingTotal)}
+                  </p>
                 ) : (
                   <p style={S.reportP}>{t("مفيش إجمالي متفق عليه مسجل.")}</p>
                 )}
@@ -5436,6 +5469,23 @@ function SectionHeader({ icon, title, subtitle }) {
 const S = {
   app: { position: "relative", display: "flex", flex: 1, background: colors.bg, color: colors.text, borderRadius: radius.lg, border: `1px solid ${colors.border}` },
   loadingWrap: { display: "flex", flex: 1, alignItems: "center", justifyContent: "center", minHeight: 300, color: colors.textDim, fontSize: 14 },
+  loadingMark: { position: "relative", width: 72, height: 72, display: "flex", alignItems: "center", justifyContent: "center" },
+  loadingGlow: {
+    position: "absolute", inset: 0, borderRadius: "50%", background: colors.accentGradient,
+    filter: "blur(16px)", animation: "cs-loading-glow 2.2s ease-in-out infinite",
+  },
+  loadingRing: {
+    position: "absolute", inset: -8, borderRadius: "50%",
+    // بيقرا من نفس متغيرات الـ CSS اللي الشعار نفسه مبني عليها (accentBlue
+    // فاتح/غامق حسب اللايت/الدارك مود) بدل ما نثبّت لون واحد بالظبط —
+    // كده الحلقة فاضلة متسقة مع باقي البراند لو الشيدز اتغيرت في theme.js.
+    background: `conic-gradient(from 0deg, ${colors.accentBlue}, ${colors.accentPink}, transparent 300deg, ${colors.accentBlue})`,
+    WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
+    mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px))",
+    animation: "cs-loading-spin 1.6s linear infinite",
+  },
+  loadingText: { fontSize: 13.5, fontWeight: 700, color: colors.textDim },
+  loadingDot: { display: "inline-block", animation: "cs-loading-dot 1.4s ease-in-out infinite" },
   sidebar: { width: 260, background: colors.surface, borderLeft: `1px solid ${colors.border}`, padding: "18px 14px", flexShrink: 0, position: "sticky", top: 0, maxHeight: "100dvh", overflowY: "auto" },
   brandMark: { display: "flex", alignItems: "center", gap: 10 },
   brandMarkTitle: { fontSize: 15, fontWeight: 800, color: colors.text },

@@ -20,6 +20,17 @@ export default function UpdatePrompt() {
       setInterval(() => {
         registration.update().catch(() => {});
       }, 60 * 60 * 1000);
+
+      // وبرضه نفحص فورًا كل ما المستخدم يرجع للتاب (زي لما يفتحها تاني بعد
+      // ما نزّلنا نسخة جديدة) بدل ما يستنى لحد ما ساعة كاملة تعدي — ده أسرع
+      // طريق واقعي إن حد يشوف بانر "يتوفر تحديث" بسرعة بعد أي نشر جديد.
+      function onVisible() {
+        if (document.visibilityState === "visible") {
+          registration.update().catch(() => {});
+        }
+      }
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("focus", onVisible);
     },
   });
 

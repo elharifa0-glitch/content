@@ -1,15 +1,35 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "./supabaseClient";
 import Auth from "./Auth";
-import ContentStudio from "./ContentStudio";
-import ResetPassword from "./ResetPassword";
-import Paywall from "./Paywall";
-import AccountConfirmed from "./AccountConfirmed";
-import SharedBrandView from "./SharedBrandView";
-import AdminPage from "./AdminPage";
 import LandingPage from "./components/landing/LandingPage";
+import PrivacyPolicyPage from "./components/landing/PrivacyPolicyPage";
+import TermsPage from "./components/landing/TermsPage";
 import { useLanguage } from "./LanguageContext";
 import { colors, radius, softBg } from "./theme";
+
+// كسول (مش import عادي) عشان زوار اللاندينج بيدج أو شاشة الدخول (أكتر
+// حركة مرور فعلية قبل أي تسجيل دخول) ميحملوش كود الداشبورد التقيل معاهم —
+// ContentStudio لوحده بيسحب jsPDF وhtml2canvas وrecharts، وده كان السبب
+// الرئيسي في حجم الـ bundle الأولي (~1.6 ميجا) اللي بيتحمّل حتى لو الزائر
+// لسه ما سجّلش دخول أو بيتصفح اللاندينج بيدج بس.
+const ContentStudio = lazy(() => import("./ContentStudio"));
+const ResetPassword = lazy(() => import("./ResetPassword"));
+const Paywall = lazy(() => import("./Paywall"));
+const AccountConfirmed = lazy(() => import("./AccountConfirmed"));
+const SharedBrandView = lazy(() => import("./SharedBrandView"));
+const AdminPage = lazy(() => import("./AdminPage"));
+
+function LoadingScreen({ label }) {
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center",
+      justifyContent: "center", background: colors.bg,
+      color: colors.textDim, fontFamily: "inherit"
+    }}>
+      {label}
+    </div>
+  );
+}
 
 export default function App() {
   const { dir, t } = useLanguage();
@@ -18,6 +38,8 @@ export default function App() {
   const isSignupPath = pathname === "/signup";
   const isLandingPath = pathname === "/" || pathname === "/landing";
   const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isPrivacyPath = pathname === "/privacy";
+  const isTermsPath = pathname === "/terms";
 
   const [session, setSession] = useState(undefined);
   const [isRecovery, setIsRecovery] = useState(false);
@@ -123,34 +145,41 @@ export default function App() {
   // لينك مشاركة براند شغال لأي حد من غير تسجيل دخول خالص، ومن غير ما ينتظر
   // أي فحص جلسة أو اشتراك — بيتحقق من مساره الأول قبل أي حاجة تانية
   if (shareMatch) {
-    return <SharedBrandView token={shareMatch[1]} />;
+    return (
+      <Suspense fallback={<LoadingScreen label={t("بيحمّل...")} />}>
+        <SharedBrandView token={shareMatch[1]} />
+      </Suspense>
+    );
   }
+
+  // صفحات قانونية ثابتة، متاحة سواء المستخدم داخل جلسة أو لأ — مفيش داعي
+  // نستنى فحص session/subscription عشانها.
+  if (isPrivacyPath) return <PrivacyPolicyPage />;
+  if (isTermsPath) return <TermsPage />;
 
   if (isRecovery) {
     return (
-      <ResetPassword
-        onDone={async () => {
-          setIsRecovery(false);
-          await supabase.auth.signOut();
-        }}
-      />
+      <Suspense fallback={<LoadingScreen label={t("بيحمّل...")} />}>
+        <ResetPassword
+          onDone={async () => {
+            setIsRecovery(false);
+            await supabase.auth.signOut();
+          }}
+        />
+      </Suspense>
     );
   }
 
   if (justConfirmed) {
-    return <AccountConfirmed onContinue={() => setJustConfirmed(false)} />;
+    return (
+      <Suspense fallback={<LoadingScreen label={t("بيحمّل...")} />}>
+        <AccountConfirmed onContinue={() => setJustConfirmed(false)} />
+      </Suspense>
+    );
   }
 
   if (session === undefined) {
-    return (
-      <div style={{
-        minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", background: colors.bg,
-        color: colors.textDim, fontFamily: "inherit"
-      }}>
-        {t("بيحمّل...")}
-      </div>
-    );
+    return <LoadingScreen label={t("بيحمّل...")} />;
   }
 
   if (!session) {
@@ -164,28 +193,26 @@ export default function App() {
   // بيحصل جوا AdminPage نفسها (عن طريق admin_get_overview اللي بترفض أي
   // حد مش مدرج في admin_users على مستوى قاعدة البيانات).
   if (isAdminPath) {
-    return <AdminPage />;
+    return (
+      <Suspense fallback={<LoadingScreen label={t("بيحمّل...")} />}>
+        <AdminPage />
+      </Suspense>
+    );
   }
 
   if (subStatus === undefined) {
-    return (
-      <div style={{
-        minHeight: "100vh", display: "flex", alignItems: "center",
-        justifyContent: "center", background: colors.bg,
-        color: colors.textDim, fontFamily: "inherit"
-      }}>
-        {t("بيحمّل...")}
-      </div>
-    );
+    return <LoadingScreen label={t("بيحمّل...")} />;
   }
 
   if (subStatus === "blocked") {
     return (
-      <Paywall
-        trialEndsAt={trialEndsAt}
-        onSignOut={handleSignOut}
-        onRecheck={() => checkSubscription(session.user.id)}
-      />
+      <Suspense fallback={<LoadingScreen label={t("بيحمّل...")} />}>
+        <Paywall
+          trialEndsAt={trialEndsAt}
+          onSignOut={handleSignOut}
+          onRecheck={() => checkSubscription(session.user.id)}
+        />
+      </Suspense>
     );
   }
 
@@ -202,16 +229,18 @@ export default function App() {
             : (dir === "rtl" ? `باقي ${trialDaysLeft} يوم على انتهاء فترة التجربة المجانية` : `${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left in your free trial`)}
         </div>
       )}
-      <ContentStudio
-        session={session}
-        onSignOut={handleSignOut}
-        plan={plan}
-        isTrialing={isTrialing}
-        trialEndsAt={trialEndsAt}
-        currentPeriodEnd={currentPeriodEnd}
-        hasSubRow={hasSubRow}
-        onSubscriptionRecheck={() => checkSubscription(session.user.id)}
-      />
+      <Suspense fallback={<LoadingScreen label={t("بيحمّل...")} />}>
+        <ContentStudio
+          session={session}
+          onSignOut={handleSignOut}
+          plan={plan}
+          isTrialing={isTrialing}
+          trialEndsAt={trialEndsAt}
+          currentPeriodEnd={currentPeriodEnd}
+          hasSubRow={hasSubRow}
+          onSubscriptionRecheck={() => checkSubscription(session.user.id)}
+        />
+      </Suspense>
     </div>
   );
 }

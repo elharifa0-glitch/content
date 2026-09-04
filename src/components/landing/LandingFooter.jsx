@@ -6,7 +6,7 @@ import { useLanguage } from "../../LanguageContext";
 const COLUMNS = [
   { title: "المنتج", links: [{ label: "المميزات", href: "#features" }, { label: "كيف يعمل؟", href: "#how-it-works" }, { label: "الأسعار", href: "#pricing" }] },
   { title: "الدعم", links: [{ label: "الأسئلة الشائعة", href: "#faq" }, { label: "تسجيل الدخول", href: "/login" }] },
-  { title: "قانوني", links: [{ label: "الخصوصية", href: "#" }, { label: "الشروط", href: "#" }] },
+  { title: "قانوني", links: [{ label: "الخصوصية", href: "/privacy" }, { label: "الشروط", href: "/terms" }] },
 ];
 
 export default function LandingFooter() {

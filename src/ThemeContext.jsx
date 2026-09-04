@@ -5,15 +5,16 @@ const STORAGE_KEY = "cs-theme";
 const ThemeContext = createContext(null);
 
 function getInitialMode() {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "dark" || stored === "light") return stored;
   } catch (e) {
     // localStorage can throw in locked-down/private-browsing contexts
   }
-  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
-  return "dark";
+  // لايت مود هو الديفولت الرسمي للموقع بغض النظر عن تفضيل نظام تشغيل
+  // الزائر — أي مستخدم يقدر يبدّل للدارك مود يدويًا وهيتفتكرله بعد كده.
+  return "light";
 }
 
 /**

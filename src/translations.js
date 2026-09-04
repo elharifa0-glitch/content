@@ -54,7 +54,7 @@ export const translations = {
     "جاري الحفظ...": "Saving...",
     "بيحمّل...": "Loading...",
     "آخر يوم في فترة التجربة المجانية": "Last day of your free trial",
-    "بيحمّل الاستوديو...": "Loading your workspace...",
+    "الاستوديو بيتجهزلك": "Getting your studio ready",
 
     // ===== Auth (login / signup / forgot password) =====
     "اسم المستخدم لازم يكون من 3 لـ 30 حرف، وحروف إنجليزي صغيرة أو أرقام أو _ بس (من غير مسافات).":
