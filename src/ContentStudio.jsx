@@ -5319,7 +5319,7 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea, userId }) {
 /* ---------- Calendar ---------- */
 
 function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick, showBrandColor, onMoveItemDate }) {
-  const { lang } = useLanguage();
+  const { lang, t } = useLanguage();
   const [dragOverDate, setDragOverDate] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const { y, m } = month;
@@ -5341,6 +5341,20 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
     return map;
   }, [items]);
 
+  // ملخص الشهر المعروض بالظبط (مش كل الأفكار اللي جاية للكومبوننت) — عدد
+  // الأفكار وتوزيعها حسب النوع، عشان تعرف حاطط كام فكرة وإيه توزيعها من
+  // غير ما تعد يدوي على التقويم.
+  const monthKey = `${y}-${String(m + 1).padStart(2, "0")}`;
+  const monthByType = useMemo(() => {
+    const map = {};
+    for (const it of items) {
+      if (!it.date || it.date.slice(0, 7) !== monthKey) continue;
+      map[it.type] = (map[it.type] || 0) + 1;
+    }
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [items, monthKey]);
+  const monthTotal = monthByType.reduce((s, [, c]) => s + c, 0);
+
   const brandColor = (id) => getBrandColor(brands, id);
   const today = todayISO();
 
@@ -5357,6 +5371,16 @@ function MonthCalendar({ items, brands, month, setMonth, onDayClick, onItemClick
         <button onClick={() => setMonth((cm) => normMonth(cm.y, cm.m - 1))} style={S.iconBtnSm}><ChevronRight size={15} /></button>
         <span style={S.calTitle}>{(lang === "en" ? MONTHS_EN : MONTHS_AR)[m]} {y}</span>
         <button onClick={() => setMonth((cm) => normMonth(cm.y, cm.m + 1))} style={S.iconBtnSm}><ChevronLeft size={15} /></button>
+      </div>
+      <div style={S.calSummaryRow}>
+        <span style={S.calSummaryTotal}>{t("إجمالي الشهر")}: {monthTotal} {t("فكرة")}</span>
+        {monthByType.length > 0 && (
+          <div style={S.calSummaryChips}>
+            {monthByType.map(([ty, c]) => (
+              <span key={ty} style={S.calSummaryChip}>{t(ty)}: {c}</span>
+            ))}
+          </div>
+        )}
       </div>
       <div style={S.calGrid} className="calGrid">
         {(lang === "en" ? WEEKDAYS_EN : WEEKDAYS_AR).map((wd) => <div key={wd} style={S.calWeekday} className="calWeekday">{wd}</div>)}
@@ -6112,6 +6136,16 @@ const S = {
 
   calHeader: { display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 14 },
   calTitle: { fontSize: 14.5, fontWeight: 700, minWidth: 110, textAlign: "center" },
+  calSummaryRow: {
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap",
+    marginBottom: 14, fontSize: 12,
+  },
+  calSummaryTotal: { fontWeight: 800, color: colors.text },
+  calSummaryChips: { display: "flex", flexWrap: "wrap", gap: 6 },
+  calSummaryChip: {
+    background: colors.surface, border: `1px solid ${colors.border}`, color: colors.textDim,
+    borderRadius: radius.pill, padding: "3px 10px", fontWeight: 600,
+  },
   calGrid: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 },
   calWeekday: { fontSize: 11, color: colors.textFaint, textAlign: "center", paddingBottom: 4, fontWeight: 700 },
   calCellEmpty: { minHeight: 74, borderRadius: 9 },
