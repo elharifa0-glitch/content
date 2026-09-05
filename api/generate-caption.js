@@ -1,6 +1,8 @@
 // Vercel Serverless Function — بيشتغل على السيرفر بس، نفس فكرة
-// api/analyze-video.js بالظبط، عشان مفتاح OpenAI يفضل مخفي وميوصلش
+// api/analyze-video.js بالظبط، عشان مفتاح Gemini يفضل مخفي وميوصلش
 // للمتصفح أبدًا.
+
+const GEMINI_MODEL = "gemini-2.0-flash";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -12,11 +14,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, message: "محتاج عنوان الفكرة الأول." });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(500).json({
       ok: false,
-      message: "مفيش مفتاح OpenAI متظبط على السيرفر. راجع Environment Variables في Vercel.",
+      message: "مفيش مفتاح Gemini متظبط على السيرفر. راجع Environment Variables في Vercel.",
     });
   }
 
@@ -32,19 +34,20 @@ export default async function handler(req, res) {
   ].filter(Boolean).join("\n");
 
   try {
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.8,
-        response_format: { type: "json_object" },
-      }),
-    });
+    const aiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.8, responseMimeType: "application/json" },
+        }),
+      }
+    );
 
     const data = await aiRes.json();
 
@@ -55,7 +58,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const raw = data?.choices?.[0]?.message?.content;
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
     let parsed;
     try {
       parsed = JSON.parse(raw);
