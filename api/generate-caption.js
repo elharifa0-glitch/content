@@ -2,7 +2,7 @@
 // api/analyze-video.js بالظبط، عشان مفتاح Gemini يفضل مخفي وميوصلش
 // للمتصفح أبدًا.
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_MODEL = "gemini-3.6-flash";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
