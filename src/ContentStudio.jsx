@@ -15,6 +15,7 @@ import {
   ListPlus, ClipboardList, Download, FileText, Scale, Bell, BellOff, Minus, Share2,
   ArrowUpRight, ArrowDownRight, ListChecks, CalendarClock, Menu, LogOut, Crown, Sun, Moon,
   Instagram, Facebook, Youtube, MoreVertical, RefreshCw, Globe,
+  Upload, Image as ImageIcon, ThumbsDown, MessageSquare,
 } from "lucide-react";
 import { colors, radius, spacing, shadows, transitions, softBg, borderTint } from "./theme";
 import { Button, Badge, EmptyState, LogoIcon } from "./components";
@@ -411,6 +412,29 @@ async function fetchAnalysisMetrics(urlToAnalyze) {
   return res.json();
 }
 
+// باكت "brand-assets" العام (لوجو الوكالة + مكتبة الوسائط) — المسار لازم
+// يبدأ بـ userId بتاع صاحب الملف عشان سياسات الـ storage (شوف
+// supabase-schema.sql) تسمح بالرفع/المسح. لو الباكت مش موجود لسه (المستخدم
+// ما شغّلش تحديث الـ SQL)، بترجع رسالة واضحة بدل خطأ خام.
+async function uploadBrandAsset(userId, folder, file) {
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+  const path = `${userId}/${folder}/${uid()}.${ext}`;
+  const { error } = await supabase.storage.from("brand-assets").upload(path, file, { upsert: false, contentType: file.type });
+  if (error) {
+    if (error.message?.toLowerCase().includes("not found") || error.statusCode === "404" || error.statusCode === 404) {
+      throw new Error("الميزة دي محتاجة إعداد إضافي في قاعدة البيانات — شغّل تحديث supabase-schema.sql الخاص بـ brand-assets في Supabase SQL Editor.");
+    }
+    throw error;
+  }
+  const { data } = supabase.storage.from("brand-assets").getPublicUrl(path);
+  return { url: data.publicUrl, path };
+}
+
+async function deleteBrandAsset(path) {
+  if (!path) return;
+  try { await supabase.storage.from("brand-assets").remove([path]); } catch (e) {}
+}
+
 // نتيجة الـ API بترجع null/undefined لأي رقم متعرفش يجيبه — من غير الشرط ده
 // كنا هنمسح رقم صحيح موجود بالفعل في التحليل القديم بمجرد ما نعمل تحديث (زي
 // لو التعليقات مبقاش متاح مؤقتًا من المصدر، مش إن قيمتها بقت صفر).
@@ -542,6 +566,11 @@ export default function ContentStudio({
   const userTypeRef = useRef(null);
   const [marketingSource, setMarketingSource] = useState(null);
   const marketingSourceRef = useRef(null);
+  // هوية الوكالة (White-label): لوجو + اسم يحلوا محل براند ContentST في
+  // التقارير ولينكات المشاركة مع العميل. مستوى الحساب كله (مش لكل براند)
+  // لأنها نفس الوكالة بتخدم كل براندات المستخدم.
+  const [agencyProfile, setAgencyProfile] = useState({ name: "", logoUrl: "", logoPath: "" });
+  const agencyProfileRef = useRef({ name: "", logoUrl: "", logoPath: "" });
   const [calMonth, setCalMonth] = useState(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth() };
@@ -643,6 +672,9 @@ export default function ContentStudio({
           setUserType(parsed.userType || null);
           marketingSourceRef.current = parsed.marketingSource || null;
           setMarketingSource(parsed.marketingSource || null);
+          const loadedAgency = parsed.agencyProfile || { name: "", logoUrl: "", logoPath: "" };
+          agencyProfileRef.current = loadedAgency;
+          setAgencyProfile(loadedAgency);
           if (repaired) {
             // persist() هنا بيتعرّف تحت بعدين في نفس الكومبوننت — ده آمن لأن
             // الـ effect ده بيتنفذ بعد ما الرندر يخلص، ووقتها الـ const يبقى
@@ -732,6 +764,7 @@ export default function ContentStudio({
           onboardingDismissed: onboardingDismissedRef.current,
           userType: userTypeRef.current,
           marketingSource: marketingSourceRef.current,
+          agencyProfile: agencyProfileRef.current,
         },
         updated_at: new Date().toISOString(),
       });
@@ -752,6 +785,12 @@ export default function ContentStudio({
   const updateItems = (next) => { itemsRef.current = next; setItems(next); persist(); };
   const updateTasks = (next) => { tasksRef.current = next; setTasks(next); persist(); };
   const updateSocialAnalyses = (next) => { socialAnalysesRef.current = next; setSocialAnalyses(next); persist(); };
+  function patchAgencyProfile(patch) {
+    const next = { ...agencyProfileRef.current, ...patch };
+    agencyProfileRef.current = next;
+    setAgencyProfile(next);
+    persist();
+  }
 
   // مجرد UI state محلي متزامن مع نفس صف user_data الموجود — مفيش جدول جديد.
   // العرض نفسه مبني على بيانات المستخدم الحقيقية (براندات/أفكار/تحليلات)،
@@ -1310,6 +1349,9 @@ export default function ContentStudio({
             brandsCount={brands.length}
             brandLimit={brandLimit}
             onRecheck={onSubscriptionRecheck}
+            userId={userId}
+            agencyProfile={agencyProfile}
+            onPatchAgencyProfile={patchAgencyProfile}
           />
         )}
 
@@ -1338,6 +1380,8 @@ export default function ContentStudio({
             onEditAnalysisMetrics={patchAnalysisMetrics}
             analyzePrefillIdeaId={analyzePrefill && analyzePrefill.brandId === activeBrand.id ? analyzePrefill.ideaId : null}
             onConsumeAnalyzePrefill={() => setAnalyzePrefill(null)}
+            userId={userId}
+            agencyProfile={agencyProfile}
           />
         )}
       </main>
@@ -3417,7 +3461,7 @@ function AnalysisCard({ a, menuOpen, onToggleMenu, onCloseMenu, onOpenDetails, o
 
 /* ---------- Account / subscription view ---------- */
 
-function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRow, brandsCount, brandLimit, onRecheck }) {
+function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRow, brandsCount, brandLimit, onRecheck, userId, agencyProfile, onPatchAgencyProfile }) {
   const { t } = useLanguage();
   const statusLabel = isTrialing
     ? t("تجربة مجانية")
@@ -3470,6 +3514,112 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
 
       <h3 style={{ ...S.h3, marginTop: 24 }}>{plan ? t("غيّر أو رقّي باقتك") : t("اشترك دلوقتي")}</h3>
       <PlanPicker onRecheck={onRecheck} defaultPlan={(plan || "pro").toString().trim().toLowerCase()} />
+
+      <AgencyBrandingCard userId={userId} agencyProfile={agencyProfile} onPatchAgencyProfile={onPatchAgencyProfile} />
+    </div>
+  );
+}
+
+// White-label: لوجو واسم الوكالة بيحلوا محل براند ContentST في تقارير PDF
+// ولينكات المشاركة مع العميل. مستوى الحساب كله، بيتخزن جوا نفس user_data
+// الموجود (agencyProfile) — واللوجو نفسه ملف حقيقي في Supabase Storage
+// (باكت brand-assets)، مش base64 جوا الـ JSON.
+function AgencyBrandingCard({ userId, agencyProfile, onPatchAgencyProfile }) {
+  const { t } = useLanguage();
+  const [name, setName] = useState(agencyProfile?.name || "");
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
+
+  useEffect(() => { setName(agencyProfile?.name || ""); }, [agencyProfile?.name]);
+
+  function saveName() {
+    if (name.trim() === (agencyProfile?.name || "")) return;
+    onPatchAgencyProfile({ name: name.trim() });
+  }
+
+  async function handleLogoChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError(t("لازم صورة (PNG أو JPG)."));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError(t("حجم الصورة أكبر من اللازم — الحد الأقصى 2 ميجا."));
+      return;
+    }
+    setError("");
+    setUploading(true);
+    try {
+      const oldPath = agencyProfile?.logoPath;
+      const { url, path } = await uploadBrandAsset(userId, "agency-logo", file);
+      onPatchAgencyProfile({ logoUrl: url, logoPath: path });
+      if (oldPath) deleteBrandAsset(oldPath);
+    } catch (err) {
+      setError(err.message || t("حصلت مشكلة في رفع الصورة، جرب تاني."));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeLogo() {
+    if (agencyProfile?.logoPath) deleteBrandAsset(agencyProfile.logoPath);
+    onPatchAgencyProfile({ logoUrl: "", logoPath: "" });
+  }
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <h3 style={S.h3}><ImageIcon size={14} style={{ verticalAlign: -2 }} /> {t("هوية علامتك (White-label)")}</h3>
+      <p style={S.aiHint}>
+        {t("حط لوجو واسم وكالتك عشان يظهروا بدل ContentST في تقارير الـ PDF ولينك المشاركة مع عملائك — عملاؤك يشوفوا براندك إنت.")}
+      </p>
+      <div style={S.refCard}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div
+            style={{
+              width: 64, height: 64, borderRadius: radius.md, border: `1px dashed ${colors.borderStrong}`,
+              display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+              background: colors.surface, flexShrink: 0,
+            }}
+          >
+            {agencyProfile?.logoUrl ? (
+              <img src={agencyProfile.logoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <ImageIcon size={22} color={colors.textFaint} />
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} style={{ display: "none" }} />
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} style={S.secondaryBtn}>
+              {uploading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
+              {uploading ? t("بيترفع...") : t("ارفع لوجو")}
+            </button>
+            {agencyProfile?.logoUrl && (
+              <button type="button" onClick={removeLogo} style={S.secondaryBtn}>
+                <Trash2 size={14} /> {t("امسح اللوجو")}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <label style={S.label}>{t("اسم الوكالة")}</label>
+          <input
+            style={S.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={saveName}
+            placeholder={t("مثلاً: استوديو الشغل")}
+          />
+        </div>
+
+        {error && <p style={{ ...S.aiHint, color: colors.danger, marginTop: 10 }}>{error}</p>}
+        {!error && !agencyProfile?.logoUrl && !agencyProfile?.name && (
+          <p style={{ ...S.aiHint, marginTop: 10 }}>{t("لسه ما ضبطتش هوية وكالة — التقارير ولينكات المشاركة هتفضل ببراند ContentST.")}</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -3489,13 +3639,41 @@ function shareLinkErrorMessage(e, t) {
   return t("حصلت مشكلة، جرب تاني.");
 }
 
-function ShareLinkModal({ brand, onPatchBrand, onClose }) {
+function ShareLinkModal({ brand, items, onPatchBrand, onClose }) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   const shareUrl = brand.shareToken ? `${window.location.origin}/share/${brand.shareToken}` : "";
+
+  useEffect(() => {
+    if (!brand.shareToken) { setFeedbackList([]); return; }
+    let cancelled = false;
+    setFeedbackLoading(true);
+    supabase
+      .from("share_feedback")
+      .select("*")
+      .eq("token", brand.shareToken)
+      .order("created_at", { ascending: false })
+      .then(({ data, error: err }) => {
+        if (cancelled) return;
+        if (!err) setFeedbackList(data || []);
+        setFeedbackLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [brand.shareToken]);
+
+  function itemTitle(itemId) {
+    return items.find((i) => i.id === itemId)?.title || t("فكرة اتمسحت");
+  }
+
+  async function deleteFeedback(id) {
+    setFeedbackList((prev) => prev.filter((f) => f.id !== id));
+    await supabase.from("share_feedback").delete().eq("id", id);
+  }
 
   async function createLink() {
     setLoading(true);
@@ -3536,14 +3714,14 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
   }
 
   return (
-    <ModalShell onClose={onClose}>
+    <ModalShell onClose={onClose} wide>
       <div style={S.modalHead}>
         <span style={S.modalTitle}><Share2 size={16} style={{ verticalAlign: -2 }} /> {t("لينك مشاركة مع العميل")}</span>
         <button onClick={onClose} style={S.iconBtnSm}><X size={16} /></button>
       </div>
 
       <p style={S.aiHint}>
-        {t("اللينك ده صفحة للقراءة بس، تقدر تبعتها لعميل")} {brand.name} {t("من غير ما يحتاج يسجل دخول. هتوريه المحتوى الجاي والمنشور بس — مفيش أي بيانات مالية أو براندات تانية.")}
+        {t("اللينك ده صفحة تقدر تبعتها لعميل")} {brand.name} {t("من غير ما يحتاج يسجل دخول. هيشوف المحتوى الجاي والمنشور، وممكن يسيب ملاحظاته أو يوافق على أي فكرة — من غير أي بيانات مالية أو براندات تانية.")}
       </p>
 
       {error && <p style={{ color: colors.danger, fontSize: 12, marginTop: 8 }}>{error}</p>}
@@ -3565,6 +3743,38 @@ function ShareLinkModal({ brand, onPatchBrand, onClose }) {
             </a>
             <button onClick={revokeLink} disabled={loading} style={S.dangerBtn}><Trash2 size={14} /> {t("ألغِ اللينك")}</button>
           </div>
+
+          <h3 style={{ ...S.h3, marginTop: 22 }}><MessageSquare size={14} style={{ verticalAlign: -2 }} /> {t("ملاحظات العميل")}</h3>
+          {feedbackLoading ? (
+            <p style={S.aiHint}>{t("بيحمّل...")}</p>
+          ) : feedbackList.length === 0 ? (
+            <div style={S.emptyBrands}>{t("لسه مفيش ملاحظات من العميل.")}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto" }} className="scrollbar">
+              {feedbackList.map((f) => {
+                const k = f.kind === "approved" ? { label: t("موافق"), color: colors.good }
+                  : f.kind === "changes_requested" ? { label: t("محتاج تعديل"), color: colors.warning }
+                  : { label: t("ملاحظة"), color: colors.info };
+                return (
+                  <div key={f.id} style={S.refCard}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: colors.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {itemTitle(f.item_id)}
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: k.color, marginTop: 2 }}>{k.label}</div>
+                      </div>
+                      <button onClick={() => deleteFeedback(f.id)} style={S.ticketIconBtnDanger}><Trash2 size={12} /></button>
+                    </div>
+                    {f.message && <p style={{ fontSize: 12, color: colors.textDim, margin: "8px 0 0" }}>{f.message}</p>}
+                    <div style={{ fontSize: 10.5, color: colors.textFaint, marginTop: 6 }}>
+                      {f.author_name ? `${f.author_name} — ` : ""}{fmtAnalysisDate(f.created_at)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       ) : (
         <button onClick={createLink} disabled={loading} style={{ ...S.primaryBtn(brand.color), width: "100%", justifyContent: "center", marginTop: 14 }}>
@@ -3581,6 +3791,7 @@ function BrandPage({
   brand, items, tab, setTab, onEditBrand, onDeleteBrand,
   onAddItem, onBulkAdd, onEditItem, onDeleteItem, onSetStatus, onPatchItem, onPatchBrand, onUseIdea, calMonth, setCalMonth,
   analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill,
+  userId, agencyProfile,
 }) {
   const { t } = useLanguage();
   const [shareOpen, setShareOpen] = useState(false);
@@ -3601,7 +3812,7 @@ function BrandPage({
         </div>
       </div>
 
-      {shareOpen && <ShareLinkModal brand={brand} onPatchBrand={onPatchBrand} onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareLinkModal brand={brand} items={items} onPatchBrand={onPatchBrand} onClose={() => setShareOpen(false)} />}
 
       <div style={S.tabRow} className="tabRow">
         <button onClick={() => setTab("board")} style={{ ...S.tabBtn, ...(tab === "board" ? S.tabBtnActive : {}) }}>
@@ -3671,10 +3882,12 @@ function BrandPage({
           onEditAnalysisMetrics={onEditAnalysisMetrics}
           analyzePrefillIdeaId={analyzePrefillIdeaId}
           onConsumeAnalyzePrefill={onConsumeAnalyzePrefill}
+          userId={userId}
+          agencyProfile={agencyProfile}
         />
       )}
       {tab === "payments" && <PaymentsTab brand={brand} onPatchBrand={onPatchBrand} />}
-      {tab === "reference" && <ReferenceTab brand={brand} onPatchBrand={onPatchBrand} onUseIdea={onUseIdea} />}
+      {tab === "reference" && <ReferenceTab brand={brand} onPatchBrand={onPatchBrand} onUseIdea={onUseIdea} userId={userId} />}
     </div>
   );
 }
@@ -3926,7 +4139,7 @@ function TicketCard({ item, statusColor, nextStatus, isDragging, onDragStart, on
 
 /* ---------- Brand insights ---------- */
 
-function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill }) {
+function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill, userId, agencyProfile }) {
   const { t } = useLanguage();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
@@ -4156,6 +4369,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             receivedThisMonth: reportData.receivedThisMonth,
           }}
           pageTracking={{ pageGrowth: reportData.pageGrowth, totalGrowth: reportData.totalGrowth }}
+          agency={agencyProfile}
         />
       );
       // A short timer (not requestAnimationFrame) to let React's commit and
@@ -4895,7 +5109,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
 
 /* ---------- Reference tab ---------- */
 
-function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
+function ReferenceTab({ brand, onPatchBrand, onUseIdea, userId }) {
   const { t } = useLanguage();
   const [hashtags, setHashtags] = useState(brand.hashtags || "");
   const [agreementNotes, setAgreementNotes] = useState(brand.agreementNotes || "");
@@ -4903,9 +5117,13 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
   const [newEvergreen, setNewEvergreen] = useState("");
   const [sourceTitle, setSourceTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaError, setMediaError] = useState("");
+  const mediaInputRef = useRef(null);
   const templates = brand.captionTemplates || {};
   const evergreen = brand.evergreenIdeas || [];
   const sources = brand.referenceSources || [];
+  const media = brand.media || [];
 
   useEffect(() => {
     setHashtags(brand.hashtags || "");
@@ -4940,6 +5158,38 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
     try { await navigator.clipboard.writeText(hashtags); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {}
   }
 
+  async function handleMediaUpload(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setMediaError("");
+    setUploadingMedia(true);
+    const newItems = [];
+    for (const file of files) {
+      if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+        setMediaError(t("ملفات صور أو فيديو بس مسموحة."));
+        continue;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        setMediaError(t("في ملف حجمه أكبر من 20 ميجا — اتجاهل."));
+        continue;
+      }
+      try {
+        const { url, path } = await uploadBrandAsset(userId, `brands/${brand.id}/media`, file);
+        newItems.push({ id: uid(), url, path, name: file.name, type: file.type, uploadedAt: new Date().toISOString() });
+      } catch (err) {
+        setMediaError(err.message || t("حصلت مشكلة في رفع أحد الملفات."));
+      }
+    }
+    if (newItems.length) onPatchBrand(brand.id, { media: [...newItems, ...media] });
+    setUploadingMedia(false);
+  }
+
+  function removeMedia(item) {
+    if (item.path) deleteBrandAsset(item.path);
+    onPatchBrand(brand.id, { media: media.filter((m) => m.id !== item.id) });
+  }
+
   return (
     <div>
       <h3 style={S.h3}><MessageCircle size={14} style={{ verticalAlign: -2 }} /> {t("الاتفاق مع البراند")}</h3>
@@ -4951,6 +5201,44 @@ function ReferenceTab({ brand, onPatchBrand, onUseIdea }) {
           onBlur={saveAgreementNotes}
           placeholder={t("مثلاً: متفقين على 8 بوستات و4 ريلز في الشهر، البراند محتاج مني أفكار وتصوير، وهو مسؤول عن الموافقة النهائية والمنتج...")}
         />
+      </div>
+
+      <h3 style={S.h3}><ImageIcon size={14} style={{ verticalAlign: -2 }} /> {t("مكتبة الوسائط")}</h3>
+      <div style={{ ...S.refCard, marginBottom: 22 }}>
+        <input ref={mediaInputRef} type="file" accept="image/*,video/*" multiple onChange={handleMediaUpload} style={{ display: "none" }} />
+        <button type="button" onClick={() => mediaInputRef.current?.click()} disabled={uploadingMedia} style={S.secondaryBtn}>
+          {uploadingMedia ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Upload size={14} />}
+          {uploadingMedia ? t("بيترفع...") : t("ارفع صور أو فيديوهات")}
+        </button>
+        {mediaError && <p style={{ ...S.aiHint, color: colors.danger, marginTop: 8 }}>{mediaError}</p>}
+
+        {media.length === 0 ? (
+          <div style={{ ...S.emptyBrands, marginTop: 12 }}>{t("لسه مفيش ملفات مرفوعة لهذا البراند.")}</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 10, marginTop: 14 }}>
+            {media.map((m) => (
+              <div key={m.id} style={{ position: "relative", borderRadius: radius.sm, overflow: "hidden", border: `1px solid ${colors.border}`, aspectRatio: "1", background: colors.surface }}>
+                {m.type?.startsWith("video/") ? (
+                  <video src={m.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
+                ) : (
+                  <img src={m.url} alt={m.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeMedia(m)}
+                  title={t("امسح")}
+                  style={{
+                    position: "absolute", top: 4, insetInlineEnd: 4, width: 22, height: 22, borderRadius: "50%",
+                    background: "rgba(0,0,0,0.55)", border: "none", color: "#fff", display: "flex",
+                    alignItems: "center", justifyContent: "center", cursor: "pointer",
+                  }}
+                >
+                  <Trash2 size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={S.dashGrid} className="dashGrid">
@@ -5303,8 +5591,48 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
   const [shares, setShares] = useState(item?.shares ?? "");
   const [saves, setSaves] = useState(item?.saves ?? "");
   const [successNote, setSuccessNote] = useState(item?.successNote || "");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState(null); // { caption, hashtags } | null
 
   const brand = brands.find((b) => b.id === brandId);
+
+  async function generateCaption() {
+    if (!title.trim()) return;
+    setAiLoading(true);
+    setAiError("");
+    setAiSuggestion(null);
+    try {
+      const res = await fetch("/api/generate-caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brandName: brand?.name || "",
+          type,
+          title: title.trim(),
+          notes: notes.trim(),
+          existingHashtags: brand?.hashtags || "",
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setAiError(data.message || t("معرفناش نجيب اقتراح، جرب تاني."));
+        return;
+      }
+      setAiSuggestion({ caption: data.caption, hashtags: data.hashtags || [] });
+    } catch (e) {
+      setAiError(t("حصلت مشكلة في الاتصال، جرب تاني."));
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function useAiSuggestion() {
+    if (!aiSuggestion) return;
+    const block = [aiSuggestion.caption, aiSuggestion.hashtags.join(" ")].filter(Boolean).join("\n\n");
+    setNotes((prev) => (prev.trim() ? `${prev.trim()}\n\n${block}` : block));
+    setAiSuggestion(null);
+  }
 
   function handleSave() {
     if (!title.trim() || !brandId) return;
@@ -5413,8 +5741,34 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
       </div>
 
       <div style={S.formGroup}>
-        <label style={S.label}>{t("ملاحظات (اختياري)")}</label>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <label style={S.label}>{t("ملاحظات (اختياري)")}</label>
+          <button
+            type="button"
+            onClick={generateCaption}
+            disabled={!title.trim() || aiLoading}
+            style={{ ...S.aiUseBtn, opacity: !title.trim() || aiLoading ? 0.6 : 1 }}
+          >
+            {aiLoading ? <Loader2 size={11} style={{ animation: "spin 1s linear infinite" }} /> : <Sparkles size={11} />}
+            {aiLoading ? t("بيفكّر...") : t("اقترح كابشن بالـ AI")}
+          </button>
+        </div>
         <textarea style={{ ...S.input, minHeight: 60, resize: "vertical" }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("تفاصيل، كابشن...")} />
+        {aiError && <p style={{ ...S.aiHint, color: colors.danger }}>{aiError}</p>}
+        {aiSuggestion && (
+          <div style={{ ...S.refCard, marginTop: 8 }}>
+            <p style={{ fontSize: 12.5, color: colors.text, margin: 0, whiteSpace: "pre-wrap" }}>{aiSuggestion.caption}</p>
+            {aiSuggestion.hashtags.length > 0 && (
+              <p style={{ fontSize: 11.5, color: colors.accentBlue, margin: "8px 0 0" }}>{aiSuggestion.hashtags.join(" ")}</p>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <button type="button" onClick={useAiSuggestion} style={S.primaryBtn(brand?.color || PALETTE[0])}>
+                <Check size={13} /> {t("استخدم الاقتراح")}
+              </button>
+              <button type="button" onClick={() => setAiSuggestion(null)} style={S.secondaryBtn}>{t("تجاهل")}</button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={S.formGroup}>

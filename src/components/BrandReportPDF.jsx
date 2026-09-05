@@ -56,11 +56,24 @@ export default function BrandReportPDF({
   byType, mixTargets,
   perfTotals, top5,
   financial, pageTracking,
+  agency,
 }) {
+  // لو المستخدم ضبط هوية وكالته (White-label)، التقرير بيظهر بلوجواسمها
+  // هي بدل ContentST — عشان الوكالة تقدر تبعت تقرير ببراندها هي لعميلها.
+  const hasAgencyBrand = !!(agency?.logoUrl || agency?.name);
+
   return (
     <div dir="rtl" style={s.page}>
       <div style={s.header}>
-        <Logo height={46} variant="dark" />
+        {hasAgencyBrand ? (
+          agency.logoUrl ? (
+            <img src={agency.logoUrl} alt={agency.name || "Logo"} style={{ height: 46, maxWidth: 220, objectFit: "contain" }} />
+          ) : (
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#151A24" }}>{agency.name}</div>
+          )
+        ) : (
+          <Logo height={46} variant="dark" />
+        )}
         <div style={s.headerMeta}>
           <div style={s.reportKicker}>تقرير أداء البراند</div>
           <div style={s.brandName}>{brand.name}</div>
@@ -199,7 +212,9 @@ export default function BrandReportPDF({
         </Section>
       )}
 
-      <div style={s.footer}>تقرير تم إنشاؤه بواسطة ContentST — {reportDate}</div>
+      <div style={s.footer}>
+        {hasAgencyBrand ? `تقرير ${agency.name || brand.name} — ${reportDate}` : `تقرير تم إنشاؤه بواسطة ContentST — ${reportDate}`}
+      </div>
     </div>
   );
 }

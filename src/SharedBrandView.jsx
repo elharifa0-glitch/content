@@ -4,7 +4,7 @@ import { colors, radius, spacing, shadows, typography } from "./theme";
 import { Badge, EmptyState } from "./components";
 import {
   Calendar as CalendarIcon, Clock, Eye, Heart, MessageCircle, Share2, Bookmark,
-  CheckCircle2, Sparkles, Instagram, Facebook, Youtube, Link2,
+  CheckCircle2, Sparkles, Instagram, Facebook, Youtube, Link2, ThumbsUp, ThumbsDown, Send,
 } from "lucide-react";
 
 function TiktokIcon({ size = 14 }) {
@@ -70,6 +70,8 @@ export default function SharedBrandView({ token }) {
   const [brand, setBrand] = useState(null);
   const [items, setItems] = useState([]);
   const [analyses, setAnalyses] = useState([]);
+  const [feedback, setFeedback] = useState([]);
+  const [agency, setAgency] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -82,6 +84,8 @@ export default function SharedBrandView({ token }) {
           setBrand(data.brand);
           setItems(data.items || []);
           setAnalyses(data.analyses || []);
+          setFeedback(data.feedback || []);
+          setAgency(data.agency || null);
         }
       } catch (e) {
         setError("حصلت مشكلة في تحميل الصفحة، جرب تاني.");
@@ -93,6 +97,14 @@ export default function SharedBrandView({ token }) {
 
   function analysesForItem(itemId) {
     return analyses.filter((a) => a.ideaId === itemId);
+  }
+
+  function feedbackForItem(itemId) {
+    return feedback.filter((f) => f.itemId === itemId);
+  }
+
+  function onFeedbackAdded(entry) {
+    setFeedback((prev) => [...prev, entry]);
   }
 
   if (loading) {
@@ -133,6 +145,12 @@ export default function SharedBrandView({ token }) {
     <div style={styles.wrap} dir="rtl">
       <style>{importFont}</style>
       <div style={styles.container}>
+        {(agency?.logoUrl || agency?.name) && (
+          <div style={styles.agencyBar}>
+            {agency.logoUrl ? <img src={agency.logoUrl} alt={agency.name || ""} style={styles.agencyLogo} /> : null}
+            {agency.name && <span>{agency.name}</span>}
+          </div>
+        )}
         <div style={{ ...styles.headerCard, boxShadow: shadows.md }}>
           <div style={{ ...styles.headerStripe, background: brand.color || colors.accentBlue }} />
           <div style={styles.headerInner}>
@@ -141,7 +159,7 @@ export default function SharedBrandView({ token }) {
             </span>
             <div style={{ minWidth: 0 }}>
               <div style={styles.brandName}>{brand.name}</div>
-              <div style={styles.brandSub}><Link2 size={11} style={{ verticalAlign: -1 }} /> خطة المحتوى — لينك مشاركة للقراءة بس</div>
+              <div style={styles.brandSub}><Link2 size={11} style={{ verticalAlign: -1 }} /> خطة المحتوى — تقدر تسيب ملاحظاتك وتوافق على أي فكرة</div>
             </div>
           </div>
           <div style={styles.statsRow}>
@@ -176,7 +194,14 @@ export default function SharedBrandView({ token }) {
               <div style={styles.monthLabel}>{g.label}</div>
               <div style={styles.grid}>
                 {g.items.map((it) => (
-                  <ItemRow key={it.id} it={it} analyses={analysesForItem(it.id)} />
+                  <ItemRow
+                    key={it.id}
+                    it={it}
+                    analyses={analysesForItem(it.id)}
+                    token={token}
+                    feedback={feedbackForItem(it.id)}
+                    onFeedbackAdded={onFeedbackAdded}
+                  />
                 ))}
               </div>
             </div>
@@ -193,18 +218,28 @@ export default function SharedBrandView({ token }) {
         ) : (
           <div style={styles.grid}>
             {published.slice(0, 10).map((it) => (
-              <ItemRow key={it.id} it={it} analyses={analysesForItem(it.id)} published />
+              <ItemRow
+                key={it.id}
+                it={it}
+                analyses={analysesForItem(it.id)}
+                published
+                token={token}
+                feedback={feedbackForItem(it.id)}
+                onFeedbackAdded={onFeedbackAdded}
+              />
             ))}
           </div>
         )}
 
-        <p style={styles.footer}>اللينك ده للقراءة بس — مقدمّلك من ContentST.</p>
+        <p style={styles.footer}>
+          {agency?.name ? `مقدمّلك من ${agency.name}.` : "مقدمّلك من ContentST."}
+        </p>
       </div>
     </div>
   );
 }
 
-function ItemRow({ it, analyses, published }) {
+function ItemRow({ it, analyses, published, token, feedback, onFeedbackAdded }) {
   const sd = STATUS_DEFS.find((s) => s.key === it.status);
   return (
     <div style={{ ...styles.rowCol, boxShadow: shadows.sm }}>
@@ -230,6 +265,103 @@ function ItemRow({ it, analyses, published }) {
         </div>
       </div>
       <AnalyticsRows analyses={analyses} />
+      {token && <ItemFeedback token={token} itemId={it.id} feedback={feedback || []} onAdded={onFeedbackAdded} />}
+    </div>
+  );
+}
+
+const FEEDBACK_KIND_LABELS = {
+  approved: { label: "موافق", color: colors.good, Icon: ThumbsUp },
+  changes_requested: { label: "محتاج تعديل", color: colors.warning, Icon: ThumbsDown },
+  comment: { label: "ملاحظة", color: colors.info, Icon: MessageCircle },
+};
+
+// ملاحظات وموافقة العميل على فكرة معينة — بيتبعت بدون تسجيل دخول عن
+// طريق add_share_feedback (RPC)، وصاحب اللينك بيشوفهم من لوحته العادية
+// (زرار "لينك مشاركة مع العميل" في صفحة البراند).
+function ItemFeedback({ token, itemId, feedback, onAdded }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(() => {
+    try { return localStorage.getItem("cs-share-author-name") || ""; } catch (e) { return ""; }
+  });
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sentMsg, setSentMsg] = useState("");
+
+  async function submit(kind) {
+    if (kind === "comment" && !message.trim()) return;
+    setSending(true);
+    setSentMsg("");
+    try {
+      const { data, error } = await supabase.rpc("add_share_feedback", {
+        p_token: token, p_item_id: itemId, p_author_name: name.trim() || null, p_message: message.trim() || null, p_kind: kind,
+      });
+      if (error || !data?.ok) throw new Error(data?.message || "حصلت مشكلة، جرب تاني.");
+      try { localStorage.setItem("cs-share-author-name", name.trim()); } catch (e) {}
+      onAdded({
+        id: `local-${Date.now()}`, itemId, authorName: name.trim() || null,
+        message: message.trim() || null, kind, createdAt: new Date().toISOString(),
+      });
+      setMessage("");
+      setSentMsg(kind === "approved" ? "تم إرسال موافقتك ✅" : kind === "changes_requested" ? "تم إرسال طلبك ✏️" : "تم إرسال ملاحظتك");
+      setTimeout(() => setSentMsg(""), 3000);
+    } catch (e) {
+      setSentMsg(e.message || "حصلت مشكلة، جرب تاني.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={styles.feedbackWrap}>
+      {feedback.length > 0 && (
+        <div style={styles.feedbackList}>
+          {feedback.map((f) => {
+            const k = FEEDBACK_KIND_LABELS[f.kind] || FEEDBACK_KIND_LABELS.comment;
+            const Icon = k.Icon;
+            return (
+              <div key={f.id} style={styles.feedbackItem}>
+                <span style={{ ...styles.feedbackKind, color: k.color }}><Icon size={11} /> {k.label}</span>
+                {f.message && <span style={styles.feedbackMsg}>{f.message}</span>}
+                {f.authorName && <span style={styles.feedbackAuthor}>— {f.authorName}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)} style={styles.feedbackToggle}>
+          <MessageCircle size={11} /> سيب ملاحظة أو وافق
+        </button>
+      ) : (
+        <div style={styles.feedbackForm}>
+          <input
+            style={styles.feedbackNameInput}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="اسمك (اختياري)"
+          />
+          <textarea
+            style={styles.feedbackTextarea}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="اكتب ملاحظتك هنا..."
+          />
+          <div style={styles.feedbackActions}>
+            <button type="button" disabled={sending} onClick={() => submit("approved")} style={{ ...styles.feedbackBtn, color: colors.good, borderColor: colors.good }}>
+              <ThumbsUp size={12} /> موافق
+            </button>
+            <button type="button" disabled={sending} onClick={() => submit("changes_requested")} style={{ ...styles.feedbackBtn, color: colors.warning, borderColor: colors.warning }}>
+              <ThumbsDown size={12} /> محتاج تعديل
+            </button>
+            <button type="button" disabled={sending || !message.trim()} onClick={() => submit("comment")} style={{ ...styles.feedbackBtn, color: colors.info, borderColor: colors.info }}>
+              <Send size={12} /> ابعت ملاحظة
+            </button>
+          </div>
+          {sentMsg && <p style={styles.feedbackSent}>{sentMsg}</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -332,4 +464,38 @@ const styles = {
   analyticsMetrics: { display: "flex", alignItems: "center", gap: 7, color: colors.textDim, fontSize: 10, flexWrap: "wrap" },
 
   footer: { textAlign: "center", color: colors.textFaint, fontSize: 11, marginTop: spacing.xxxl, opacity: 0.8 },
+
+  agencyBar: {
+    display: "flex", alignItems: "center", gap: 8, marginBottom: spacing.md,
+    color: colors.textDim, fontSize: 12.5, fontWeight: 700,
+  },
+  agencyLogo: { height: 22, maxWidth: 120, objectFit: "contain" },
+
+  feedbackWrap: { borderTop: `1px solid ${colors.border}`, padding: "8px 10px" },
+  feedbackList: { display: "flex", flexDirection: "column", gap: 5, marginBottom: 6 },
+  feedbackItem: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 10.5 },
+  feedbackKind: { display: "flex", alignItems: "center", gap: 3, fontWeight: 800, flexShrink: 0 },
+  feedbackMsg: { color: colors.textDim },
+  feedbackAuthor: { color: colors.textFaint, fontStyle: "italic" },
+  feedbackToggle: {
+    display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "none",
+    color: colors.accentBlue, fontSize: 10.5, fontWeight: 700, cursor: "pointer", padding: 0, fontFamily: "inherit",
+  },
+  feedbackForm: { display: "flex", flexDirection: "column", gap: 6, marginTop: 4 },
+  feedbackNameInput: {
+    background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: radius.sm,
+    color: colors.text, padding: "6px 9px", fontSize: 11, fontFamily: "inherit", outline: "none",
+  },
+  feedbackTextarea: {
+    background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: radius.sm,
+    color: colors.text, padding: "6px 9px", fontSize: 11, fontFamily: "inherit", outline: "none",
+    minHeight: 44, resize: "vertical",
+  },
+  feedbackActions: { display: "flex", gap: 6, flexWrap: "wrap" },
+  feedbackBtn: {
+    display: "flex", alignItems: "center", gap: 4, background: "transparent",
+    border: "1px solid", borderRadius: radius.pill, padding: "4px 9px",
+    fontSize: 10.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+  },
+  feedbackSent: { fontSize: 10.5, color: colors.good, margin: 0 },
 };
