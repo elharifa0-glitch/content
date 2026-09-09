@@ -269,9 +269,6 @@ export const translations = {
     "باقات بسيطة، بدون مفاجآت.": "Simple plans, no surprises.",
     "ابدأ بلوحدك، وارقّي لما تحتاج تدير عملاء حقيقيين أو براندات أكتر.": "Start solo, and upgrade when you need to work with real clients or manage more brands.",
     "🎁 تجربة مجانية 7 أيام — كل الميزات — لحد 3 براندات — من غير بطاقة ائتمانية": "🎁 7-day free trial — full features — up to 3 brands — no credit card",
-    "كل حاجة محتاجها عشان تخطط لمحتواك وتثبت إنه شغال.": "Everything you need to plan your content and prove it works.",
-    "كل حاجة في Starter، وكمان اللي محتاجه عشان تشتغل مع عملاء حقيقيين.": "Everything in Starter, plus what you need to work with real clients.",
-    "كل حاجة في Pro، من غير حد لعدد البراندات.": "Everything in Pro, without brand limits.",
     "الأكتر اختيارًا": "Most popular",
     "أو": "or",
     "(وفّر شهرين)": "(save 2 months)",
@@ -281,6 +278,36 @@ export const translations = {
     "4,490 جنيه/سنة": "EGP 4,490/year",
     "1,499 جنيه/شهر": "EGP 1,499/month",
     "14,990 جنيه/سنة": "EGP 14,990/year",
+
+    // ---- Pricing: shared core-features band ----
+    "كل الباقات تشمل": "Every plan includes",
+    "لوحة المحتوى وتقويم النشر": "Content board & publishing calendar",
+    "Brand Insights وتحليل الأداء": "Brand Insights & performance analytics",
+    "تتبع المدفوعات والمصاريف": "Payment & expense tracking",
+
+    // ---- Pricing: plan subtitles ----
+    "لإدارة محتوى لحد 2 براند": "To manage content for up to 2 brands",
+    "لإدارة العملاء وتقديم تقارير احترافية": "To manage clients and deliver professional reports",
+    "لإدارة عدد غير محدود من البراندات": "To manage an unlimited number of brands",
+
+    // ---- Pricing: Starter card ----
+    "حتى 2 براند": "Up to 2 brands",
+    "حتى 6 براندات": "Up to 6 brands",
+    "كل المميزات الأساسية": "All core features",
+    "بتصميم ContentST": "ContentST-branded",
+    "غير متاح في Starter:": "Not included in Starter:",
+    "مشاركة وموافقة العميل": "Client share & approval",
+    "التقارير والهوية White-label": "White-label reports & branding",
+
+    // ---- Pricing: Pro card ----
+    "كل مميزات Starter": "Everything in Starter",
+    "شارك المحتوى مع العميل وخليه يوافق أو يطلب تعديل بدون تسجيل دخول": "Share content with your client and let them approve or request changes — no login needed",
+    "تقارير باسم ولوجو شركتك": "Reports with your own name and logo",
+    "كل اللي تحتاجه عشان تشتغل مع عملاء بشكل احترافي.": "Everything you need to work with clients professionally.",
+
+    // ---- Pricing: Agency card ----
+    "كل مميزات Pro": "Everything in Pro",
+    "بدون حد لعدد البراندات": "No limit on the number of brands",
 
     // ===== Brand page (tabs, board) =====
     "بدون بيانات تواصل": "No contact info",
@@ -587,7 +614,6 @@ export const translations = {
     "باقتك الحالية": "Your current plan",
     "الحالية": "current",
     "بتسمح بـ": "allows",
-    "براندات غير محدودة": "unlimited brands",
     "براندات": "brands",
     "بس، وإنت وصلت للحد ده.": "only, and you've reached that limit.",
     "رقّي باقتك عشان تضيف براندات أكتر.": "Upgrade your plan to add more brands.",
