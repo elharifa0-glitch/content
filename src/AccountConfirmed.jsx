@@ -21,7 +21,7 @@ export default function AccountConfirmed({ onContinue }) {
         </div>
         <h1 style={styles.title}>{t("تم تفعيل حسابك بنجاح!")}</h1>
         <p style={styles.subtitle}>
-          {t("الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام بكل الميزات، لحد 3 براندات.")}
+          {t("الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام بكل الميزات، لحد 2 براند.")}
         </p>
         <Button variant="primary" fullWidth onClick={onContinue}>{t("يلا نبدأ")}</Button>
       </div>

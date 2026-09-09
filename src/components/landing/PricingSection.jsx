@@ -59,8 +59,8 @@ export default function PricingSection() {
     <section id="pricing" style={styles.section}>
       <div style={styles.head}>
         <h2 style={styles.title}>{t("باقات بسيطة، بدون مفاجآت.")}</h2>
-        <p style={styles.sub}>{t("ابدأ بلوحدك، وارقّي لما تحتاج تدير عملاء حقيقيين أو براندات أكتر.")}</p>
-        <p style={styles.trialNote}>{t("🎁 تجربة مجانية 7 أيام — كل الميزات — لحد 3 براندات — من غير بطاقة ائتمانية")}</p>
+        <p style={styles.sub}>{t("ابدأ لوحدك، وطوّر خطتك مع نمو شغلك.")}</p>
+        <p style={styles.trialNote}>{t("7 أيام — كل المميزات — لحد 2 براند — من غير بطاقة ائتمانية")}</p>
       </div>
 
       <div style={styles.coreBand}>
@@ -132,10 +132,6 @@ export default function PricingSection() {
                 </>
               )}
 
-              {p.key === "agency" && (
-                <p style={styles.calloutLine}>{t("بدون حد لعدد البراندات")}</p>
-              )}
-
               <a href="/signup" style={p.recommended ? styles.ctaPrimary : styles.ctaSecondary}>{t("ابدأ مجانًا")}</a>
             </div>
           );
@@ -194,10 +190,6 @@ const styles = {
   highlightDesc: { fontSize: 11.5, color: landing.textDim, lineHeight: 1.6, marginTop: 2 },
 
   valueLine: { fontSize: 12.5, fontWeight: 700, color: landing.text, lineHeight: 1.6, margin: "14px 0 0" },
-  calloutLine: {
-    fontSize: 12.5, fontWeight: 700, color: landing.text, lineHeight: 1.6, margin: "16px 0 0",
-    background: landing.gradientSoft, borderRadius: 10, padding: "10px 12px",
-  },
 
   ctaPrimary: {
     marginTop: "auto", background: landing.gradient, color: "#fff", fontSize: 13.5, fontWeight: 800,

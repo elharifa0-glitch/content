@@ -11,7 +11,7 @@ import { colors } from "./theme";
 // downgrading to the cheapest paid plan (existing downgrade behavior, kept
 // as-is: brands over a plan's limit are never deleted or archived, only new
 // brand creation is blocked).
-export const TRIAL_BRAND_LIMIT = 3;
+export const TRIAL_BRAND_LIMIT = 2;
 
 export const PLAN_ORDER = ["starter", "pro", "agency"];
 

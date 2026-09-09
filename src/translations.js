@@ -193,8 +193,8 @@ export const translations = {
 
     // ===== AccountConfirmed.jsx =====
     "تم تفعيل حسابك بنجاح!": "Your account is activated!",
-    "الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام بكل الميزات، لحد 3 براندات.":
-      "Your email is confirmed and your account is ready. You can now start using ContentST — enjoy a 7-day free trial with full features, up to 3 brands.",
+    "الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام بكل الميزات، لحد 2 براند.":
+      "Your email is confirmed and your account is ready. You can now start using ContentST — enjoy a 7-day free trial with full features, up to 2 brands.",
     "يلا نبدأ": "Let's get started",
 
     // ===== HeroSection.jsx =====
@@ -267,8 +267,8 @@ export const translations = {
 
     // ===== PricingSection.jsx =====
     "باقات بسيطة، بدون مفاجآت.": "Simple plans, no surprises.",
-    "ابدأ بلوحدك، وارقّي لما تحتاج تدير عملاء حقيقيين أو براندات أكتر.": "Start solo, and upgrade when you need to work with real clients or manage more brands.",
-    "🎁 تجربة مجانية 7 أيام — كل الميزات — لحد 3 براندات — من غير بطاقة ائتمانية": "🎁 7-day free trial — full features — up to 3 brands — no credit card",
+    "ابدأ لوحدك، وطوّر خطتك مع نمو شغلك.": "Start on your own, and grow your plan as your work grows.",
+    "7 أيام — كل المميزات — لحد 2 براند — من غير بطاقة ائتمانية": "7 days — full features — up to 2 brands — no credit card",
     "الأكتر اختيارًا": "Most popular",
     "أو": "or",
     "(وفّر شهرين)": "(save 2 months)",
@@ -307,7 +307,6 @@ export const translations = {
 
     // ---- Pricing: Agency card ----
     "كل مميزات Pro": "Everything in Pro",
-    "بدون حد لعدد البراندات": "No limit on the number of brands",
 
     // ===== Brand page (tabs, board) =====
     "بدون بيانات تواصل": "No contact info",
@@ -351,7 +350,7 @@ export const translations = {
     // ===== FAQSection.jsx =====
     "أسئلة شائعة": "Frequently asked questions",
     "هل أحتاج بطاقة ائتمانية؟": "Do I need a credit card?",
-    "لأ، تقدر تبدأ تجربة مجانية 7 أيام بكل ميزات ContentST (لحد 3 براندات) من غير ما تدخل أي بيانات دفع.": "No — you can start a 7-day free trial with full ContentST features (up to 3 brands) without entering any payment details.",
+    "لأ، تقدر تبدأ تجربة مجانية 7 أيام بكل ميزات ContentST (لحد 2 براند) من غير ما تدخل أي بيانات دفع.": "No — you can start a 7-day free trial with full ContentST features (up to 2 brands) without entering any payment details.",
     "ما المنصات التي يدعمها ContentST؟": "Which platforms does ContentST support?",
     "بيدعم تحليل المحتوى من Instagram وTikTok وFacebook وYouTube.": "It supports content analytics from Instagram, TikTok, Facebook, and YouTube.",
     "هل أستطيع إدارة أكثر من براند؟": "Can I manage more than one brand?",
