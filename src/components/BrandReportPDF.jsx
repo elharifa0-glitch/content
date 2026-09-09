@@ -32,6 +32,15 @@ function fmt(n) {
   return (Number(n) || 0).toLocaleString("en-US");
 }
 
+// This report is always rendered in Arabic regardless of the viewer's app
+// language (no `t()` calls anywhere in this file), so the currency label is
+// a plain literal here rather than the language-aware fmtCurrency used
+// elsewhere in the app — used only for genuine money figures below, never
+// for the views/likes counts above which stay on plain fmt().
+function fmtEGP(n) {
+  return `${fmt(n)} جنيه`;
+}
+
 function Section({ title, children }) {
   return (
     <div style={s.section}>
@@ -170,15 +179,15 @@ export default function BrandReportPDF({
       {sections.financial && (
         <Section title="الوضع المالي">
           <div style={s.statRow}>
-            <StatBox label="مستلم الشهر ده" value={fmt(financial.receivedThisMonth)} />
+            <StatBox label="مستلم الشهر ده" value={fmtEGP(financial.receivedThisMonth)} />
           </div>
           {financial.paymentTotal ? (
             <>
               <p style={{ ...s.pMuted, margin: "14px 0 8px", fontWeight: 700, color: "#151A24" }}>من بداية التعامل</p>
               <div style={s.statRow}>
-                <StatBox label="الإجمالي المتفق عليه" value={fmt(financial.paymentTotal)} />
-                <StatBox label="إجمالي المستلم" value={fmt(financial.receivedTotal)} />
-                <StatBox label="المتبقي" value={fmt(financial.remainingTotal)} />
+                <StatBox label="الإجمالي المتفق عليه" value={fmtEGP(financial.paymentTotal)} />
+                <StatBox label="إجمالي المستلم" value={fmtEGP(financial.receivedTotal)} />
+                <StatBox label="المتبقي" value={fmtEGP(financial.remainingTotal)} />
               </div>
             </>
           ) : (

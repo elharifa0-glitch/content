@@ -1,5 +1,6 @@
 // Vercel Serverless Function — بيشتغل على السيرفر بس، مش في المتصفح
 // عشان مفتاح Refetcher يفضل مخفي وميقدرش حد يشوفه أو يسرقه من الموقع
+import { checkUsage } from "./_usageGuard.js";
 
 // Refetcher's real response envelope wraps every target in a `results[]`
 // array (not a flat top-level object), and different platforms use
@@ -56,6 +57,11 @@ export default async function handler(req, res) {
   const { url } = req.body || {};
   if (!url || typeof url !== "string" || !url.trim()) {
     return res.status(400).json({ ok: false, message: "لازم تبعت لينك صحيح." });
+  }
+
+  const guard = await checkUsage(req, "analyze_video");
+  if (!guard.ok) {
+    return res.status(guard.status).json({ ok: false, message: guard.message });
   }
 
   const apiKey = process.env.REFETCHER_API_KEY;

@@ -3,6 +3,7 @@ import { supabase } from "./supabaseClient";
 import { colors, radius, spacing, shadows, typography } from "./theme";
 import { Button, Badge, EmptyState } from "./components";
 import { useLanguage } from "./LanguageContext";
+import { PLAN_ORDER, PLANS as PLAN_DEFS, normalizePlanKey } from "./plans";
 import {
   Users, ShieldCheck, Hourglass, CheckCircle2, XCircle, Globe, ArrowRight,
   Mail, Search, ChevronDown, ChevronUp,
@@ -29,11 +30,11 @@ const MARKETING_SOURCE_LABELS = {
   skipped: "اتخطى",
 };
 
-const PLAN_OPTIONS = [
-  { key: "starter", label: "Starter" },
-  { key: "pro", label: "Pro" },
-  { key: "unlimited", label: "Unlimited" },
-];
+// Single source of truth for plan keys/names is ./plans.js — "unlimited"
+// (the old name for "agency") is normalized below wherever an existing
+// user's stored plan value is read, so accounts set before the rename
+// still show correctly instead of matching no option in the dropdown.
+const PLAN_OPTIONS = PLAN_ORDER.map((key) => ({ key, label: PLAN_DEFS[key].name }));
 
 function fmtDateTime(iso, lang) {
   if (!iso) return "—";
@@ -237,7 +238,7 @@ function BreakdownCard({ title, data, labels }) {
 function UserRow({ u, t, lang, expanded, onToggle, busy, msg, onConfirmEmail, onSetSubscription }) {
   const st = liveStatus(u);
   const [status, setStatus] = useState(st.key === "none" ? "trial" : st.key);
-  const [plan, setPlan] = useState(u.plan || "pro");
+  const [plan, setPlan] = useState(normalizePlanKey(u.plan) || "pro");
   const [days, setDays] = useState(status === "trial" ? "7" : "30");
 
   return (

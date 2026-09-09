@@ -193,8 +193,8 @@ export const translations = {
 
     // ===== AccountConfirmed.jsx =====
     "تم تفعيل حسابك بنجاح!": "Your account is activated!",
-    "الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام.":
-      "Your email is confirmed and your account is ready. You can now start using ContentST — enjoy a 7-day free trial.",
+    "الإيميل بتاعك اتأكد وحسابك بقى جاهز. تقدر دلوقتي تبدأ تستخدم ContentST — معاك تجربة مجانية 7 أيام بكل الميزات، لحد 3 براندات.":
+      "Your email is confirmed and your account is ready. You can now start using ContentST — enjoy a 7-day free trial with full features, up to 3 brands.",
     "يلا نبدأ": "Let's get started",
 
     // ===== HeroSection.jsx =====
@@ -267,16 +267,20 @@ export const translations = {
 
     // ===== PricingSection.jsx =====
     "باقات بسيطة، بدون مفاجآت.": "Simple plans, no surprises.",
-    "كل الباقات فيها نفس الميزات بالظبط — الفرق بس في عدد البراندات.": "Every plan includes the exact same features — the only difference is how many brands you get.",
+    "ابدأ بلوحدك، وارقّي لما تحتاج تدير عملاء حقيقيين أو براندات أكتر.": "Start solo, and upgrade when you need to work with real clients or manage more brands.",
+    "🎁 تجربة مجانية 7 أيام — كل الميزات — لحد 3 براندات — من غير بطاقة ائتمانية": "🎁 7-day free trial — full features — up to 3 brands — no credit card",
+    "كل حاجة محتاجها عشان تخطط لمحتواك وتثبت إنه شغال.": "Everything you need to plan your content and prove it works.",
+    "كل حاجة في Starter، وكمان اللي محتاجه عشان تشتغل مع عملاء حقيقيين.": "Everything in Starter, plus what you need to work with real clients.",
+    "كل حاجة في Pro، من غير حد لعدد البراندات.": "Everything in Pro, without brand limits.",
     "الأكتر اختيارًا": "Most popular",
     "أو": "or",
     "(وفّر شهرين)": "(save 2 months)",
     "199 جنيه/شهر": "EGP 199/month",
     "1,990 جنيه/سنة": "EGP 1,990/year",
-    "399 جنيه/شهر": "EGP 399/month",
-    "3,990 جنيه/سنة": "EGP 3,990/year",
-    "1200 جنيه/شهر": "EGP 1,200/month",
-    "12,000 جنيه/سنة": "EGP 12,000/year",
+    "449 جنيه/شهر": "EGP 449/month",
+    "4,490 جنيه/سنة": "EGP 4,490/year",
+    "1,499 جنيه/شهر": "EGP 1,499/month",
+    "14,990 جنيه/سنة": "EGP 14,990/year",
 
     // ===== Brand page (tabs, board) =====
     "بدون بيانات تواصل": "No contact info",
@@ -320,7 +324,7 @@ export const translations = {
     // ===== FAQSection.jsx =====
     "أسئلة شائعة": "Frequently asked questions",
     "هل أحتاج بطاقة ائتمانية؟": "Do I need a credit card?",
-    "لأ، تقدر تبدأ تجربتك المجانية وتستخدم ContentST بالكامل من غير ما تدخل أي بيانات دفع.": "No — you can start your free trial and use ContentST in full without entering any payment details.",
+    "لأ، تقدر تبدأ تجربة مجانية 7 أيام بكل ميزات ContentST (لحد 3 براندات) من غير ما تدخل أي بيانات دفع.": "No — you can start a 7-day free trial with full ContentST features (up to 3 brands) without entering any payment details.",
     "ما المنصات التي يدعمها ContentST؟": "Which platforms does ContentST support?",
     "بيدعم تحليل المحتوى من Instagram وTikTok وFacebook وYouTube.": "It supports content analytics from Instagram, TikTok, Facebook, and YouTube.",
     "هل أستطيع إدارة أكثر من براند؟": "Can I manage more than one brand?",
@@ -347,15 +351,20 @@ export const translations = {
 
     // ===== PlanPicker.jsx =====
     "لحد 2 براند": "Up to 2 brands",
-    "لحد 5 براندات": "Up to 5 brands",
+    "لحد 6 براندات": "Up to 6 brands",
     "براندات غير محدودة": "Unlimited brands",
-    "كل الباقات بتديك بالظبط نفس الميزات — الفرق بس في عدد البراندات:": "Every plan gives you exactly the same features — the only difference is how many brands you get:",
+    "بتدّيك:": "gives you:",
     "لوحة أفكار وتقويم نشر لكل براند": "Idea board and publishing calendar for each brand",
     "تتبع مدفوعات ومصاريف وربح صافي حقيقي": "Track payments, expenses, and real net profit",
     "تحليل وتقارير كاملة لكل براند": "Full analytics and reports for every brand",
-    "تذكيرات ديدلاين وإشعارات متصفح": "Deadline reminders and browser notifications",
+    "تقرير PDF قابل للتصدير لكل براند": "Exportable PDF report for every brand",
+    "تذكيرات وإشعارات متصفح (لما التطبيق يكون مفتوح)": "Reminders and browser notifications (while the app is open)",
     "بحث ومقارنة عبر كل البراندات": "Search and compare across all your brands",
     "تعمل من أي جهاز أو موبايل": "Works from any device or mobile",
+    "تقرير PDF ببراند ContentST": "PDF report with ContentST branding",
+    "لينكات مشاركة وموافقة مع العميل": "Client share & approval links",
+    "هوية علامتك الخاصة (White-label) على التقارير واللينكات": "Your own white-label branding on reports and share links",
+    "براندات بلا حدود": "No brand limits",
     "للدفع من مصر (فودافون كاش / InstaPay):": "To pay from Egypt (Vodafone Cash / InstaPay):",
     "اتنسخ": "Copied",
     "نسخ": "Copy",
@@ -585,6 +594,33 @@ export const translations = {
     "اطمّن: البراندات الزيادة من فترة التجربة مش هتتمسح ولا تختفي — هتفضل موجودة وتقدر تشتغل عليها زي ما هي، بس مش هتقدر تضيف واحد جديد لحد ما ترقّي أو تمسح واحد قديم.":
       "Don't worry: any extra brands from your trial won't be deleted or disappear — they'll stay as they are and you can keep working on them, you just won't be able to add a new one until you upgrade or delete an old one.",
     "رقّي الباقة": "Upgrade plan",
+    "فترة التجربة المجانية بتسمح بـ": "Your free trial allows",
+    "براندات بس، وإنت وصلت للحد ده.": "brands only, and you've reached that limit.",
+    "اشترك في باقة عشان تضيف براندات أكتر.": "Subscribe to a plan to add more brands.",
+
+    // ===== Share link / white-label upgrade prompts =====
+    "لينكات المشاركة مع العميل متاحة من باقة Pro — رقّي باقتك عشان تقدر تنشئ لينك للبراند ده.": "Client share links are available from the Pro plan — upgrade to create a link for this brand.",
+    "رقّي لـ Pro": "Upgrade to Pro",
+    "شيل براند ContentST من تقارير الـ PDF ولينكات المشاركة مع عملائك، وحط لوجو واسم وكالتك بدلها — الميزة دي متاحة من باقة Pro.": "Remove ContentST branding from your PDF reports and client share links, and use your own agency logo and name instead — available from the Pro plan.",
+
+    // ===== Account: cancellation =====
+    "عايز تلغي اشتراكك؟": "Want to cancel your subscription?",
+    "مفيش نظام دفع أوتوماتيك في ContentST دلوقتي، فالإلغاء بيتم يدوي زي التفعيل بالظبط — مش هيحصل لحظيًا. ابعتلنا على واتساب وهنلغي اشتراكك ونوقف أي تجديد قادم.": "ContentST doesn't have automated billing yet, so cancellation is handled manually, just like activation — it won't happen instantly. Message us on WhatsApp and we'll cancel your subscription and stop any upcoming renewal.",
+    "إلغاء الاشتراك": "Cancel subscription",
+
+    // ===== Reminder/notification honesty =====
+    "إشعارات المتصفح — بتشتغل بس والتطبيق مفتوح في تبويبة": "Browser notifications — only work while the app is open in a tab",
+    "التذكير ده إشعار من المتصفح، فلازم يكون ContentST مفتوح في تبويبة عشان يوصلك — مش إشعار خارجي زي إيميل أو SMS.": "This reminder is a browser notification, so ContentST needs to be open in a tab for it to reach you — it's not an external alert like email or SMS.",
+
+    // ===== Compare view: data source tooltips =====
+    "آخر قياس متابعين مسجّل يدويًا من أي منصة متابعة": "Latest manually-recorded follower count from any tracked platform",
+    "من نفس أرقام Social Analyzer في تحليل البراند": "From the same Social Analyzer numbers shown in Brand Insights",
+
+    // ===== Onboarding: Social Analyzer step =====
+    "جرّب Social Analyzer": "Try Social Analyzer",
+    "جرّب أقوى ميزة في ContentST": "Try ContentST's strongest feature",
+    "الصق رابط أي Reel أو Post أو فيديو منشور — حتى لو مش بتاعك — وشوف أرقام الأداء الحقيقية في ثواني.": "Paste the link of any published Reel, Post, or video — even if it's not yours — and see real performance numbers in seconds.",
+    "جرّب المحلل دلوقتي": "Try the analyzer now",
 
     // ===== Social Analyzer =====
     "معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني.": "We couldn't fetch this content's data, try another link.",

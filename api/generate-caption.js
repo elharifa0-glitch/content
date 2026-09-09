@@ -1,6 +1,7 @@
 // Vercel Serverless Function — بيشتغل على السيرفر بس، نفس فكرة
 // api/analyze-video.js بالظبط، عشان مفتاح Gemini يفضل مخفي وميوصلش
 // للمتصفح أبدًا.
+import { checkUsage } from "./_usageGuard.js";
 
 const GEMINI_MODEL = "gemini-3.6-flash";
 
@@ -12,6 +13,11 @@ export default async function handler(req, res) {
   const { brandName, type, title, notes, existingHashtags } = req.body || {};
   if (!title || typeof title !== "string" || !title.trim()) {
     return res.status(400).json({ ok: false, message: "محتاج عنوان الفكرة الأول." });
+  }
+
+  const guard = await checkUsage(req, "generate_caption");
+  if (!guard.ok) {
+    return res.status(guard.status).json({ ok: false, message: guard.message });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

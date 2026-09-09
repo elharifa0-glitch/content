@@ -22,6 +22,7 @@ import { Button, Badge, EmptyState, LogoIcon } from "./components";
 import { useTheme } from "./ThemeContext";
 import { useLanguage } from "./LanguageContext";
 import { currentLang } from "./translations";
+import { getBrandLimit, planHasFeature, planLabel as planLabelFromDef, planColorFor } from "./plans";
 
 /* ---------- Platform icons ---------- */
 
@@ -203,9 +204,9 @@ const STATUS_DEFS = [
 
 const TYPE_OPTIONS = ["بوست", "ريلز", "ستوري", "فيديو", "كاروسيل", "مقال", "تانى"];
 
-const PLAN_LIMITS = { starter: 2, pro: 5, unlimited: Infinity };
-const PLAN_LABELS = { starter: "Starter", pro: "Pro", unlimited: "Unlimited" };
-const PLAN_COLORS = { starter: colors.info, pro: colors.warning, unlimited: colors.good };
+// Plan limits/features/prices all live in ./plans.js (single source of
+// truth) — planColor/planLabel below just adapt that module's helpers to
+// this file's existing call sites.
 
 /* ---------- Navigation <-> URL ----------
  * Manual pathname routing (no router lib), mirroring the app's existing
@@ -250,12 +251,10 @@ function parseRoutePath(pathname) {
   return { view: "dashboard", brandTab: "board" };
 }
 function planColor(p) {
-  const n = (p || "").toString().trim().toLowerCase();
-  return PLAN_COLORS[n] || colors.textFaint;
+  return planColorFor(p);
 }
 function planLabel(p) {
-  const n = (p || "").toString().trim().toLowerCase();
-  return PLAN_LABELS[n] || p;
+  return planLabelFromDef(p) || p;
 }
 const UPGRADE_WHATSAPP = "201148769364";
 
@@ -346,6 +345,15 @@ function fmtMoney(n) {
   return num.toLocaleString("en-US");
 }
 
+// Currency-labeled version of fmtMoney — used only for genuine money
+// amounts (payments, expenses, balances), never for counts like views,
+// likes or followers, which stay on plain fmtMoney above. Follows
+// currentLang the same way fmtAnalysisDate does, so it flips with the
+// language toggle without needing `lang` threaded through every caller.
+function fmtCurrency(n) {
+  return `${fmtMoney(n)} ${currentLang === "en" ? "EGP" : "جنيه"}`;
+}
+
 function fmtAnalysisDate(iso) {
   if (!iso) return "";
   const dt = new Date(iso);
@@ -400,13 +408,24 @@ function computeAnalysisTotals(analyses) {
   return acc;
 }
 
+// الـ endpoints دي (تحليل رابط + كابشن الـ AI) بتنادي APIs خارجية مدفوعة
+// (Refetcher/Gemini)، فلازم كل نداء يبعت توكن المستخدم الحالي عشان السيرفر
+// يتحقق إنه مسجل دخول فعلاً ويطبّق حد استخدام يومي بسيط لكل مستخدم (شوف
+// api/analyze-video.js وapi/generate-caption.js) — بدل ما الـ endpoint يفضل
+// مفتوح لأي حد يناديه من غير حساب أصلاً.
+async function authHeader() {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // بيشغّل نفس /api/analyze-video سواء الحالة "تحليل جديد" من SocialAnalyzer أو
 // "تحديث بيانات تحليل موجود" (يدوي بس — مفيش أي جدولة تلقائية) — مصدر واحد
 // للطلب عشان الحالتين يفضلوا متزامنين.
 async function fetchAnalysisMetrics(urlToAnalyze) {
   const res = await fetch("/api/analyze-video", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
     body: JSON.stringify({ url: urlToAnalyze }),
   });
   return res.json();
@@ -576,9 +595,10 @@ export default function ContentStudio({
     return { y: d.getFullYear(), m: d.getMonth() };
   });
 
-  const normalizedPlan = (plan || "").toString().trim().toLowerCase();
-  const brandLimit = isTrialing ? Infinity : (PLAN_LIMITS[normalizedPlan] ?? Infinity);
+  const brandLimit = getBrandLimit(plan, isTrialing);
   const brandLimitReached = brands.length >= brandLimit;
+  const canUseShareLinks = planHasFeature(plan, isTrialing, "shareLinks");
+  const canUseWhiteLabel = planHasFeature(plan, isTrialing, "whiteLabel");
 
   function handleAddBrandClick() {
     if (brandLimitReached) {
@@ -1336,7 +1356,7 @@ export default function ContentStudio({
         )}
 
         {view === "compare" && (
-          <CompareView brands={brands} items={items} onOpenBrand={(id) => setView(`brand:${id}`)} />
+          <CompareView brands={brands} items={items} analyses={socialAnalyses} onOpenBrand={(id) => setView(`brand:${id}`)} />
         )}
 
         {view === "account" && (
@@ -1357,6 +1377,8 @@ export default function ContentStudio({
 
         {activeBrand && (
           <BrandPage
+            plan={plan}
+            isTrialing={isTrialing}
             brand={activeBrand}
             items={items.filter((it) => it.brandId === activeBrand.id)}
             tab={brandTab}
@@ -1446,9 +1468,15 @@ export default function ContentStudio({
         <ModalShell onClose={() => setLimitModalOpen(false)}>
           <div style={S.modalTitle}>{t("وصلت لأقصى عدد براندات في باقتك")}</div>
           <p style={S.confirmText}>
-            {t("باقتك الحالية")} ({planLabel(plan) || t("الحالية")}) {t("بتسمح بـ")}{" "}
-            {brandLimit === Infinity ? t("براندات غير محدودة") : `${brandLimit} ${t("براندات")}`} {t("بس، وإنت وصلت للحد ده.")}
-            {" "}{t("رقّي باقتك عشان تضيف براندات أكتر.")}
+            {isTrialing ? (
+              <>{t("فترة التجربة المجانية بتسمح بـ")} {brandLimit} {t("براندات بس، وإنت وصلت للحد ده.")} {t("اشترك في باقة عشان تضيف براندات أكتر.")}</>
+            ) : (
+              <>
+                {t("باقتك الحالية")} ({planLabel(plan) || t("الحالية")}) {t("بتسمح بـ")}{" "}
+                {brandLimit === Infinity ? t("براندات غير محدودة") : `${brandLimit} ${t("براندات")}`} {t("بس، وإنت وصلت للحد ده.")}
+                {" "}{t("رقّي باقتك عشان تضيف براندات أكتر.")}
+              </>
+            )}
           </p>
           {brands.length > brandLimit && (
             <p style={{ ...S.confirmText, color: colors.good, fontSize: 12 }}>
@@ -1501,7 +1529,7 @@ function Sidebar({
       </div>
 
       {notifPermission !== "unsupported" && notifPermission !== "granted" && (
-        <button onClick={onRequestNotifPermission} style={S.notifBtn}>
+        <button onClick={onRequestNotifPermission} style={S.notifBtn} title={t("إشعارات المتصفح — بتشتغل بس والتطبيق مفتوح في تبويبة")}>
           <Bell size={13} /> {t("فعّل تنبيهات الديدلاين")}
         </button>
       )}
@@ -1525,7 +1553,7 @@ function Sidebar({
       <div style={S.sidebarLabelRow}>
         <span style={S.sidebarLabel}>
           {t("البراندات")}
-          {!isTrialing && brandLimit !== Infinity && ` (${brands.length}/${brandLimit})`}
+          {brandLimit !== Infinity && ` (${brands.length}/${brandLimit})`}
           {plan && !isTrialing && (
             <> · <span style={{ color: planColor(plan), fontWeight: 800 }}>{planLabel(plan) || plan}</span></>
           )}
@@ -1709,10 +1737,10 @@ const ONBOARDING_STEPS = [
   },
   {
     key: "analysis",
-    label: "حلّل المحتوى",
-    title: "حلّل أول محتوى ليك",
-    description: "أضف رابط Reel أو Post أو فيديو لمعرفة أرقام الأداء الخاصة بالمحتوى.",
-    cta: "تحليل المحتوى",
+    label: "جرّب Social Analyzer",
+    title: "جرّب أقوى ميزة في ContentST",
+    description: "الصق رابط أي Reel أو Post أو فيديو منشور — حتى لو مش بتاعك — وشوف أرقام الأداء الحقيقية في ثواني.",
+    cta: "جرّب المحلل دلوقتي",
   },
 ];
 
@@ -1940,7 +1968,7 @@ function Dashboard({
           <div style={S.financeRow} className="financeRow">
             <div style={S.financeCard}>
               <div style={S.financeLabel}>{t("الدخل الشهر ده")}</div>
-              <div style={S.financeValue}>{fmtMoney(monthIncome)}</div>
+              <div style={S.financeValue}>{fmtCurrency(monthIncome)}</div>
               {incomeChangePct !== null && (
                 <div style={{ ...S.financeTrend, color: incomeChangePct >= 0 ? colors.good : colors.danger }}>
                   {incomeChangePct >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
@@ -1950,17 +1978,17 @@ function Dashboard({
             </div>
             <div style={S.financeCard}>
               <div style={S.financeLabel}>{t("المصاريف الشهر ده")}</div>
-              <div style={{ ...S.financeValue, color: colors.danger }}>{fmtMoney(monthExpenses)}</div>
+              <div style={{ ...S.financeValue, color: colors.danger }}>{fmtCurrency(monthExpenses)}</div>
             </div>
             <div style={S.financeCard}>
               <div style={S.financeLabel}>{t("صافي الربح الشهر ده")}</div>
-              <div style={{ ...S.financeValue, color: monthNet < 0 ? colors.danger : colors.good }}>{fmtMoney(monthNet)}</div>
+              <div style={{ ...S.financeValue, color: monthNet < 0 ? colors.danger : colors.good }}>{fmtCurrency(monthNet)}</div>
             </div>
           </div>
           <div style={S.financeFooterRow}>
-            <span>{t("إجمالي كل الوقت")}: <b style={{ color: colors.text }}>{fmtMoney(totalIncome)}</b></span>
-            <span>{t("الصافي الكلي")}: <b style={{ color: totalNetProfit < 0 ? colors.danger : colors.good }}>{fmtMoney(totalNetProfit)}</b></span>
-            <span>{t("متبقي ليك")}: <b style={{ color: colors.warning }}>{fmtMoney(totalRemaining)}</b></span>
+            <span>{t("إجمالي كل الوقت")}: <b style={{ color: colors.text }}>{fmtCurrency(totalIncome)}</b></span>
+            <span>{t("الصافي الكلي")}: <b style={{ color: totalNetProfit < 0 ? colors.danger : colors.good }}>{fmtCurrency(totalNetProfit)}</b></span>
+            <span>{t("متبقي ليك")}: <b style={{ color: colors.warning }}>{fmtCurrency(totalRemaining)}</b></span>
           </div>
         </div>
       )}
@@ -2226,7 +2254,7 @@ function SearchView({ items, brands, onOpenItem }) {
 
 /* ---------- Compare brands ---------- */
 
-function CompareView({ brands, items, onOpenBrand }) {
+function CompareView({ brands, items, analyses, onOpenBrand }) {
   const { t } = useLanguage();
   const rows = useMemo(() => {
     const today = todayISO();
@@ -2237,14 +2265,35 @@ function CompareView({ brands, items, onOpenBrand }) {
       const overdue = brandItems.filter((i) => i.date && i.date < today && i.status !== "done").length;
       const received = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
       const remaining = (Number(b.paymentTotal) || 0) - received;
-      const followers = (b.pageTracking?.instagram?.snapshots || b.pageSnapshots || [])[0]?.followers ?? null;
-      const views = brandItems.reduce((s, i) => s + (Number(i.views) || 0), 0);
+
+      // Most recent manually-recorded follower snapshot across ANY tracked
+      // platform (Instagram/Facebook/TikTok) — previously Instagram-only,
+      // which made this column silently ignore brands only tracked on other
+      // platforms. This stays a manual figure (see Page Tracking); it is
+      // never mixed with the analyzer-derived views below.
+      let followers = null;
+      let followersDate = null;
+      for (const p of PAGE_TRACKING_PLATFORMS) {
+        const snap = b.pageTracking?.[p.key]?.snapshots?.[0];
+        if (snap && snap.followers != null && (!followersDate || snap.date > followersDate)) {
+          followers = snap.followers;
+          followersDate = snap.date;
+        }
+      }
+
+      // Views now come from the same source as Brand Insights (the brand's
+      // real Social Analyzer records, via computeAnalysisTotals) instead of
+      // the older idea-level manual `views` field — the two screens could
+      // previously show different totals for the same brand.
+      const brandAnalyses = (analyses || []).filter((a) => a.brandId === b.id);
+      const views = computeAnalysisTotals(brandAnalyses).views;
+
       return {
         brand: b, total, completionRate: total ? Math.round((done / total) * 100) : 0,
         overdue, remaining, followers, views,
       };
     });
-  }, [brands, items]);
+  }, [brands, items, analyses]);
 
   if (brands.length === 0) {
     return (
@@ -2265,8 +2314,8 @@ function CompareView({ brands, items, onOpenBrand }) {
               <th style={S.compareTh}>{t("البراند")}</th>
               <th style={S.compareTh}>{t("نسبة الإنجاز")}</th>
               <th style={S.compareTh}>{t("متأخرة")}</th>
-              <th style={S.compareTh}>{t("المتابعين")}</th>
-              <th style={S.compareTh}>{t("إجمالي مشاهدات")}</th>
+              <th style={S.compareTh} title={t("آخر قياس متابعين مسجّل يدويًا من أي منصة متابعة")}>{t("المتابعين")}</th>
+              <th style={S.compareTh} title={t("من نفس أرقام Social Analyzer في تحليل البراند")}>{t("إجمالي مشاهدات")}</th>
               <th style={S.compareTh}>{t("المتبقي ماديًا")}</th>
             </tr>
           </thead>
@@ -2280,7 +2329,7 @@ function CompareView({ brands, items, onOpenBrand }) {
                 <td style={{ ...S.compareTd, color: r.overdue > 0 ? colors.danger : colors.textDim }}>{r.overdue}</td>
                 <td style={S.compareTd}>{r.followers != null ? fmtMoney(r.followers) : "—"}</td>
                 <td style={S.compareTd}>{fmtMoney(r.views)}</td>
-                <td style={{ ...S.compareTd, color: r.remaining < 0 ? colors.danger : colors.warning }}>{fmtMoney(r.remaining)}</td>
+                <td style={{ ...S.compareTd, color: r.remaining < 0 ? colors.danger : colors.warning }}>{fmtCurrency(r.remaining)}</td>
               </tr>
             ))}
           </tbody>
@@ -3497,7 +3546,7 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
             </div>
             {dateLine && <div style={{ fontSize: 12, color: colors.textFaint, marginTop: 4 }}>{dateLine}</div>}
           </div>
-          {!isTrialing && brandLimit !== Infinity && (
+          {brandLimit !== Infinity && (
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: colors.text }}>{brandsCount}/{brandLimit}</div>
               <div style={{ fontSize: 10.5, color: colors.textFaint }}>{t("البراندات المستخدمة")}</div>
@@ -3515,7 +3564,26 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
       <h3 style={{ ...S.h3, marginTop: 24 }}>{plan ? t("غيّر أو رقّي باقتك") : t("اشترك دلوقتي")}</h3>
       <PlanPicker onRecheck={onRecheck} defaultPlan={(plan || "pro").toString().trim().toLowerCase()} />
 
-      <AgencyBrandingCard userId={userId} agencyProfile={agencyProfile} onPatchAgencyProfile={onPatchAgencyProfile} />
+      <AgencyBrandingCard userId={userId} plan={plan} isTrialing={isTrialing} agencyProfile={agencyProfile} onPatchAgencyProfile={onPatchAgencyProfile} />
+
+      {hasSubRow && (
+        <div style={{ marginTop: 28 }}>
+          <h3 style={S.h3}>{t("عايز تلغي اشتراكك؟")}</h3>
+          <div style={S.refCard}>
+            <p style={S.aiHint}>
+              {t("مفيش نظام دفع أوتوماتيك في ContentST دلوقتي، فالإلغاء بيتم يدوي زي التفعيل بالظبط — مش هيحصل لحظيًا. ابعتلنا على واتساب وهنلغي اشتراكك ونوقف أي تجديد قادم.")}
+            </p>
+            <a
+              href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز ألغي اشتراكي في ContentST.")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...S.secondaryBtn, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", marginTop: 4 }}
+            >
+              <X size={14} /> {t("إلغاء الاشتراك")}
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3524,8 +3592,9 @@ function AccountView({ plan, isTrialing, trialEndsAt, currentPeriodEnd, hasSubRo
 // ولينكات المشاركة مع العميل. مستوى الحساب كله، بيتخزن جوا نفس user_data
 // الموجود (agencyProfile) — واللوجو نفسه ملف حقيقي في Supabase Storage
 // (باكت brand-assets)، مش base64 جوا الـ JSON.
-function AgencyBrandingCard({ userId, agencyProfile, onPatchAgencyProfile }) {
+function AgencyBrandingCard({ userId, plan, isTrialing, agencyProfile, onPatchAgencyProfile }) {
   const { t } = useLanguage();
+  const canWhiteLabel = planHasFeature(plan, isTrialing, "whiteLabel");
   const [name, setName] = useState(agencyProfile?.name || "");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -3567,6 +3636,27 @@ function AgencyBrandingCard({ userId, agencyProfile, onPatchAgencyProfile }) {
   function removeLogo() {
     if (agencyProfile?.logoPath) deleteBrandAsset(agencyProfile.logoPath);
     onPatchAgencyProfile({ logoUrl: "", logoPath: "" });
+  }
+
+  if (!canWhiteLabel) {
+    return (
+      <div style={{ marginTop: 28 }}>
+        <h3 style={S.h3}><ImageIcon size={14} style={{ verticalAlign: -2 }} /> {t("هوية علامتك (White-label)")}</h3>
+        <div style={S.refCard}>
+          <p style={{ ...S.aiHint, margin: 0 }}>
+            {t("شيل براند ContentST من تقارير الـ PDF ولينكات المشاركة مع عملائك، وحط لوجو واسم وكالتك بدلها — الميزة دي متاحة من باقة Pro.")}
+          </p>
+          <a
+            href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في ContentST عشان أستخدم الـ White-label.")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...S.primaryBtn(colors.warning), textDecoration: "none", display: "inline-flex", marginTop: 12 }}
+          >
+            {t("رقّي لـ Pro")}
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -3636,11 +3726,23 @@ function shareLinkErrorMessage(e, t) {
   if (code === "PGRST202" || code === "42883" || msg.includes("does not exist") || msg.includes("could not find the function")) {
     return t("الميزة دي محتاجة إعداد إضافي في قاعدة البيانات (SQL) — لو إنت الأدمن، شغّل تحديث supabase-schema.sql الخاص بلينكات المشاركة في Supabase SQL Editor.");
   }
+  // create_brand_share نفسه بيرفض إنشاء لينك جديد لحساب Starter (شوف
+  // supabase-schema.sql) — الـ UI أصلاً بيمنع الزرار ده لباقة Starter، فده
+  // بس شبكة أمان لو الطلب راح للسيرفر مباشرة من غير المودال.
+  if (code === "P0001" || msg.includes("باقة pro")) {
+    return t("لينكات المشاركة مع العميل متاحة من باقة Pro — رقّي باقتك عشان تقدر تنشئ لينك للبراند ده.");
+  }
   return t("حصلت مشكلة، جرب تاني.");
 }
 
-function ShareLinkModal({ brand, items, onPatchBrand, onClose }) {
+function ShareLinkModal({ plan, isTrialing, brand, items, onPatchBrand, onClose }) {
   const { t } = useLanguage();
+  // Gated to Pro+ (and available during the trial so a prospect can
+  // evaluate it) — but only for CREATING a brand-new link. An account that
+  // already has a share link from before this gate existed (e.g. a Starter
+  // account) keeps it fully working below; we never revoke or hide an
+  // existing client-facing link on a plan change.
+  const canCreateShareLink = planHasFeature(plan, isTrialing, "shareLinks");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -3776,10 +3878,24 @@ function ShareLinkModal({ brand, items, onPatchBrand, onClose }) {
             </div>
           )}
         </>
-      ) : (
+      ) : canCreateShareLink ? (
         <button onClick={createLink} disabled={loading} style={{ ...S.primaryBtn(brand.color), width: "100%", justifyContent: "center", marginTop: 14 }}>
           {loading ? t("بيتعمل...") : <><Share2 size={14} /> {t("أنشئ لينك مشاركة")}</>}
         </button>
+      ) : (
+        <div style={{ ...S.refCard, marginTop: 14 }}>
+          <p style={{ ...S.aiHint, margin: 0 }}>
+            {t("لينكات المشاركة مع العميل متاحة من باقة Pro — رقّي باقتك عشان تقدر تنشئ لينك للبراند ده.")}
+          </p>
+          <a
+            href={`https://wa.me/${UPGRADE_WHATSAPP}?text=${encodeURIComponent("أهلاً، عايز أرقّي باقتي في ContentST عشان أستخدم لينكات المشاركة.")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ ...S.primaryBtn(colors.warning), textDecoration: "none", display: "inline-flex", marginTop: 12 }}
+          >
+            {t("رقّي لـ Pro")}
+          </a>
+        </div>
       )}
     </ModalShell>
   );
@@ -3788,6 +3904,7 @@ function ShareLinkModal({ brand, items, onPatchBrand, onClose }) {
 /* ---------- Brand page ---------- */
 
 function BrandPage({
+  plan, isTrialing,
   brand, items, tab, setTab, onEditBrand, onDeleteBrand,
   onAddItem, onBulkAdd, onEditItem, onDeleteItem, onSetStatus, onPatchItem, onPatchBrand, onUseIdea, calMonth, setCalMonth,
   analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill,
@@ -3812,7 +3929,16 @@ function BrandPage({
         </div>
       </div>
 
-      {shareOpen && <ShareLinkModal brand={brand} items={items} onPatchBrand={onPatchBrand} onClose={() => setShareOpen(false)} />}
+      {shareOpen && (
+        <ShareLinkModal
+          plan={plan}
+          isTrialing={isTrialing}
+          brand={brand}
+          items={items}
+          onPatchBrand={onPatchBrand}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
 
       <div style={S.tabRow} className="tabRow">
         <button onClick={() => setTab("board")} style={{ ...S.tabBtn, ...(tab === "board" ? S.tabBtnActive : {}) }}>
@@ -3872,6 +3998,8 @@ function BrandPage({
       )}
       {tab === "insights" && (
         <BrandInsights
+          plan={plan}
+          isTrialing={isTrialing}
           brand={brand}
           items={items}
           onPatchBrand={onPatchBrand}
@@ -4007,7 +4135,7 @@ function TicketCard({ item, statusColor, nextStatus, isDragging, onDragStart, on
     try {
       const res = await fetch("/api/analyze-video", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({ url: linkVal.trim() }),
       });
       const data = await res.json();
@@ -4139,7 +4267,8 @@ function TicketCard({ item, statusColor, nextStatus, isDragging, onDragStart, on
 
 /* ---------- Brand insights ---------- */
 
-function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill, userId, agencyProfile }) {
+function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses, onSaveAnalysis, onSetAnalysisIdea, onDeleteAnalysis, onEditAnalysisMetrics, analyzePrefillIdeaId, onConsumeAnalyzePrefill, userId, agencyProfile }) {
+  const canWhiteLabelReport = planHasFeature(plan, isTrialing, "whiteLabel");
   const { t } = useLanguage();
   const [reportOpen, setReportOpen] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
@@ -4285,9 +4414,9 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
     }
     if (sections.financial) {
       lines.push("", "== الوضع المالي ==");
-      lines.push(`مستلم الشهر ده: ${fmtMoney(receivedThisMonth)}`);
+      lines.push(`مستلم الشهر ده: ${fmtMoney(receivedThisMonth)} جنيه`);
       if (brand.paymentTotal) {
-        lines.push(`من بداية التعامل: الإجمالي المتفق عليه ${fmtMoney(brand.paymentTotal)} | إجمالي المستلم ${fmtMoney(receivedTotal)} | المتبقي ${fmtMoney(remainingTotal)}`);
+        lines.push(`من بداية التعامل: الإجمالي المتفق عليه ${fmtMoney(brand.paymentTotal)} جنيه | إجمالي المستلم ${fmtMoney(receivedTotal)} جنيه | المتبقي ${fmtMoney(remainingTotal)} جنيه`);
       } else {
         lines.push("مفيش إجمالي متفق عليه مسجل.");
       }
@@ -4369,7 +4498,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             receivedThisMonth: reportData.receivedThisMonth,
           }}
           pageTracking={{ pageGrowth: reportData.pageGrowth, totalGrowth: reportData.totalGrowth }}
-          agency={agencyProfile}
+          agency={canWhiteLabelReport ? agencyProfile : null}
         />
       );
       // A short timer (not requestAnimationFrame) to let React's commit and
@@ -4478,7 +4607,7 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
         <StatCard label={t("نسبة الإنجاز")} value={`${completionRate}%`} color={colors.good} />
         <StatCard label={t("مجدولة دلوقتي")} value={items.filter((i) => i.status === "scheduled").length} color={colors.warning} />
         <StatCard label={t("متأخرة عن معادها")} value={overdue} color={colors.danger} />
-        <StatCard label={t("المتبقي من البراند")} value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
+        <StatCard label={t("المتبقي من البراند")} value={fmtCurrency(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
       </div>
 
       <h3 style={S.h3}><Eye size={14} style={{ verticalAlign: -2 }} /> {t("أداء المحتوى مع البراند ده")}</h3>
@@ -4649,10 +4778,10 @@ function BrandInsights({ brand, items, onPatchBrand, analyses, onSaveAnalysis, o
             {sections.financial && (
               <div style={S.reportSection}>
                 <h4 style={S.reportSectionTitle}>{t("الوضع المالي")}</h4>
-                <p style={S.reportP}>{t("مستلم الشهر ده")}: {fmtMoney(reportData.receivedThisMonth)}</p>
+                <p style={S.reportP}>{t("مستلم الشهر ده")}: {fmtCurrency(reportData.receivedThisMonth)}</p>
                 {brand.paymentTotal ? (
                   <p style={S.reportP}>
-                    {t("من بداية التعامل")}: {t("الإجمالي المتفق عليه")} {fmtMoney(brand.paymentTotal)} | {t("إجمالي المستلم")} {fmtMoney(reportData.receivedTotal)} | {t("المتبقي")} {fmtMoney(reportData.remainingTotal)}
+                    {t("من بداية التعامل")}: {t("الإجمالي المتفق عليه")} {fmtCurrency(brand.paymentTotal)} | {t("إجمالي المستلم")} {fmtCurrency(reportData.receivedTotal)} | {t("المتبقي")} {fmtCurrency(reportData.remainingTotal)}
                   </p>
                 ) : (
                   <p style={S.reportP}>{t("مفيش إجمالي متفق عليه مسجل.")}</p>
@@ -4967,11 +5096,11 @@ function PaymentsTab({ brand, onPatchBrand }) {
   return (
     <div>
       <div style={S.statRow} className="statRow">
-        <StatCard label={t("الإجمالي المتفق عليه")} value={fmtMoney(total)} />
-        <StatCard label={t("المستلم لحد دلوقتي")} value={fmtMoney(received)} color={colors.good} />
-        <StatCard label={t("المتبقي")} value={fmtMoney(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
-        <StatCard label={t("إجمالي المصاريف")} value={fmtMoney(spent)} color={colors.danger} />
-        <StatCard label={t("الصافي (ربحك الحقيقي)")} value={fmtMoney(netProfit)} color={netProfit < 0 ? colors.danger : colors.good} />
+        <StatCard label={t("الإجمالي المتفق عليه")} value={fmtCurrency(total)} />
+        <StatCard label={t("المستلم لحد دلوقتي")} value={fmtCurrency(received)} color={colors.good} />
+        <StatCard label={t("المتبقي")} value={fmtCurrency(remaining)} color={remaining < 0 ? colors.danger : remaining === 0 ? colors.good : colors.warning} />
+        <StatCard label={t("إجمالي المصاريف")} value={fmtCurrency(spent)} color={colors.danger} />
+        <StatCard label={t("الصافي (ربحك الحقيقي)")} value={fmtCurrency(netProfit)} color={netProfit < 0 ? colors.danger : colors.good} />
       </div>
 
       <div style={S.dashGrid} className="dashGrid">
@@ -5037,7 +5166,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
             <div key={p.id} style={S.upcomingRow}>
               <span style={{ ...S.dot, background: colors.good }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.upcomingTitle}>{fmtMoney(p.amount)} {p.note && `· ${p.note}`}</div>
+                <div style={S.upcomingTitle}>{fmtCurrency(p.amount)} {p.note && `· ${p.note}`}</div>
                 <div style={S.upcomingMeta}>{fmtDate(p.date)}</div>
               </div>
               <button onClick={() => startEdit(p)} style={S.ticketIconBtn}><Pencil size={12} /></button>
@@ -5094,7 +5223,7 @@ function PaymentsTab({ brand, onPatchBrand }) {
             <div key={p.id} style={S.upcomingRow}>
               <span style={{ ...S.dot, background: colors.danger }} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={S.upcomingTitle}>{fmtMoney(p.amount)} {p.note && `· ${p.note}`}</div>
+                <div style={S.upcomingTitle}>{fmtCurrency(p.amount)} {p.note && `· ${p.note}`}</div>
                 <div style={S.upcomingMeta}>{fmtDate(p.date)}</div>
               </div>
               <button onClick={() => startEditExpense(p)} style={S.ticketIconBtn}><Pencil size={12} /></button>
@@ -5629,7 +5758,7 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
     try {
       const res = await fetch("/api/generate-caption", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeader()) },
         body: JSON.stringify({
           brandName: brand?.name || "",
           type,
@@ -5721,6 +5850,9 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
             onChange={(e) => setReminderDays(e.target.value)}
             placeholder={t("مثلاً 2 (يذكّرك قبل الميعاد بيومين)")}
           />
+          <p style={{ ...S.aiHint, marginTop: 4 }}>
+            {t("التذكير ده إشعار من المتصفح، فلازم يكون ContentST مفتوح في تبويبة عشان يوصلك — مش إشعار خارجي زي إيميل أو SMS.")}
+          </p>
         </div>
       )}
 

@@ -3,21 +3,54 @@ import { supabase } from "./supabaseClient";
 import { Check } from "lucide-react";
 import { useLanguage } from "./LanguageContext";
 import { colors, radius, softBg } from "./theme";
+import { PLANS as PLAN_DEFS, PLAN_ORDER, normalizePlanKey } from "./plans";
 
-export const PLANS = [
-  { key: "starter", name: "Starter", brands: "لحد 2 براند", price: "199 جنيه/شهر", annual: "1,990 جنيه/سنة" },
-  { key: "pro", name: "Pro", brands: "لحد 5 براندات", price: "399 جنيه/شهر", annual: "3,990 جنيه/سنة", recommended: true },
-  { key: "unlimited", name: "Unlimited", brands: "براندات غير محدودة", price: "1200 جنيه/شهر", annual: "12,000 جنيه/سنة" },
-];
+// Display layer over ./plans.js — the actual numbers (brand limits, prices)
+// live there in one place; this just turns them into the localized label
+// strings the UI renders (each of which needs a matching entry in
+// translations.js, since t() looks strings up by their literal Arabic text).
+function brandsLabel(def) {
+  if (def.brandLimit === Infinity) return "براندات غير محدودة";
+  if (def.brandLimit === 2) return "لحد 2 براند";
+  return `لحد ${def.brandLimit} براندات`;
+}
+function priceLabel(amount) {
+  return `${amount.toLocaleString("en-US")} جنيه/شهر`;
+}
+function annualLabel(amount) {
+  return `${amount.toLocaleString("en-US")} جنيه/سنة`;
+}
 
+export const PLANS = PLAN_ORDER.map((key) => {
+  const def = PLAN_DEFS[key];
+  return {
+    key,
+    name: def.name,
+    brands: brandsLabel(def),
+    price: priceLabel(def.priceMonthly),
+    annual: annualLabel(def.priceAnnual),
+    recommended: !!def.recommended,
+  };
+});
+
+// كل الباقات فيها اللوحة/التقويم/تتبع المدفوعات/التحليل الكامل — الفرق
+// الحقيقي بين الباقات (غير عدد البراندات) هو الميزات الموجّهة للعميل تحت.
 export const INCLUDED_FEATURES = [
   "لوحة أفكار وتقويم نشر لكل براند",
   "تتبع مدفوعات ومصاريف وربح صافي حقيقي",
   "تحليل وتقارير كاملة لكل براند",
-  "تذكيرات ديدلاين وإشعارات متصفح",
+  "تقرير PDF قابل للتصدير لكل براند",
+  "تذكيرات وإشعارات متصفح (لما التطبيق يكون مفتوح)",
   "بحث ومقارنة عبر كل البراندات",
-  "تعمل من أي جهاز أو موبايل",
 ];
+
+// الميزات اللي فعليًا بتفرّق بين الباقات — بتتعرض تحت مباشرة بعد الميزات
+// المشتركة فوق، مش كأنها كلها نفس الحاجة.
+export const PLAN_ONLY_FEATURES = {
+  starter: ["تقرير PDF ببراند ContentST"],
+  pro: ["لينكات مشاركة وموافقة مع العميل", "هوية علامتك الخاصة (White-label) على التقارير واللينكات"],
+  agency: ["لينكات مشاركة وموافقة مع العميل", "هوية علامتك الخاصة (White-label) على التقارير واللينكات", "براندات بلا حدود"],
+};
 
 const WHATSAPP_NUMBER = "201148769364";
 const PAYMENT_NUMBER = "01273122625";
@@ -26,7 +59,7 @@ const PAYMENT_NUMBER = "01273122625";
 export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
   const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(defaultPlan);
+  const [selectedPlan, setSelectedPlan] = useState(normalizePlanKey(defaultPlan) || "pro");
 
   const [redeemCode, setRedeemCode] = useState("");
   const [redeemLoading, setRedeemLoading] = useState(false);
@@ -34,6 +67,7 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
   const [redeemOk, setRedeemOk] = useState(false);
 
   const plan = PLANS.find((p) => p.key === selectedPlan) || PLANS.find((p) => p.recommended) || PLANS[0];
+  const planOnlyFeatures = PLAN_ONLY_FEATURES[plan.key] || [];
   const whatsappMsg = encodeURIComponent(
     `${t("أهلاً، عايز أشترك في باقة")} ${plan.name} ${t("في ContentST. ده إثبات الدفع:")}`
   );
@@ -89,11 +123,17 @@ export default function PlanPicker({ onRecheck, defaultPlan = "pro" }) {
       </div>
 
       <div style={styles.featuresBox}>
-        <div style={styles.featuresTitle}>{t("كل الباقات بتديك بالظبط نفس الميزات — الفرق بس في عدد البراندات:")}</div>
+        <div style={styles.featuresTitle}>{t("باقة")} {plan.name} {t("بتدّيك:")}</div>
         <div style={styles.featuresGrid}>
           {INCLUDED_FEATURES.map((f) => (
             <div key={f} style={styles.featureRow}>
               <Check size={13} style={{ color: colors.good, flexShrink: 0 }} />
+              <span>{t(f)}</span>
+            </div>
+          ))}
+          {planOnlyFeatures.map((f) => (
+            <div key={f} style={styles.featureRow}>
+              <Check size={13} style={{ color: colors.accentBlue, flexShrink: 0 }} />
               <span>{t(f)}</span>
             </div>
           ))}
