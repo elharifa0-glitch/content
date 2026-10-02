@@ -213,7 +213,7 @@ export default function BrandReportPDF({
                   </p>
                 );
               })}
-              {pageTracking.pageGrowth.filter((g) => g.diff != null).length >= 2 && (
+              {pageTracking.totalGrowth != null && (
                 <p style={{ ...s.p, fontWeight: 800 }} data-pdf-block="1">إجمالي زيادة المتابعين: {pageTracking.totalGrowth >= 0 ? "+" : ""}{pageTracking.totalGrowth}</p>
               )}
             </>

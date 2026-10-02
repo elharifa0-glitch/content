@@ -448,6 +448,8 @@ export const translations = {
     "إجمالي المشاركات": "Total shares",
     "إجمالي الحفظ": "Total saves",
     "أفضل 5 محتوى": "Top 5 content",
+    "مفيش محتوى متحلل للشهر ده لسه — حلّل محتوى منشور من فوق عشان يظهر ترتيبه هنا.":
+      "No content analyzed this month yet — analyze published content above to see its ranking here.",
     "مشاهدة": "view(s)",
     "الوضع المالي": "Financial status",
     "الإجمالي المتفق عليه": "Total agreed",

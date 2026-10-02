@@ -32,8 +32,13 @@ export function LanguageProvider({ children }) {
   // mirror instead, kept in sync on every render so month/weekday names
   // follow the current language without threading `lang` through dozens of
   // call sites.
+  //
+  // بيتحدّث هنا في الـ render نفسه (مش جوه الـ effect بس): الـ useLayoutEffect
+  // بيشتغل بعد ما الأبناء يترندروا، فأول render بعد تبديل اللغة كان بيطلّع
+  // التواريخ والعملة باللغة القديمة لحد ما الكومبوننت يترندر تاني.
+  setCurrentLang(lang);
+
   useLayoutEffect(() => {
-    setCurrentLang(lang);
     if (typeof document !== "undefined") {
       const isEn = lang === "en";
       document.documentElement.lang = isEn ? "en" : "ar";

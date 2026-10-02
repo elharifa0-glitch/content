@@ -111,12 +111,18 @@ function emptyPageTracking() {
 // الشهر ده (مش أي وقت). لو مفيش قياسين على الأقل، مفيش نمو يتحسب — بنعرض
 // القياس الوحيد من غير رقم زيادة بدل ما نخترع مقارنة مش حقيقية.
 function computePlatformMonthlyGrowth(snapshots, monthKey) {
-  const inMonth = (snapshots || []).filter((s) => s.date && s.date.slice(0, 7) === monthKey);
+  const all = (snapshots || []).filter((s) => s.date);
+  const inMonth = all.filter((s) => s.date.slice(0, 7) === monthKey);
   if (inMonth.length === 0) return null;
-  const latest = inMonth[0];
-  const first = inMonth[inMonth.length - 1];
+  const sorted = [...inMonth].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  const latest = sorted[0];
+  // خط الأساس: آخر قياس قبل بداية الشهر (نهاية الشهر اللي فات)، وإلا أقدم قياس في الشهر نفسه.
+  const before = all
+    .filter((s) => s.date.slice(0, 7) < monthKey && s.followers != null)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))[0];
+  const first = before || sorted[sorted.length - 1];
   const diff = latest.followers != null && first.followers != null ? latest.followers - first.followers : null;
-  return { latest, first, diff, hasGrowth: inMonth.length >= 2 && diff != null };
+  return { latest, first, diff, hasGrowth: first !== latest && diff != null };
 }
 
 function detectPlatform(url) {
@@ -297,6 +303,15 @@ function monthKeyFromISO(iso) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+// عدّاد غير سالب من حقل فورم ("" = فاضي -> null). min="0" على الـ input مجرد
+// تلميح للمتصفح ومبيمنعش كتابة رقم سالب يدويًا، فبنقفله هنا قبل الحفظ عشان
+// مجاميع المشاهدات/المتابعين متتشوهش.
+function toCount(v) {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, n) : null;
+}
+
 function fmtDate(d) {
   const dt = new Date(d + "T00:00:00");
   const months = currentLang === "en" ? MONTHS_EN : MONTHS_AR;
@@ -383,7 +398,11 @@ function shortContentLabel(url) {
 // Single source of truth for social-analysis aggregation — used by both
 // BrandInsights' totals/report and the compact summary above the analyzer
 // grid, so the two never drift apart.
-function computeAnalysisTotals(analyses) {
+//
+// itemsById (اختياري): لو اتمرر، "الشهر ده" بيتحسب بنفس قاعدة getAnalysisMonthKey
+// (شهر الفكرة المربوطة، وإلا وقت التحليل) عشان يتطابق مع أفضل 5 محتوى وتقرير
+// الشهر. من غيره بيرجع لوقت التحليل (analyzedAt) بس.
+function computeAnalysisTotals(analyses, itemsById = null) {
   const monthPrefix = todayISO().slice(0, 7);
   const acc = { count: 0, views: 0, likes: 0, comments: 0, shares: 0, saves: 0, monthViews: 0, monthLikes: 0, monthComments: 0 };
   for (const a of analyses) {
@@ -398,7 +417,7 @@ function computeAnalysisTotals(analyses) {
     acc.comments += c;
     acc.shares += s;
     acc.saves += sv;
-    const monthKey = monthKeyFromISO(a.analyzedAt);
+    const monthKey = itemsById ? getAnalysisMonthKey(a, itemsById) : monthKeyFromISO(a.analyzedAt);
     if (monthKey === monthPrefix) {
       acc.monthViews += v;
       acc.monthLikes += l;
@@ -490,8 +509,8 @@ async function refreshAnalysisMetrics(analysis, onEditAnalysisMetrics) {
 // One idea published on several platforms is still one piece of content —
 // group by ideaId so "أفضل 5 محتوى" ranks content, not individual platform
 // analyses. Unlinked analyses (ideaId === null) have no shared content to
-// group under, so each stays its own entry. Shared by the always-visible
-// (all-time) leaderboard and the report's month-scoped Top 5.
+// group under, so each stays its own entry. Shared by the dashboard's
+// current-month leaderboard and the report's selected-month Top 5.
 function groupAnalysesByIdea(analysesList, items) {
   const groups = new Map();
   for (const a of analysesList) {
@@ -890,6 +909,7 @@ export default function ContentStudio({
   function deleteBrand(id) {
     updateBrands(brandsRef.current.filter((b) => b.id !== id));
     updateItems(itemsRef.current.filter((it) => it.brandId !== id));
+    updateSocialAnalyses(socialAnalysesRef.current.filter((a) => a.brandId !== id));
     if (activeBrandId === id) setView("dashboard");
     setConfirmDelete(null);
   }
@@ -1321,6 +1341,7 @@ export default function ContentStudio({
             onOpenBrand={(id) => setView(`brand:${id}`)}
             onAddBrand={handleAddBrandClick}
             onAddItem={() => setItemModal({})}
+            onOpenItem={(it) => setItemModal(it)}
             onOpenAnalyzer={() => openBrandInsights(brands[0]?.id)}
             onboardingDismissed={onboardingDismissed}
             onDismissOnboarding={dismissOnboarding}
@@ -1841,7 +1862,7 @@ function OnboardingGuide({
 
 function Dashboard({
   brands, items, socialAnalyses, brandCounts, weekPriorities, overdueCount, onOpenBrand, onAddBrand,
-  onAddItem, onOpenAnalyzer, onboardingDismissed, onDismissOnboarding,
+  onAddItem, onOpenItem, onOpenAnalyzer, onboardingDismissed, onDismissOnboarding,
   userType, marketingSource, onChooseUserType, onChooseMarketingSource,
   tasks, onAddTask, onToggleTask, onDeleteTask,
 }) {
@@ -2034,7 +2055,19 @@ function Dashboard({
                 const b = brands.find((x) => x.id === it.brandId);
                 const sd = STATUS_DEFS.find((s) => s.key === it.status);
                 return (
-                  <div key={it.id} style={S.compactRow}>
+                  <div
+                    key={it.id}
+                    style={{ ...S.compactRow, cursor: "pointer" }}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onOpenItem(it)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpenItem(it);
+                      }
+                    }}
+                  >
                     <span style={{ ...S.dot, background: getBrandColor(brands, it.brandId) }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={S.upcomingTitle}>{it.title}</div>
@@ -2467,11 +2500,11 @@ function EditAnalysisMetricsModal({ analysis, onClose, onSave }) {
 
   function handleSave() {
     onSave({
-      views: views === "" ? null : Number(views),
-      likes: likes === "" ? null : Number(likes),
-      comments: comments === "" ? null : Number(comments),
-      shares: shares === "" ? null : Number(shares),
-      saves: saves === "" ? null : Number(saves),
+      views: toCount(views),
+      likes: toCount(likes),
+      comments: toCount(comments),
+      shares: toCount(shares),
+      saves: toCount(saves),
     });
   }
 
@@ -2767,6 +2800,10 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
     setAnalyzing(true);
     setErrorMsg("");
     let created = 0, duplicates = 0, failed = 0;
+    // الروابط اللي فشلت بتفضل في الـ textarea + آخر رسالة خطأ من السيرفر
+    // (حد الاستخدام اليومي، فيديو خاص...) بدل ما تتمسح والمستخدم ميعرفش السبب.
+    const failedUrls = [];
+    let lastError = "";
     const seenInBatch = new Set();
     for (const u of urls) {
       const key = `${detectPlatform(u)?.key || ""}|${normalizeAnalysisUrl(u)}`;
@@ -2778,7 +2815,12 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
       seenInBatch.add(key);
       try {
         const data = await fetchAnalysisMetrics(u);
-        if (!data.ok) { failed++; continue; }
+        if (!data.ok) {
+          failed++;
+          failedUrls.push(u);
+          if (data.message) lastError = data.message;
+          continue;
+        }
         onSaveAnalysis({
           brandId: brand.id,
           ideaId: ideaId || null,
@@ -2793,10 +2835,12 @@ function SocialAnalyzer({ brand, items, analyses, onSaveAnalysis, onSetAnalysisI
         created++;
       } catch (e) {
         failed++;
+        failedUrls.push(u);
       }
     }
     setAnalyzing(false);
-    setUrl("");
+    setUrl(failedUrls.join("\n"));
+    if (failedUrls.length) setErrorMsg(lastError || t("معرفناش نجيب بيانات المحتوى ده، جرب لينك تاني."));
     if (consumePrefill) onConsumePrefill?.();
     setBatchSummary({ total: urls.length, created, duplicates, failed });
     setTimeout(() => setBatchSummary(null), 6000);
@@ -4119,11 +4163,11 @@ function TicketCard({ item, statusColor, nextStatus, isDragging, onDragStart, on
   function savePerf() {
     onSavePerf({
       link: linkVal.trim(),
-      views: views === "" ? null : Number(views),
-      likes: likes === "" ? null : Number(likes),
-      comments: comments === "" ? null : Number(comments),
-      shares: shares === "" ? null : Number(shares),
-      saves: saves === "" ? null : Number(saves),
+      views: toCount(views),
+      likes: toCount(likes),
+      comments: toCount(comments),
+      shares: toCount(shares),
+      saves: toCount(saves),
     });
     setPerfOpen(false);
   }
@@ -4300,7 +4344,8 @@ function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses,
   // an analysis counts toward the brand whether or not it's linked to an idea.
   const brandAnalyses = analyses;
 
-  const perfTotals = useMemo(() => computeAnalysisTotals(brandAnalyses), [brandAnalyses]);
+  const itemsById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
+  const perfTotals = useMemo(() => computeAnalysisTotals(brandAnalyses, itemsById), [brandAnalyses, itemsById]);
 
   const byType = useMemo(() => {
     const map = {};
@@ -4309,16 +4354,19 @@ function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses,
   }, [items]);
   const maxTypeCount = Math.max(1, ...byType.map(([, c]) => c));
 
-  // لوحة "أفضل 5 محتوى" الدايمة (كل الوقت) — منطق التجميع نفسه بقى مشترك في
-  // groupAnalysesByIdea عشان تقرير الشهر (تحت) يستخدمه برضه من غير تكرار.
-  const top5 = useMemo(() => groupAnalysesByIdea(brandAnalyses, items), [brandAnalyses, items]);
+  // لوحة "أفضل 5 محتوى" بتعرض الشهر الحالي بس (مش كل الوقت) — منطق التجميع
+  // مشترك في groupAnalysesByIdea مع تقرير الشهر (تحت) من غير تكرار.
+  const currentMonthKey = todayISO().slice(0, 7);
+  const currentMonthAnalyses = useMemo(
+    () => brandAnalyses.filter((a) => getAnalysisMonthKey(a, itemsById) === currentMonthKey),
+    [brandAnalyses, itemsById, currentMonthKey]
+  );
+  const top5 = useMemo(() => groupAnalysesByIdea(currentMonthAnalyses, items), [currentMonthAnalyses, items]);
 
   // ====== نطاق التقرير الشهري ======
   // التقرير القابل للتصدير (المعاينة/الـ PDF/النص) بيتفلتر بشهر محدد يختاره
   // المستخدم — منفصل تمامًا عن أرقام لوحة Insights الدايمة فوق (كل الوقت).
   const [reportMonth, setReportMonth] = useState(() => todayISO().slice(0, 7));
-
-  const itemsById = useMemo(() => new Map(items.map((it) => [it.id, it])), [items]);
 
   const monthlyItems = useMemo(
     () => items.filter((it) => it.date && it.date.slice(0, 7) === reportMonth),
@@ -4376,7 +4424,7 @@ function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses,
     const pageGrowth = PAGE_TRACKING_PLATFORMS
       .map((p) => ({ key: p.key, label: p.label, Icon: p.Icon, ...computePlatformMonthlyGrowth(pageTracking[p.key]?.snapshots, reportMonth) }))
       .filter((g) => g.latest);
-    const growthValues = pageGrowth.filter((g) => g.diff != null).map((g) => g.diff);
+    const growthValues = pageGrowth.filter((g) => g.hasGrowth).map((g) => g.diff);
     const totalGrowth = growthValues.length ? growthValues.reduce((s, v) => s + v, 0) : null;
     return { receivedTotal, remainingTotal, receivedThisMonth, pageGrowth, totalGrowth, top5Items: reportTop5 };
   }, [brand, reportTop5, reportMonth]);
@@ -4433,9 +4481,7 @@ function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses,
             lines.push(`${g.label}: قياس واحد مسجل — ${g.latest.followers ?? "؟"} متابع بتاريخ ${g.latest.date}`);
           }
         });
-        if (pageGrowth.filter((g) => g.diff != null).length >= 2) {
-          lines.push(`إجمالي زيادة المتابعين: ${totalGrowth >= 0 ? "+" : ""}${totalGrowth}`);
-        }
+        if (totalGrowth != null) lines.push(`إجمالي زيادة المتابعين: ${totalGrowth >= 0 ? "+" : ""}${totalGrowth}`);
       }
     }
     return lines.join("\n");
@@ -4666,9 +4712,9 @@ function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses,
             <p style={S.aiHint}>{t("مجموع النسب المستهدفة دلوقتي")} {mixTargetSum}% — {t("يفضل يكون المجموع 100% عشان الميزان يبقى مظبوط.")}</p>
           )}
 
-          <h3 style={{ ...S.h3, marginTop: 22 }}><Award size={13} style={{ verticalAlign: -2 }} /> {t("أفضل 5 محتوى (مشاهدات/تفاعل)")}</h3>
+          <h3 style={{ ...S.h3, marginTop: 22 }}><Award size={13} style={{ verticalAlign: -2 }} /> {t("أفضل 5 محتوى (مشاهدات/تفاعل)")} · {fmtMonthKey(currentMonthKey)}</h3>
           <div style={S.leaderboard}>
-            {top5.length === 0 && <div style={S.emptyBrands}>{t("حلّل محتوى منشور من فوق عشان يظهر ترتيبه هنا.")}</div>}
+            {top5.length === 0 && <div style={S.emptyBrands}>{t("مفيش محتوى متحلل للشهر ده لسه — حلّل محتوى منشور من فوق عشان يظهر ترتيبه هنا.")}</div>}
             {top5.map((it, i) => (
               <div key={it.id} style={S.leaderRow}>
                 <span style={S.leaderRank}>{i + 1}</span>
@@ -4803,7 +4849,7 @@ function BrandInsights({ plan, isTrialing, brand, items, onPatchBrand, analyses,
                           : <>{g.latest.followers ?? "؟"} {t("متابع بتاريخ")} {fmtDate(g.latest.date)}</>}
                       </p>
                     ))}
-                    {reportData.pageGrowth.filter((g) => g.diff != null).length >= 2 && (
+                    {reportData.totalGrowth != null && (
                       <p style={S.reportP}>{t("إجمالي زيادة المتابعين")}: <strong>{reportData.totalGrowth >= 0 ? "+" : ""}{reportData.totalGrowth}</strong></p>
                     )}
                   </>
@@ -4872,8 +4918,8 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
     const entry = {
       id: uid(),
       date: todayISO(),
-      followers: followersInput === "" ? null : Number(followersInput),
-      posts: postsInput === "" ? null : Number(postsInput),
+      followers: toCount(followersInput),
+      posts: toCount(postsInput),
     };
     onPatch({ snapshots: [entry, ...snapshots] });
     setFollowersInput("");
@@ -4900,8 +4946,8 @@ function PlatformTrackingBlock({ brand, platform, state, onPatch }) {
     onPatch({
       snapshots: snapshots.map((s) => (s.id === editingSnapshotId ? {
         ...s,
-        followers: editFollowers === "" ? null : Number(editFollowers),
-        posts: editPosts === "" ? null : Number(editPosts),
+        followers: toCount(editFollowers),
+        posts: toCount(editPosts),
         date: editDate || s.date,
       } : s)),
     });
@@ -5792,12 +5838,12 @@ function ItemModal({ item, brands, defaultBrandId, defaultDate, defaultTitle, de
     onSave({
       id: item?.id, brandId, title: title.trim(), notes: notes.trim(), link: link.trim(), referenceLink: referenceLink.trim(),
       type, status, date,
-      reminderDays: reminderDays === "" ? null : Number(reminderDays),
-      views: views === "" ? null : Number(views),
-      likes: likes === "" ? null : Number(likes),
-      comments: comments === "" ? null : Number(comments),
-      shares: shares === "" ? null : Number(shares),
-      saves: saves === "" ? null : Number(saves),
+      reminderDays: toCount(reminderDays),
+      views: toCount(views),
+      likes: toCount(likes),
+      comments: toCount(comments),
+      shares: toCount(shares),
+      saves: toCount(saves),
       successNote: successNote.trim(),
     });
   }
@@ -6235,7 +6281,7 @@ const S = {
 
   tabRow: { display: "flex", alignItems: "center", gap: 8, marginBottom: 18, flexWrap: "wrap" },
   tabBtn: { display: "flex", alignItems: "center", gap: 7, background: "transparent", border: `1px solid ${colors.border}`, color: colors.textDim, padding: "8px 14px", borderRadius: 9, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-  tabBtnActive: { background: colors.card, color: colors.text, borderColor: colors.borderStrong, fontWeight: 700 },
+  tabBtnActive: { background: colors.card, color: colors.text, border: `1px solid ${colors.borderStrong}`, fontWeight: 700 },
 
   board: { display: "grid", gridTemplateColumns: "repeat(4,minmax(220px,1fr))", gap: 16, overflowX: "auto" },
   column: { background: colors.surface, border: `1px solid ${colors.border}`, borderRadius: 18, display: "flex", flexDirection: "column", maxHeight: 560, transition: "border-color .12s" },

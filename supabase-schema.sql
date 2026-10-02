@@ -231,15 +231,29 @@ as $$
 declare
   v_token text;
   v_existing text;
+  v_plan text;
 begin
   if auth.uid() is null then
     raise exception 'محتاج تكون مسجل دخول';
   end if;
 
+  -- لينك موجود بالفعل لنفس البراند بيفضل شغال زي ما هو حتى لو الحساب بقى
+  -- على باقة Starter (اتعمل قبل ما الميزة دي تتقفل عليها) — الفحص تحت بيقفل
+  -- بس إنشاء لينك جديد، مش الوصول للينك موجود بالفعل.
   select token into v_existing from brand_shares
   where user_id = auth.uid() and brand_id = p_brand_id;
   if v_existing is not null then
     return v_existing;
+  end if;
+
+  -- لينكات المشاركة مقفولة على باقة Starter (متاحة في التجربة المجانية
+  -- وباقات Pro/Agency). أي حالة تانية (مفيش سجل اشتراك، تجربة، Pro، Agency،
+  -- أو قيمة plan قديمة/غير معروفة) بتتسمح عمدًا — الهدف هنا إقفال حالة
+  -- Starter الفعّالة بس، مش بناء نظام صلاحيات كامل.
+  select plan into v_plan from subscriptions
+  where user_id = auth.uid() and status = 'active';
+  if v_plan is not null and lower(trim(v_plan)) = 'starter' then
+    raise exception 'الميزة دي متاحة من باقة Pro. رقّي باقتك عشان تنشئ لينك مشاركة.' using errcode = 'P0001';
   end if;
 
   -- gen_random_uuid() مدمجة في Postgres (v13+) وموجودة افتراضيًا في أي
@@ -462,6 +476,8 @@ declare
   v_items jsonb;
   v_analyses jsonb;
   v_feedback jsonb;
+  v_plan text;
+  v_can_white_label boolean;
 begin
   select * into v_share from brand_shares where token = p_token;
   if not found then
@@ -508,19 +524,90 @@ begin
   from share_feedback f
   where f.token = p_token;
 
+  -- White-label (agency logo/name instead of ContentST) هو ميزة Pro+ —
+  -- المشاهد الخارجي (العميل) لازم يشوف نفس القيد ده حتى لو صاحب الحساب
+  -- عدّل agencyProfile مباشرة من غير المودال. نفس منطق الفحص في
+  -- create_brand_share بالظبط: أي حالة غير "Starter فعّالة" بتتسمح عمدًا.
+  select plan into v_plan from subscriptions
+  where user_id = v_share.user_id and status = 'active';
+  v_can_white_label := not (v_plan is not null and lower(trim(v_plan)) = 'starter');
+
   return jsonb_build_object(
     'ok', true,
     'brand', jsonb_build_object('name', v_brand->>'name', 'emoji', v_brand->>'emoji', 'color', v_brand->>'color'),
     'items', v_items,
     'analyses', v_analyses,
     'feedback', v_feedback,
-    'agency', jsonb_build_object(
+    'agency', case when v_can_white_label then jsonb_build_object(
       'name', v_data->'agencyProfile'->>'name',
       'logoUrl', v_data->'agencyProfile'->>'logoUrl'
-    )
+    ) else jsonb_build_object('name', null, 'logoUrl', null) end
   );
 end;
 $$;
 
 grant execute on function public.get_shared_brand(text) to anon, authenticated;
+
+-- ===========================================================
+-- إعادة تسمية باقة "Unlimited" إلى "Agency" (اختياري)
+--
+-- الكود (src/plans.js) بيتعامل مع القيمتين "unlimited" و"agency" كنفس
+-- الباقة فعليًا، فمفيش حاجة هتتكسر لو سيبت الحسابات القديمة بقيمة
+-- "unlimited" زي ما هي — السطر ده بس تنظيف اختياري لو حابب توحّد القيمة
+-- المخزنة في قاعدة البيانات مع الاسم الجديد. شغّله بنفسك من Supabase SQL
+-- Editor لو حابب، مش بيتشغّل تلقائي كجزء من الملف ده:
+--
+-- update subscriptions set plan = 'agency' where lower(trim(plan)) = 'unlimited';
+
+-- ===========================================================
+-- حماية استخدام الـ APIs المدفوعة (تحليل الروابط عن طريق Refetcher،
+-- كابشن الـ AI عن طريق Gemini): حد يومي بسيط لكل مستخدم لكل endpoint،
+-- عشان نمنع استخدام مفتوح بلا حدود ممكن يكلّف فلوس حقيقية. الحدود
+-- الرقمية تحت (شوف api/analyze-video.js وapi/generate-caption.js) قيم
+-- افتراضية معقولة لحساب واحد شغال بشكل طبيعي — مش مبنية على تكلفة فعلية
+-- من Refetcher/Gemini لأن الملف ده مالوش رؤية على أسعارهم الحقيقية،
+-- فلو الاستخدام الفعلي أعلى/أقل من المتوقع، القيم دي محتاجة ضبط يدوي.
+-- ===========================================================
+
+create table if not exists api_usage_daily (
+  user_id uuid references auth.users(id) on delete cascade not null,
+  usage_date date not null default current_date,
+  endpoint text not null,
+  count integer not null default 0,
+  primary key (user_id, usage_date, endpoint)
+);
+
+-- الجدول ده مقفول تمامًا على المستخدمين (RLS من غير أي policy) — الوصول
+-- الوحيد ليه عن طريق الدالة تحت (security definer)، زي نفس فكرة
+-- redeem_codes فوق.
+alter table api_usage_daily enable row level security;
+
+create or replace function public.check_and_increment_api_usage(p_endpoint text, p_daily_limit integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count integer;
+begin
+  if auth.uid() is null then
+    return jsonb_build_object('ok', false, 'message', 'لازم تكون مسجل دخول عشان تستخدم الميزة دي.');
+  end if;
+
+  insert into api_usage_daily (user_id, usage_date, endpoint, count)
+  values (auth.uid(), current_date, p_endpoint, 1)
+  on conflict (user_id, usage_date, endpoint)
+  do update set count = api_usage_daily.count + 1
+  returning count into v_count;
+
+  if v_count > p_daily_limit then
+    return jsonb_build_object('ok', false, 'message', 'وصلت للحد الأقصى المسموح بيه اليوم لاستخدام الميزة دي — جرب تاني بكرة.');
+  end if;
+
+  return jsonb_build_object('ok', true, 'count', v_count, 'limit', p_daily_limit);
+end;
+$$;
+
+grant execute on function public.check_and_increment_api_usage(text, integer) to authenticated;
 
